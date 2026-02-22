@@ -177,6 +177,7 @@ ICECAST_SOURCE_PASS=$(openssl rand -hex 12)
 ICECAST_RELAY_PASS=$(openssl rand -hex 12)
 ICECAST_ADMIN_PASS=$(openssl rand -hex 12)
 JWT_SECRET=$(openssl rand -hex 32)
+INTERNAL_SECRET=$(openssl rand -hex 32)
 ADMIN_PASS=$(openssl rand -base64 12 | tr -d '/+=' | head -c 12)
 
 # ==========================================================
@@ -223,6 +224,7 @@ ICECAST_MAX_SOURCES=3
 IRADIO_APP_ENV=production
 IRADIO_APP_DEBUG=false
 IRADIO_JWT_SECRET=$JWT_SECRET
+IRADIO_INTERNAL_SECRET=$INTERNAL_SECRET
 IRADIO_ICECAST_MOUNT=/live
 TZ=UTC
 

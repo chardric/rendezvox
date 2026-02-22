@@ -4,6 +4,7 @@
 
 # Environment secrets
 docker/.env
+.credentials
 
 # OS
 .DS_Store

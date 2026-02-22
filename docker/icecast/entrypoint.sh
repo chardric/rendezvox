@@ -16,6 +16,12 @@ ${ICECAST_MAX_SOURCES}' \
 
 chown icecast2:icecast /etc/icecast2/icecast.xml
 
+# ── Fix bind-mount permissions ────────────────────────────
+# The host log directory may be owned by a different UID.
+# Icecast needs write access to create log files.
+mkdir -p /var/log/iradio
+chown -R icecast2:icecast /var/log/iradio
+
 echo "[iRadio] Icecast config generated — starting server..."
 
 # ── Start Icecast as the icecast2 user ────────────────────
