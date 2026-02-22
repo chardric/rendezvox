@@ -893,14 +893,26 @@ var iRadioMedia = (function () {
       return;
     }
 
-    // Multiple files: sequential upload
+    // Multiple files: parallel upload (3 concurrent)
+    var PARALLEL = 3;
     var results  = [];
     var imported = 0;
     var errors   = 0;
+    var finished = 0;
     var fileArr  = Array.from(files);
+    var nextIndex = 0;
 
-    function uploadNext(index) {
-      if (index >= totalFiles) {
+    function onFileComplete() {
+      finished++;
+      var overallPct = Math.round((finished / totalFiles) * 100);
+      btn.textContent = 'Uploading ' + finished + ' / ' + totalFiles + '...';
+      updateProgressUI(
+        finished + ' of ' + totalFiles + ' complete',
+        overallPct,
+        imported + ' queued' + (errors > 0 ? ', ' + errors + ' failed' : '')
+      );
+
+      if (finished >= totalFiles) {
         hideUploadProgress();
         showToast(imported + ' file(s) queued' + (errors > 0 ? ', ' + errors + ' skipped' : ''),
                   errors > 0 ? 'error' : 'success');
@@ -931,20 +943,20 @@ var iRadioMedia = (function () {
         return;
       }
 
-      var file = fileArr[index];
+      // Start next file if any remain
+      startNext();
+    }
+
+    function startNext() {
+      if (nextIndex >= totalFiles) return;
+      var idx  = nextIndex++;
+      var file = fileArr[idx];
       var fd   = new FormData();
       fd.append('file', file);
       fd.append('category_id', genreId);
       if (artistId) fd.append('artist_id', artistId);
 
-      btn.textContent = 'Uploading ' + (index + 1) + ' / ' + totalFiles + '...';
-
-      iRadioAPI.upload('/admin/songs', fd, function(p) {
-        var overallPct = Math.round(((index + p.pct / 100) / totalFiles) * 100);
-        var label = 'File ' + (index + 1) + ' of ' + totalFiles + ': ' + file.name;
-        if (p.pct >= 100) label = 'Processing ' + (index + 1) + ' of ' + totalFiles + '...';
-        updateProgressUI(label, overallPct, formatBytes(p.loaded) + ' / ' + formatBytes(p.total));
-      })
+      iRadioAPI.upload('/admin/songs', fd, function() {})
         .then(function () {
           results.push({ status: 'queued', filename: file.name });
           imported++;
@@ -953,13 +965,13 @@ var iRadioMedia = (function () {
           results.push({ status: 'error', filename: file.name, error: (err && err.error) || 'Upload failed' });
           errors++;
         })
-        .then(function () {
-          uploadNext(index + 1);
-        });
+        .then(onFileComplete);
     }
 
     updateProgressUI('Starting upload...', 0, '');
-    uploadNext(0);
+    for (var p = 0; p < Math.min(PARALLEL, totalFiles); p++) {
+      startNext();
+    }
   }
 
   // ── Edit Song ─────────────────────────────────────────
