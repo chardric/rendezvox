@@ -41,7 +41,7 @@ CREATE TABLE organizer_hashes (
 -- SETTINGS — Organizer configuration
 -- ============================================================
 INSERT INTO settings (key, value, type, description) VALUES
-    ('organizer_enabled',   'false', 'boolean', 'Enable real-time media organizer'),
+    ('organizer_enabled',   'true', 'boolean', 'Enable real-time media organizer'),
     ('organizer_poll_secs', '10',    'integer', 'Seconds between organizer scan cycles');
 
 COMMIT;
