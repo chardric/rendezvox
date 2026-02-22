@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Users</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+<div class="app">
+  <button id="hamburger" class="hamburger">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="overlay" class="overlay"></div>
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <main class="main">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+      <h1 class="page-title" style="margin-bottom:0">Users</h1>
+      <button class="btn btn-primary btn-sm" id="btnNewUser">+ New User</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Active</th>
+            <th>Last Login</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="userTable">
+          <tr><td colspan="7" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- User modal -->
+<div class="modal-backdrop" id="userModal" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <h3 id="userModalTitle">New User</h3>
+    <button class="modal-close" id="userModalClose">&times;</button>
+    <div class="compact-form">
+      <div class="form-row">
+        <div style="flex:1">
+          <label>Username</label>
+          <input type="text" id="userUsername" autocomplete="off" maxlength="64">
+          <div id="userUsernameHint" class="field-hint"></div>
+        </div>
+        <div style="flex:1">
+          <label>Email</label>
+          <input type="email" id="userEmail" autocomplete="off" maxlength="255">
+          <div id="userEmailHint" class="field-hint"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div style="flex:1">
+          <label>Display Name <span style="color:var(--text-dim);font-weight:400">(optional)</span></label>
+          <input type="text" id="userDisplayName" autocomplete="off" maxlength="255" placeholder="Full name">
+        </div>
+        <div style="width:120px">
+          <label>Role</label>
+          <select id="userRole">
+            <option value="dj">DJ</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+        </div>
+      </div>
+      <div id="userPasswordGroup">
+        <div class="form-row">
+          <div style="flex:1">
+            <label id="userPasswordLabel">Password</label>
+            <input type="password" id="userPassword" autocomplete="new-password">
+            <div id="pwStrength" style="margin-top:-4px;display:none">
+              <div style="display:flex;gap:3px;margin-bottom:4px">
+                <div class="pw-bar" id="pwBar1"></div>
+                <div class="pw-bar" id="pwBar2"></div>
+                <div class="pw-bar" id="pwBar3"></div>
+                <div class="pw-bar" id="pwBar4"></div>
+              </div>
+              <span id="pwStrengthLabel" style="font-size:.78rem"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="userInviteInfo" style="display:none;font-size:.82rem;padding:8px 12px;border-radius:6px;margin-top:2px"></div>
+      <div id="userActiveGroup" style="display:none;align-items:center;gap:8px;margin-top:2px">
+        <label style="margin:0">Active</label>
+        <label class="toggle toggle-sm" style="margin:0">
+          <input type="checkbox" id="userActive" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="userError" style="color:var(--danger);font-size:.82rem;display:none"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="userModalCancel">Cancel</button>
+        <button class="btn btn-primary" id="userModalSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/users.js"></script>
+<script>
+  if (iRadioAuth.requireRole('super_admin')) {
+    iRadioNav.init();
+    iRadioUsers.init();
+  }
+</script>
+</body>
+</html>

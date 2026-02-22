@@ -1,0 +1,101 @@
+<!--
+  ==========================================================
+  iRadio — Icecast2 Configuration
+  ==========================================================
+  Passwords are injected via environment-variable substitution
+  at container startup (entrypoint.sh or envsubst).
+
+  If using a raw mount without envsubst, replace every
+  ${VAR} token with the literal value before deploying.
+  ==========================================================
+-->
+<icecast>
+
+    <!-- ── Network ──────────────────────────────────────── -->
+    <location>iRadio Server</location>
+    <hostname>${ICECAST_HOSTNAME}</hostname>
+    <server-id>iRadio Icecast</server-id>
+
+    <listen-socket>
+        <port>8000</port>
+        <bind-address>0.0.0.0</bind-address>
+    </listen-socket>
+
+    <!-- ── Limits ───────────────────────────────────────── -->
+    <limits>
+        <clients>${ICECAST_MAX_CLIENTS}</clients>
+        <sources>${ICECAST_MAX_SOURCES}</sources>
+        <queue-size>524288</queue-size>              <!-- 512 KB per listener -->
+        <client-timeout>30</client-timeout>
+        <header-timeout>15</header-timeout>
+        <source-timeout>10</source-timeout>
+        <burst-on-connect>1</burst-on-connect>
+        <burst-size>65535</burst-size>               <!-- 64 KB initial burst -->
+    </limits>
+
+    <!-- ── Authentication ───────────────────────────────── -->
+    <authentication>
+        <source-password>${ICECAST_SOURCE_PASSWORD}</source-password>
+        <relay-password>${ICECAST_RELAY_PASSWORD}</relay-password>
+        <admin-user>${ICECAST_ADMIN_USERNAME}</admin-user>
+        <admin-password>${ICECAST_ADMIN_PASSWORD}</admin-password>
+    </authentication>
+
+    <!-- ── Public Mountpoint: /live ─────────────────────── -->
+    <mount type="normal">
+        <mount-name>/live</mount-name>
+        <charset>UTF-8</charset>
+        <public>0</public>                           <!-- do not list on directories -->
+        <max-listeners>${ICECAST_MAX_CLIENTS}</max-listeners>
+        <hidden>0</hidden>
+
+        <!-- Fallback to silence if source drops -->
+        <fallback-mount>/silence</fallback-mount>
+        <fallback-override>1</fallback-override>
+
+        <!-- Only allow connections from the internal Docker network -->
+        <source-timeout>10</source-timeout>
+    </mount>
+
+    <!-- ── Internal Silence Fallback ───────────────────── -->
+    <mount type="normal">
+        <mount-name>/silence</mount-name>
+        <public>0</public>
+        <hidden>1</hidden>
+        <max-listeners>${ICECAST_MAX_CLIENTS}</max-listeners>
+    </mount>
+
+    <!-- ── File Serving ─────────────────────────────────── -->
+    <!-- Serve only the built-in status XSL, nothing else -->
+    <paths>
+        <basedir>/usr/share/icecast2</basedir>
+        <logdir>/var/log/iradio</logdir>
+        <webroot>/usr/share/icecast2/web</webroot>
+        <adminroot>/usr/share/icecast2/admin</adminroot>
+        <alias source="/" destination="/status.xsl"/>
+    </paths>
+
+    <!-- ── Logging ──────────────────────────────────────── -->
+    <logging>
+        <accesslog>icecast_access.log</accesslog>
+        <errorlog>icecast_error.log</errorlog>
+        <loglevel>3</loglevel>                       <!-- 1=error 2=warn 3=info 4=debug -->
+        <logsize>10000</logsize>                     <!-- rotate at ~10 MB -->
+        <logarchive>1</logarchive>
+    </logging>
+
+    <!-- ── Security Hardening ───────────────────────────── -->
+    <security>
+        <chroot>0</chroot>
+    </security>
+
+    <!--
+        Disabled features (not included = disabled):
+        - <relay>           — no relay/rebroadcast support
+        - <yp-directory>    — no public directory listing
+        - <shoutcast-mount> — legacy shoutcast compat off
+        - <listen-socket>   — only one socket on 8000, no TLS
+                              (TLS terminates at nginx reverse proxy)
+    -->
+
+</icecast>

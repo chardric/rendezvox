@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Login</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <h1 id="brandTitle">Admin</h1>
+    <div class="sub">Admin Panel</div>
+    <div id="error" class="text-danger text-center mb-16 hidden"></div>
+    <form id="loginForm">
+      <label for="username">Username</label>
+      <input type="text" id="username" autocomplete="username" required autofocus>
+      <label for="password">Password</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">Sign In</button>
+    </form>
+    <div style="text-align:center;margin-top:12px">
+      <a href="/admin/forgot-password" style="font-size:.8rem;color:var(--text-dim)">Forgot Password?</a>
+    </div>
+  </div>
+  <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
+</div>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script>
+(function() {
+  // Load station branding
+  iRadioAPI.get('/config').then(function(cfg) {
+    var name = cfg.station_name || 'iRadio';
+    document.getElementById('brandTitle').textContent = name;
+    document.title = name + ' Admin — Login';
+  }).catch(function() {});
+
+  if (iRadioAuth.isLoggedIn()) {
+    window.location.href = '/admin/dashboard';
+    return;
+  }
+
+  // Check if first-time setup is needed (no users in DB)
+  iRadioAPI.get('/setup/status').then(function(data) {
+    if (data.needs_setup) {
+      window.location.href = '/admin/setup';
+    }
+  }).catch(function() {});
+
+  document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var errEl = document.getElementById('error');
+    errEl.classList.add('hidden');
+
+    var username = document.getElementById('username').value.trim();
+    var password = document.getElementById('password').value;
+
+    iRadioAPI.post('/admin/login', { username: username, password: password })
+      .then(function(data) {
+        iRadioAuth.login(data.token, data.user);
+        window.location.href = '/admin/dashboard';
+      })
+      .catch(function(err) {
+        errEl.textContent = (err && err.error) || 'Login failed';
+        errEl.classList.remove('hidden');
+      });
+  });
+})();
+</script>
+</body>
+</html>

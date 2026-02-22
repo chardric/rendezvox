@@ -1,0 +1,4 @@
+* * * * * . /etc/environment.iradio; php /var/www/html/src/cli/collect-stats.php >> /var/log/iradio/stats-collector.log 2>&1
+*/5 * * * * . /etc/environment.iradio; php /var/www/html/src/cli/scan-music.php >> /var/log/iradio/scan-music.log 2>&1
+*/15 * * * * . /etc/environment.iradio; php /var/www/html/src/scripts/fix_genres.php --auto >> /var/log/iradio/auto-tag.log 2>&1
+*/15 * * * * . /etc/environment.iradio; php /var/www/html/src/scripts/normalize_audio.php --auto >> /var/log/iradio/auto-normalize.log 2>&1

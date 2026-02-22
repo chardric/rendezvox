@@ -1,0 +1,35 @@
+# Runtime data (Docker volumes)
+/data/
+*.log
+
+# Environment secrets
+docker/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Music library (large binary files)
+music/
+jingles/*.mp3
+jingles/*.ogg
+jingles/*.flac
+
+# Android build artifacts
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/*.jks
+
+# iOS build artifacts
+mobile/ios/*.xcodeproj/
+mobile/ios/*.xcworkspace/
+mobile/ios/build/
+mobile/ios/DerivedData/

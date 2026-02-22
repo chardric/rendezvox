@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Jingles</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<style>
+  .upload-area {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 24px;
+    transition: border-color .2s;
+  }
+  .upload-area.dragover {
+    border-color: var(--accent);
+    background: rgba(0,200,160,.08);
+  }
+  .upload-area p { color: var(--text-dim); margin-bottom: 12px; }
+  .upload-row { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  .file-size { color: var(--text-dim); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="app">
+  <button id="hamburger" class="hamburger">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="overlay" class="overlay"></div>
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <main class="main">
+    <h1 class="page-title">Jingles</h1>
+
+    <!-- Upload area -->
+    <div class="upload-area" id="uploadArea">
+      <p>Drag &amp; drop jingle files here, or click to browse</p>
+      <div class="upload-row">
+        <input type="file" id="fileInput" accept=".mp3,.ogg,.wav,.flac,.aac,.m4a" multiple style="display:none">
+        <button class="btn btn-primary" id="btnBrowse">Browse Files</button>
+      </div>
+      <p style="margin-top:8px;font-size:.75rem">Supported: MP3, OGG, WAV, FLAC, AAC, M4A</p>
+    </div>
+
+    <!-- Jingle table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Size</th>
+            <th>Uploaded</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="jingleTable">
+          <tr><td colspan="4" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/icons.js"></script>
+<script src="/admin/js/jingles.js"></script>
+<script>
+  if (iRadioAuth.requireLogin()) {
+    iRadioNav.init();
+    iRadioJingles.init();
+  }
+</script>
+</body>
+</html>

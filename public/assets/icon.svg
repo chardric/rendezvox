@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="64" fill="#141416"/>
+  <circle cx="256" cy="220" r="120" fill="none" stroke="#00c8a0" stroke-width="14"/>
+  <circle cx="256" cy="220" r="42" fill="#00c8a0"/>
+  <line x1="256" y1="100" x2="256" y2="72" stroke="#00c8a0" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="256" cy="58" r="12" fill="#00c8a0"/>
+  <text x="256" y="415" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="60" font-weight="700" fill="#ffffff">iRadio</text>
+</svg>
