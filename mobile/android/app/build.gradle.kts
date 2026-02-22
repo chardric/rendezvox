@@ -18,10 +18,14 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../iradio-release.jks")
-            storePassword = "iradio123"
-            keyAlias = "iradio"
-            keyPassword = "iradio123"
+            val props = java.util.Properties()
+            val propsFile = rootProject.file("keystore.properties")
+            if (propsFile.exists()) props.load(propsFile.inputStream())
+
+            storeFile = file(props.getProperty("storeFile", "../iradio-release.jks"))
+            storePassword = props.getProperty("storePassword", "")
+            keyAlias = props.getProperty("keyAlias", "")
+            keyPassword = props.getProperty("keyPassword", "")
         }
     }
 
