@@ -893,8 +893,8 @@ var iRadioMedia = (function () {
       return;
     }
 
-    // Multiple files: parallel upload (3 concurrent)
-    var PARALLEL = 3;
+    // Multiple files: parallel upload (4 concurrent)
+    var PARALLEL = 4;
     var results  = [];
     var imported = 0;
     var errors   = 0;
