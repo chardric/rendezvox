@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Playlists</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+<div class="app">
+  <button id="hamburger" class="hamburger">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="overlay" class="overlay"></div>
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <main class="main">
+    <!-- ── Emergency Playlist card ─────────────────── -->
+    <div id="emergencyCard" class="card" style="padding:20px;margin-bottom:20px;border-left:3px solid var(--danger)">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 style="color:var(--danger);font-size:.9rem;margin-bottom:4px">Emergency Playlist</h3>
+          <p id="emergencyDesc" class="text-dim" style="font-size:.8rem;margin:0">Loading…</p>
+        </div>
+        <div id="emergencyActions"></div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between" style="margin-bottom:20px">
+      <h1 class="page-title" style="margin-bottom:0">Playlists</h1>
+      <button class="btn btn-primary" id="btnCreate">+ New Playlist</button>
+    </div>
+
+    <!-- ── Playlist list ────────────────────────────── -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Songs</th>
+            <th>Cycles</th>
+            <th>Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="playlistTable">
+          <tr><td colspan="7" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── Playlist detail panel (inline) ───────────── -->
+    <div id="detailPanel" class="hidden" style="margin-top:24px">
+      <div class="flex items-center justify-between" style="margin-bottom:4px">
+        <div>
+          <h2 class="page-title" style="margin-bottom:0;font-size:1.1rem" id="detailTitle">Playlist</h2>
+          <p id="autoDetailNote" class="text-dim hidden" style="font-size:0.78rem;margin:2px 0 0">Dynamic — songs matched by filters. No repeat until all consumed.</p>
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" id="btnShuffle">Shuffle</button>
+          <button class="btn btn-ghost btn-sm" id="btnAddSong">+ Add Song</button>
+          <button class="btn btn-ghost btn-sm" id="btnAddFolder">+ From Folder</button>
+          <button class="btn btn-ghost btn-sm" id="btnSurpriseMe">Surprise Me!</button>
+          <button class="btn btn-ghost btn-sm" id="btnCloseDetail">Close</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="detailHead">
+            <tr>
+              <th>#</th>
+              <th>Title</th>
+              <th>Artist</th>
+              <th>Genre</th>
+              <th>Duration</th>
+              <th>Played</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="detailSongs">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── Create/Edit Playlist Modal ──────────────────── -->
+<div class="modal-backdrop hidden" id="playlistModal">
+  <div class="modal" style="max-width:480px">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3 id="playlistModalTitle">New Playlist</h3>
+    <form id="playlistForm" class="compact-form">
+      <input type="hidden" id="plId">
+      <input type="hidden" id="plType" value="manual">
+
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label for="plName">Name * <a href="#" id="btnSurpriseName" style="font-size:.75rem;font-weight:normal;margin-left:6px">Surprise Me!</a></label>
+          <input type="text" id="plName" required>
+        </div>
+        <div id="typeSelectWrap" style="width:110px">
+          <label for="plTypeSelect">Type</label>
+          <select id="plTypeSelect">
+            <option value="manual">Manual</option>
+            <option value="auto">Auto</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="plDesc">Description</label>
+      <textarea id="plDesc" style="min-height:36px;height:36px"></textarea>
+
+      <!-- Auto rules — shown only when type = auto -->
+      <div id="autoRulesSection" class="hidden" style="padding:10px;background:var(--bg-subtle,rgba(255,255,255,0.04));border-radius:6px;border:1px solid var(--border)">
+        <label style="margin-bottom:4px;display:block;font-size:0.75rem;opacity:0.7">AUTO RULES <span style="opacity:0.5">(Ctrl/Cmd to multi-select, empty = all)</span></label>
+        <div class="form-row" style="gap:8px">
+          <div style="flex:1">
+            <label>Artist</label>
+            <select id="autoArtists" multiple size="4" style="width:100%;background:var(--bg-subtle,rgba(255,255,255,0.04));border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:6px;color:inherit;padding:3px;margin-bottom:0"></select>
+          </div>
+          <div style="flex:1">
+            <label>Genre</label>
+            <select id="autoCategories" multiple size="4" style="width:100%;background:var(--bg-subtle,rgba(255,255,255,0.04));border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:6px;color:inherit;padding:3px;margin-bottom:0"></select>
+          </div>
+          <div style="flex:1">
+            <label>Year</label>
+            <select id="autoYears" multiple size="4" style="width:100%;background:var(--bg-subtle,rgba(255,255,255,0.04));border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:6px;color:inherit;padding:3px;margin-bottom:0"></select>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <label for="autoMinWeight">Min Weight <span style="opacity:0.5">(0 = all)</span></label>
+          <input type="number" id="autoMinWeight" min="0" max="10" step="0.1" value="0" style="max-width:100px;margin-bottom:0">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+        <div id="colorPickerWrap" style="display:flex;align-items:center;gap:8px">
+          <label for="plColor" style="margin:0;white-space:nowrap">Color</label>
+          <input type="color" id="plColor" value="#00c8a0" style="width:36px;height:28px;padding:1px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input);cursor:pointer;margin:0">
+          <span id="plColorHex" class="text-dim" style="font-size:.75rem">#00c8a0</span>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <label style="margin:0">Active</label>
+          <label class="toggle" style="margin:0">
+            <input type="checkbox" id="plActive" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:12px">
+        <button type="button" class="btn btn-ghost" id="btnCancelPl">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Add Songs Modal (browsable, multi-select) ──── -->
+<div class="modal-backdrop hidden" id="addSongModal">
+  <div class="modal" style="max-width:900px;width:95%">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3 style="margin-bottom:12px" id="addSongModalTitle">Add Songs to Playlist</h3>
+
+    <div class="filter-bar" style="margin-bottom:4px">
+      <input type="text" id="addSongSearch" placeholder="Search title or artist…" style="min-width:180px;margin-bottom:0">
+      <select id="addSongArtist" style="margin-bottom:0;min-width:150px">
+        <option value="">All Artists</option>
+      </select>
+      <select id="addSongCategory" style="margin-bottom:0;min-width:150px">
+        <option value="">All Genres</option>
+      </select>
+    </div>
+    <div style="font-size:.8rem;color:var(--text-dim);margin-bottom:8px" id="addSongResultCount"></div>
+
+    <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px;text-align:center"><input type="checkbox" id="addSongSelectAll" title="Select all" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)"></th>
+            <th>Title</th>
+            <th>Artist</th>
+            <th>Genre</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="addSongTable">
+          <tr><td colspan="5" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions" style="margin-top:12px">
+      <button type="button" class="btn btn-ghost" id="btnAddSelected" disabled>Add Selected (0)</button>
+      <button type="button" class="btn btn-primary" id="btnAddAllFiltered" title="Add all songs matching current filter">Add All Filtered</button>
+      <button type="button" class="btn btn-ghost" id="btnCancelAddSong">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add from Folder Modal ──────────────────────── -->
+<div class="modal-backdrop hidden" id="addFolderModal">
+  <div class="modal" style="max-width:460px">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>Add Songs from Folder</h3>
+    <div class="compact-form">
+      <label for="addFolderSel">Folder</label>
+      <select id="addFolderSel" style="width:100%"></select>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px">
+        <input type="checkbox" id="addFolderRecursive" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);margin:0">
+        Include subfolders
+      </label>
+      <p id="addFolderNote" class="text-dim" style="font-size:0.82rem;min-height:1.1em;margin:0 0 2px"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelAddFolder">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmAddFolder">Add Songs</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Surprise Me Modal ────────────────────────── -->
+<div class="modal-backdrop hidden" id="surpriseMeModal">
+  <div class="modal" style="max-width:340px">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>Surprise Me!</h3>
+    <div class="compact-form">
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <div>
+          <label for="surpriseDays">Days</label>
+          <input type="number" id="surpriseDays" value="1" min="0" max="14" step="1" style="width:70px">
+        </div>
+        <div>
+          <label for="surpriseHours">Hours</label>
+          <input type="number" id="surpriseHours" value="0" min="0" max="23" step="1" style="width:70px">
+        </div>
+      </div>
+      <p id="surpriseEstimate" class="text-dim" style="font-size:.8rem;margin:4px 0 0"></p>
+      <p id="surpriseAvailable" class="text-dim" style="font-size:.8rem;margin:2px 0 8px"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelSurprise">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnGoSurprise">Go!</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/icons.js"></script>
+<script src="/admin/js/playlists.js"></script>
+<script>
+  if (iRadioAuth.requireLogin()) {
+    iRadioNav.init();
+    iRadioPlaylists.init();
+  }
+</script>
+</body>
+</html>

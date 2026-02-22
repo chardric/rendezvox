@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Songs</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+<div class="app">
+  <button id="hamburger" class="hamburger">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="overlay" class="overlay"></div>
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <main class="main">
+    <div class="flex items-center justify-between" style="margin-bottom:20px">
+      <h1 class="page-title" style="margin-bottom:0">Songs</h1>
+      <button class="btn btn-primary" id="btnUpload">+ Upload Song</button>
+    </div>
+
+    <!-- ── Filters ──────────────────────────────────── -->
+    <div class="filter-bar">
+      <input type="text" id="filterSearch" placeholder="Search title or artist…" style="min-width:200px">
+      <select id="filterCategory">
+        <option value="">All Genres</option>
+      </select>
+      <select id="filterActive">
+        <option value="">All</option>
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+      </select>
+    </div>
+
+    <!-- ── Song table ───────────────────────────────── -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Title</th>
+            <th>Artist</th>
+            <th>Genre</th>
+            <th>Duration</th>
+            <th>Weight</th>
+            <th>Plays</th>
+            <th>Active</th>
+            <th>Req.</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="songTable">
+          <tr><td colspan="10" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── Pagination ───────────────────────────────── -->
+    <div class="flex items-center justify-between mt-16" id="pagination" style="display:none">
+      <span class="text-dim" id="pageInfo"></span>
+      <div class="flex gap-8">
+        <button class="btn btn-ghost btn-sm" id="btnPrev">Prev</button>
+        <button class="btn btn-ghost btn-sm" id="btnNext">Next</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── Upload / Create Modal ─────────────────────────── -->
+<div class="modal-backdrop hidden" id="uploadModal">
+  <div class="modal">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3 id="uploadModalTitle">Upload Song</h3>
+    <form id="uploadForm">
+      <label for="uploadFile">Audio File</label>
+      <input type="file" id="uploadFile" accept="audio/*">
+
+      <label for="uploadTitle">Title *</label>
+      <input type="text" id="uploadTitle" required>
+
+      <label for="uploadArtist">Artist *</label>
+      <div class="flex gap-8 items-center" style="margin-bottom:14px">
+        <select id="uploadArtist" style="margin-bottom:0;flex:1"></select>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnNewArtist">+ New</button>
+      </div>
+
+      <label for="uploadCategory">Genre *</label>
+      <select id="uploadCategory"></select>
+
+      <label for="uploadWeight">Rotation Weight</label>
+      <input type="number" id="uploadWeight" value="1.0" step="0.1" min="0">
+      <p style="font-size:0.72rem;color:var(--text-dim);margin:4px 0 0;line-height:1.4">0 = never plays &middot; 0.5 = rare &middot; 1.0 = normal &middot; 2.0+ = frequent</p>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelUpload">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSubmitUpload">Upload</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Edit Modal ────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="editModal">
+  <div class="modal">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>Edit Song</h3>
+    <form id="editForm">
+      <input type="hidden" id="editId">
+
+      <label for="editTitle">Title</label>
+      <input type="text" id="editTitle" required>
+
+      <label for="editArtist">Artist</label>
+      <select id="editArtist"></select>
+
+      <label for="editCategory">Genre</label>
+      <select id="editCategory"></select>
+
+      <div class="form-row" style="gap:12px">
+        <div>
+          <label for="editYear">Year</label>
+          <input type="number" id="editYear" min="1900" max="2099" step="1" placeholder="—" style="max-width:100px">
+        </div>
+      </div>
+
+      <div>
+        <label for="editWeight">Weight</label>
+        <input type="number" id="editWeight" step="0.1" min="0" style="max-width:200px">
+        <p style="font-size:0.72rem;color:var(--text-dim);margin:4px 0 0;line-height:1.4">0 = never plays &middot; 0.5 = rare &middot; 1.0 = normal &middot; 2.0+ = frequent</p>
+      </div>
+
+      <div class="form-row">
+        <div>
+          <label>Active</label>
+          <label class="toggle">
+            <input type="checkbox" id="editActive">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div>
+          <label>Requestable</label>
+          <label class="toggle">
+            <input type="checkbox" id="editRequestable">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelEdit">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── New Artist Modal ──────────────────────────────── -->
+<div class="modal-backdrop hidden" id="artistModal">
+  <div class="modal">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>New Artist</h3>
+    <form id="artistForm">
+      <label for="newArtistName">Artist Name</label>
+      <input type="text" id="newArtistName" required>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelArtist">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/icons.js"></script>
+<script src="/admin/js/songs.js"></script>
+<script>
+  if (iRadioAuth.requireLogin()) {
+    iRadioNav.init();
+    iRadioSongs.init();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+# ==========================================================
+# iRadio — Online FM Radio Automation System
+# Production Docker Compose (Security-Hardened)
+# ==========================================================
+#
+# Usage:
+#   cp .env.example .env   # then edit passwords!
+#   docker compose up -d
+#   docker compose logs -f
+#
+# All paths are relative to this file (docker/).
+# ==========================================================
+
+# ── Services ──────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL 16 ─────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: iradio-postgres
+    restart: always
+    shm_size: 256mb
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-iradio}
+      POSTGRES_USER:     ${POSTGRES_USER:-iradio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - ../data/postgres:/var/lib/postgresql/data
+      - ../docs/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - iradio_net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-iradio} -d $${POSTGRES_DB:-iradio}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── PHP-FPM 8.3 (application) ────────────────────────
+  php:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+    container_name: iradio-php
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:9000:9000"      # Exposed on localhost for nginx (host network mode)
+    environment:
+      IRADIO_DB_HOST:     postgres
+      IRADIO_DB_PORT:     "5432"
+      IRADIO_DB_NAME:     ${POSTGRES_DB:-iradio}
+      IRADIO_DB_USER:     ${POSTGRES_USER:-iradio}
+      IRADIO_DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      IRADIO_APP_ENV:     ${IRADIO_APP_ENV:-production}
+      IRADIO_APP_DEBUG:   ${IRADIO_APP_DEBUG:-false}
+      IRADIO_JWT_SECRET:  ${IRADIO_JWT_SECRET:-}
+      IRADIO_ICECAST_HOST: icecast
+      IRADIO_ICECAST_PORT: "8000"
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:?ICECAST_ADMIN_PASSWORD must be set in .env}
+      IRADIO_INTERNAL_SECRET: ${IRADIO_INTERNAL_SECRET:-}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ../src:/var/www/html/src:ro
+      - ../public:/var/www/html/public:ro
+      - ../music:/var/lib/iradio/music
+      - ../jingles:/var/lib/iradio/jingles
+      - ../data/avatars:/var/lib/iradio/avatars
+      - ../data/logs:/var/log/iradio
+    networks:
+      - iradio_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm-healthcheck || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Nginx (reverse proxy + static files) ─────────────
+  # Uses host networking so nginx sees the real client IP ($remote_addr)
+  # instead of Docker's bridge gateway (172.x.x.1).
+  # Binds directly to host port 80 — no Docker port mapping needed.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: iradio-nginx
+    restart: always
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../public:/var/www/html/public:ro
+      - ../data/logs:/var/log/iradio
+    depends_on:
+      php:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+
+  # ── Icecast 2 (audio streaming server) ───────────────
+  icecast:
+    build:
+      context: ./icecast
+      dockerfile: Dockerfile
+    container_name: iradio-icecast
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${IRADIO_ICECAST_PUBLIC_PORT:-8000}:8000"
+    environment:
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?ICECAST_SOURCE_PASSWORD must be set in .env}
+      ICECAST_RELAY_PASSWORD:  ${ICECAST_RELAY_PASSWORD:-}
+      ICECAST_ADMIN_PASSWORD:  ${ICECAST_ADMIN_PASSWORD:?ICECAST_ADMIN_PASSWORD must be set in .env}
+      ICECAST_ADMIN_USERNAME:  ${ICECAST_ADMIN_USER:-admin}
+      ICECAST_HOSTNAME:        ${ICECAST_HOSTNAME:-localhost}
+      ICECAST_MAX_CLIENTS:     ${ICECAST_MAX_CLIENTS:-100}
+      ICECAST_MAX_SOURCES:     ${ICECAST_MAX_SOURCES:-3}
+    volumes:
+      - ./icecast/icecast.xml:/etc/icecast2/icecast.xml.tpl:ro
+      - ../data/logs:/var/log/iradio
+    networks:
+      - iradio_net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO /dev/null http://localhost:8000/ || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Liquidsoap (audio processing engine) ─────────────
+  liquidsoap:
+    build:
+      context: ./liquidsoap
+      dockerfile: Dockerfile
+    container_name: iradio-liquidsoap
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    extra_hosts:
+      - "iradio-nginx:host-gateway"   # nginx is on host network; map its name to host IP
+    environment:
+      IRADIO_DB_HOST:                postgres
+      IRADIO_DB_PORT:                "5432"
+      IRADIO_DB_NAME:                ${POSTGRES_DB:-iradio}
+      IRADIO_DB_USER:                ${POSTGRES_USER:-iradio}
+      IRADIO_DB_PASSWORD:            ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      IRADIO_ICECAST_HOST:           icecast
+      IRADIO_ICECAST_PORT:           "8000"
+      IRADIO_ICECAST_MOUNT:          ${IRADIO_ICECAST_MOUNT:-/live}
+      IRADIO_ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?ICECAST_SOURCE_PASSWORD must be set in .env}
+      IRADIO_INTERNAL_SECRET:        ${IRADIO_INTERNAL_SECRET:-}
+    volumes:
+      - ../liquidsoap:/etc/liquidsoap:ro
+      - ../music:/var/lib/iradio/music:ro
+      - ../jingles:/var/lib/iradio/jingles:ro
+      - ../data/logs:/var/log/iradio
+    networks:
+      - iradio_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      icecast:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/liquidsoap/main.sock || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ── Network ─────────────────────────────────────────────
+
+networks:
+  iradio_net:
+    driver: bridge
+    internal: false

@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Media</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<style>
+  /* ── Filter bar ────────────────────────────────────── */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .filter-bar select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border, rgba(255,255,255,0.12));
+    background: rgba(255,255,255,0.04);
+    color: inherit;
+    font-size: 0.85rem;
+    min-width: 160px;
+  }
+
+  /* ── Search + count bar ────────────────────────────── */
+  .songs-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .songs-filter input {
+    flex: 1; max-width: 300px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border, rgba(255,255,255,0.12));
+    background: rgba(255,255,255,0.04);
+    color: inherit;
+    font-size: 0.85rem;
+  }
+  .songs-filter .song-count { font-size: 0.8rem; opacity: 0.45; }
+
+  /* ── Bulk action bar ───────────────────────────────── */
+  .bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(123, 143, 247, 0.08);
+    border: 1px solid rgba(123, 143, 247, 0.25);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+  }
+  .bulk-count { font-weight: 600; flex: 1; }
+
+  .badge-inactive { color: #f87171; font-size: 0.7rem; margin-left: 4px; }
+
+  /* ── Upload result list ────────────────────────────── */
+  .upload-result-list { max-height: 180px; overflow-y: auto; margin-top: 8px; font-size: 0.82rem; }
+  .upload-result-item {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.05));
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .res-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
+  .res-err  { color: #f87171; font-size: 0.78rem; }
+
+  /* ── Drop zone ─────────────────────────────────────── */
+  .drop-zone {
+    border: 2px dashed var(--border, rgba(255,255,255,0.2));
+    border-radius: 8px;
+    padding: 20px 14px;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  .drop-zone p { margin: 0 0 8px; opacity: 0.6; font-size: 0.9rem; }
+  .drop-zone.drag-over {
+    border-color: var(--accent, #7b8ff7);
+    background: rgba(123, 143, 247, 0.07);
+  }
+  .drop-zone .file-list {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    max-height: 80px;
+    overflow-y: auto;
+    text-align: left;
+  }
+
+  /* ── Song info row in edit modal ───────────────────── */
+  .song-info-row {
+    display: flex;
+    gap: 20px;
+    font-size: 0.82rem;
+    opacity: 0.55;
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+  }
+  .song-info-row strong { opacity: 1; font-weight: 600; color: inherit; }
+
+  /* ── Notice banner ─────────────────────────────────── */
+  .notice-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(250, 204, 21, 0.08);
+    border: 1px solid rgba(250, 204, 21, 0.25);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+    color: #fbbf24;
+  }
+  .notice-banner .notice-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+  /* ── Pagination ────────────────────────────────────── */
+  .pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 0 0 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.07));
+    font-size: 0.84rem;
+  }
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .pagination-info label { opacity: 0.5; margin: 0; font-size: 0.82rem; }
+  .pagination-info select {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border, rgba(255,255,255,0.12));
+    background: rgba(255,255,255,0.04);
+    color: inherit;
+    font-size: 0.82rem;
+  }
+  #paginationInfo { opacity: 0.5; font-size: 0.82rem; white-space: nowrap; }
+  .pagination-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .pagination-nav button {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border, rgba(255,255,255,0.12));
+    background: rgba(255,255,255,0.04);
+    color: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    min-width: 32px;
+  }
+  .pagination-nav button:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+  .pagination-nav button.active {
+    background: var(--accent, #7b8ff7);
+    color: #fff;
+    border-color: var(--accent, #7b8ff7);
+    font-weight: 600;
+  }
+  .pagination-nav button:disabled { opacity: 0.3; cursor: default; }
+  .pagination-nav .page-ellipsis {
+    padding: 4px 6px;
+    opacity: 0.4;
+    font-size: 0.82rem;
+  }
+
+  /* ── View tabs (Library / Trash) ─────────────────── */
+  .view-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.07));
+    padding-bottom: 10px;
+  }
+  .view-tab {
+    padding: 6px 16px;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid transparent;
+    background: none;
+    color: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s, background 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .view-tab:hover { opacity: 0.8; }
+  .view-tab.active {
+    opacity: 1;
+    background: rgba(255,255,255,0.06);
+    border-color: var(--border, rgba(255,255,255,0.12));
+    border-bottom-color: transparent;
+    font-weight: 600;
+  }
+  .trash-badge {
+    display: inline-block;
+    background: #f87171;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  /* ── Duplicate groups ────────────────────────────── */
+  .dup-group {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .dup-group table { width: 100%; }
+  .dup-group table th { font-size: 0.78rem; opacity: 0.5; text-transform: uppercase; letter-spacing: .3px; }
+  .dup-group table td { font-size: 0.85rem; }
+  .dup-badge-exact {
+    background: var(--danger, #f87171); color: #fff;
+    padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; margin-left: 6px;
+  }
+  .dup-badge-likely {
+    background: var(--warn, #fbbf24); color: #000;
+    padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; margin-left: 6px;
+  }
+  .dup-keep-radio { cursor: pointer; width: 16px; height: 16px; }
+
+  /* ── Trash toolbar ───────────────────────────────── */
+  .trash-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(248, 113, 113, 0.06);
+    border: 1px solid rgba(248, 113, 113, 0.2);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+  }
+  .trash-toolbar #trashInfo { flex: 1; opacity: 0.7; }
+</style>
+</head>
+<body>
+<div class="app">
+  <button id="hamburger" class="hamburger">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+  <div id="overlay" class="overlay"></div>
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <main class="main">
+    <!-- Header -->
+    <div class="flex items-center justify-between" style="margin-bottom:20px">
+      <h1 class="page-title" style="margin-bottom:0">Media Library</h1>
+      <button class="btn btn-primary" id="btnUpload">&#8593; Upload</button>
+    </div>
+
+    <!-- Library Card -->
+    <div class="table-wrap" style="padding:16px">
+
+      <!-- View tabs -->
+      <div class="view-tabs">
+        <button class="view-tab active" id="tabLibrary">Library</button>
+        <button class="view-tab" id="tabTrash">Trash <span class="trash-badge hidden" id="trashBadge">0</span></button>
+        <button class="view-tab" id="tabDuplicates">Duplicates <span class="trash-badge hidden" id="dupBadge" style="background:var(--warn,#fbbf24);color:#000">0</span></button>
+      </div>
+
+      <!-- Notice banner (pending uploads) -->
+      <div id="noticeBanner" class="notice-banner hidden"></div>
+
+      <!-- Trash toolbar (shown in trash view) -->
+      <div id="trashToolbar" class="trash-toolbar hidden">
+        <span id="trashInfo">0 songs in trash</span>
+        <button class="btn btn-ghost btn-sm" style="color:#f87171" id="btnEmptyTrash">Empty Trash</button>
+      </div>
+
+      <!-- Duplicates view -->
+      <div id="duplicatesView" class="hidden">
+        <div class="flex items-center justify-between" style="margin-bottom:12px">
+          <div>
+            <p class="text-dim" id="dupSummary" style="font-size:.85rem"></p>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-primary btn-sm" id="btnDupScan">Scan for Duplicates</button>
+            <button class="btn btn-sm" id="btnDupDeleteAll" style="display:none;background:var(--danger);color:#fff">Delete All Duplicates</button>
+          </div>
+        </div>
+        <div id="dupResults"></div>
+      </div>
+
+      <!-- Genre / Artist filter bar -->
+      <div class="filter-bar" id="filterBar">
+        <select id="filterGenre">
+          <option value="">All Genres</option>
+        </select>
+        <select id="filterArtist">
+          <option value="">All Artists</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:5px;font-size:0.82rem;opacity:0.6;margin-left:8px;cursor:pointer">
+          <input type="checkbox" id="showInactive"> Show inactive
+        </label>
+      </div>
+
+      <!-- Search + count -->
+      <div class="songs-filter">
+        <input type="text" id="songSearch" placeholder="Search title or artist...">
+        <span class="song-count" id="songCount"></span>
+      </div>
+
+      <!-- Bulk action bar -->
+      <div id="bulkBar" class="bulk-bar hidden">
+        <span class="bulk-count" id="bulkCount">0 selected</span>
+        <span id="bulkLibraryActions">
+          <button class="btn btn-ghost btn-sm" style="color:#f87171" id="btnBulkTrash">Move to Trash</button>
+        </span>
+        <span id="bulkTrashActions" class="hidden">
+          <button class="btn btn-ghost btn-sm" id="btnBulkRestore">Restore</button>
+          <button class="btn btn-ghost btn-sm" style="color:#f87171" id="btnBulkPurge">Delete Forever</button>
+        </span>
+        <button class="btn btn-ghost btn-sm" id="btnClearSel">Clear</button>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination-bar" id="paginationBar" style="display:none">
+        <div class="pagination-info">
+          <label for="perPageSel">Show</label>
+          <select id="perPageSel">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="all">All</option>
+          </select>
+          <span id="paginationInfo"></span>
+        </div>
+        <div class="pagination-nav" id="paginationNav"></div>
+      </div>
+
+      <!-- Songs table -->
+      <div id="songSection">
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:32px;text-align:center;padding-right:4px">
+                  <input type="checkbox" id="checkAll" title="Select all">
+                </th>
+                <th style="width:36px;text-align:center">#</th>
+                <th>Title</th>
+                <th>Artist</th>
+                <th>Genre</th>
+                <th style="white-space:nowrap">Date Added</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="songTable">
+              <tr><td colspan="7" class="empty">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal-backdrop hidden" id="uploadModal">
+  <div class="modal" style="max-width:540px;width:95%">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>Upload Audio</h3>
+    <form id="uploadForm" class="compact-form">
+
+      <!-- Drop zone -->
+      <div id="dropZone" class="drop-zone" style="padding:20px 14px;margin-bottom:10px">
+        <p>&#127911; Drag files or folders here, or browse below</p>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <label class="btn btn-ghost btn-sm" for="uploadFiles" style="cursor:pointer">Browse Files</label>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnBrowseFolder">Browse Folder</button>
+        </div>
+        <input type="file" id="uploadFiles" accept="audio/*" multiple style="display:none">
+        <input type="file" id="uploadFolder" webkitdirectory multiple style="display:none">
+        <div class="file-list" id="dropFileList"></div>
+      </div>
+
+      <div class="form-row">
+        <div style="flex:1">
+          <label for="uploadGenreSel">Genre *</label>
+          <div class="flex gap-8 items-center">
+            <select id="uploadGenreSel" required style="margin-bottom:0;flex:1"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnNewGenre">+</button>
+          </div>
+        </div>
+        <div style="flex:1">
+          <label for="uploadArtist">Artist</label>
+          <div class="flex gap-8 items-center">
+            <select id="uploadArtist" style="margin-bottom:0;flex:1"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnNewArtist">+</button>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:0.78rem;opacity:0.45;margin:2px 0 8px">Title and artist are auto-read from ID3 tags by the organizer.</p>
+
+      <!-- Upload progress bar -->
+      <div id="uploadProgress" class="hidden" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px">
+          <span id="uploadProgressLabel">Uploading...</span>
+          <span id="uploadProgressPct">0%</span>
+        </div>
+        <div style="background:var(--bg-input,rgba(255,255,255,0.06));border-radius:4px;height:8px;overflow:hidden">
+          <div id="uploadProgressBar" style="background:var(--accent,#7b8ff7);height:100%;width:0;transition:width .2s"></div>
+        </div>
+        <div id="uploadProgressSize" style="font-size:.75rem;color:var(--text-dim);margin-top:4px"></div>
+      </div>
+
+      <!-- Batch result display -->
+      <div id="uploadResults" class="hidden">
+        <p id="uploadSummary" style="font-size:0.85rem;margin-bottom:6px"></p>
+        <div class="upload-result-list" id="uploadResultList"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelUpload">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSubmitUpload">Upload</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Song Modal -->
+<div class="modal-backdrop hidden" id="editModal">
+  <div class="modal" style="max-width:520px;width:95%">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>Edit Metadata</h3>
+    <form id="editForm" class="compact-form">
+      <input type="hidden" id="editId">
+
+      <!-- Info row (read-only) -->
+      <div class="song-info-row" style="margin-bottom:10px;padding:6px 10px">
+        <span>Duration: <strong id="editDuration">-</strong></span>
+        <span>Plays: <strong id="editPlayCount">-</strong></span>
+        <span>Year: <strong id="editYearInfo">-</strong></span>
+      </div>
+
+      <div class="form-row">
+        <div style="flex:1">
+          <label for="editTitle">Title *</label>
+          <input type="text" id="editTitle" required>
+        </div>
+        <div>
+          <label for="editYear">Year</label>
+          <input type="number" id="editYear" min="1900" max="2099" step="1" placeholder="-" style="max-width:80px">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div style="flex:1">
+          <label for="editArtist">Artist</label>
+          <select id="editArtist"></select>
+        </div>
+        <div style="flex:1">
+          <label for="editGenre">Genre</label>
+          <div class="flex gap-8 items-center">
+            <select id="editGenre" style="margin-bottom:0;flex:1"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnNewGenreEdit">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex" style="gap:12px;align-items:flex-end">
+        <div>
+          <label for="editWeight">Weight</label>
+          <input type="number" id="editWeight" step="0.1" min="0" style="max-width:100px">
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;padding-bottom:10px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <label style="margin:0">Active</label>
+            <label class="toggle toggle-sm" style="margin:0">
+              <input type="checkbox" id="editActive">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <label style="margin:0">Requestable</label>
+            <label class="toggle toggle-sm" style="margin:0">
+              <input type="checkbox" id="editRequestable">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelEdit">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Genre Modal -->
+<div class="modal-backdrop hidden" id="genreModal">
+  <div class="modal">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>New Genre</h3>
+    <form id="genreForm" class="compact-form">
+      <label for="newGenreName">Genre Name *</label>
+      <input type="text" id="newGenreName" required maxlength="100" placeholder="e.g. Bossa Nova">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelGenre">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Artist Modal -->
+<div class="modal-backdrop hidden" id="artistModal">
+  <div class="modal">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>New Artist</h3>
+    <form id="artistForm" class="compact-form">
+      <label for="newArtistName">Artist Name *</label>
+      <input type="text" id="newArtistName" required>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnCancelArtist">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/icons.js"></script>
+<script src="/admin/js/media.js"></script>
+<script>
+  if (iRadioAuth.requireLogin()) {
+    iRadioNav.init();
+    iRadioMedia.init();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome — Setup</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<style>
+  .setup-box { max-width: 420px; }
+  .setup-box h1 { margin-bottom: 4px; }
+  .setup-box .sub { margin-bottom: 28px; }
+  .setup-box .field { margin-bottom: 16px; }
+  .setup-box .field-hint { font-size: .75rem; color: var(--text-dim); margin-top: 4px; }
+  .setup-box .pw-strength { height: 4px; border-radius: 2px; margin-top: 6px; transition: all .2s; }
+  .setup-box .pw-label { font-size: .75rem; margin-top: 3px; }
+  .strength-1 { background: var(--danger); width: 25%; }
+  .strength-2 { background: var(--warn); width: 50%; }
+  .strength-3 { background: var(--accent); width: 75%; }
+  .strength-4 { background: var(--success); width: 100%; }
+</style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box setup-box">
+    <h1 id="brandTitle">iRadio</h1>
+    <div class="sub">First-Time Setup</div>
+    <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:24px;line-height:1.5">
+      Welcome! Create your administrator account to get started.
+    </p>
+    <div id="error" class="text-danger text-center mb-16 hidden"></div>
+    <form id="setupForm">
+      <div class="field">
+        <label for="fullName">Full Name</label>
+        <input type="text" id="fullName" placeholder="e.g. Richard Santos" required autofocus>
+        <div class="field-hint">Your first name will be used as your username</div>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="admin@example.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="new-password" required>
+        <div class="pw-strength" id="pwBar"></div>
+        <div class="pw-label" id="pwLabel" style="color:var(--text-dim)"></div>
+      </div>
+      <div class="field">
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" autocomplete="new-password" required>
+      </div>
+      <button type="submit" id="submitBtn" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px">
+        Create Account & Start
+      </button>
+    </form>
+  </div>
+  <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
+</div>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script>
+(function() {
+  // Load station branding
+  iRadioAPI.get('/config').then(function(cfg) {
+    var name = cfg.station_name || 'iRadio';
+    document.getElementById('brandTitle').textContent = name;
+    document.title = name + ' — Setup';
+  }).catch(function() {});
+
+  // If already set up, redirect to login
+  iRadioAPI.get('/setup/status').then(function(data) {
+    if (!data.needs_setup) {
+      window.location.href = '/admin/';
+      return;
+    }
+  }).catch(function() {});
+
+  // If already logged in, redirect to dashboard
+  if (iRadioAuth.isLoggedIn()) {
+    window.location.href = '/admin/dashboard';
+    return;
+  }
+
+  // ── Password strength meter ──────────────────────────
+  var pwInput = document.getElementById('password');
+  var pwBar   = document.getElementById('pwBar');
+  var pwLabel = document.getElementById('pwLabel');
+  var labels  = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+  var colors  = ['', 'var(--danger)', 'var(--warn)', 'var(--accent)', 'var(--success)'];
+
+  pwInput.addEventListener('input', function() {
+    var pw = pwInput.value;
+    var score = 0;
+    if (pw.length >= 6)  score++;
+    if (pw.length >= 10) score++;
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^a-zA-Z0-9]/.test(pw)) score++;
+    score = Math.min(4, Math.max(pw.length > 0 ? 1 : 0, score));
+
+    pwBar.className = 'pw-strength' + (score > 0 ? ' strength-' + score : '');
+    pwLabel.textContent = labels[score] || '';
+    pwLabel.style.color = colors[score] || 'var(--text-dim)';
+  });
+
+  // ── Form submission ──────────────────────────────────
+  document.getElementById('setupForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var errEl = document.getElementById('error');
+    errEl.classList.add('hidden');
+
+    var fullName = document.getElementById('fullName').value.trim();
+    var email    = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+    var confirm  = document.getElementById('confirmPassword').value;
+
+    if (password !== confirm) {
+      errEl.textContent = 'Passwords do not match';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    var btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Setting up...';
+
+    iRadioAPI.post('/setup', { full_name: fullName, email: email, password: password })
+      .then(function(data) {
+        iRadioAuth.login(data.token, data.user);
+        window.location.href = '/admin/dashboard';
+      })
+      .catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = 'Create Account & Start';
+        errEl.textContent = (err && err.error) || 'Setup failed';
+        errEl.classList.remove('hidden');
+      });
+  });
+})();
+</script>
+</body>
+</html>

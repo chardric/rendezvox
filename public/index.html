@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radio</title>
+<meta name="description" content="Listen live, request songs, and see what's playing now.">
+<meta name="theme-color" content="#141416">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Radio">
+<link rel="manifest" href="/api/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192x192.png">
+<link rel="apple-touch-icon" href="/assets/icon-192x192.png">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#0a0a0c;color:#e0e0e0;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  min-height:100vh;
+}
+.card{
+  background:#141416;border-radius:16px;padding:32px;
+  width:100%;max-width:400px;text-align:center;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
+}
+.station-name{font-size:1.6rem;font-weight:700;color:#fff;margin-bottom:4px}
+.tagline{font-size:.85rem;color:#666;margin-bottom:24px}
+
+/* Now Playing */
+.now-playing{margin-bottom:24px}
+.song-title{font-size:1.2rem;font-weight:600;color:#fff}
+.song-artist{font-size:.95rem;color:#9ca3af;margin-top:4px}
+.not-playing{color:#555;font-style:italic}
+
+/* Progress */
+.progress-wrap{margin-bottom:20px;padding:0 4px}
+.progress-bar{
+  width:100%;height:4px;background:#232326;border-radius:2px;overflow:hidden;
+}
+.progress-fill{
+  height:100%;background:#00c8a0;border-radius:2px;
+  width:0%;transition:width .3s linear;
+}
+.progress-time{
+  display:flex;justify-content:space-between;
+  font-size:.75rem;color:#555;margin-top:4px;
+}
+.progress-wrap.hidden .progress-bar,.progress-wrap.hidden .progress-time{visibility:hidden}
+
+/* Controls */
+.controls{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:20px}
+button{
+  background:none;border:none;cursor:pointer;color:#e0e0e0;
+  display:flex;align-items:center;justify-content:center;
+}
+button:hover{color:#fff}
+.btn-play{
+  width:56px;height:56px;border-radius:50%;
+  background:#00c8a0;color:#fff;
+}
+.btn-play:hover{background:#00e6b8}
+.btn-play svg{width:28px;height:28px}
+.btn-sm{width:36px;height:36px}
+.btn-sm svg{width:20px;height:20px}
+
+/* Volume */
+.volume-row{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:24px}
+.volume-slider{
+  -webkit-appearance:none;appearance:none;
+  width:140px;height:4px;background:#232326;border-radius:2px;outline:none;
+}
+.volume-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;
+  background:#00c8a0;border-radius:50%;cursor:pointer;
+}
+.volume-slider::-moz-range-thumb{
+  width:14px;height:14px;background:#00c8a0;border:none;border-radius:50%;cursor:pointer;
+}
+
+/* Up Next */
+.up-next{font-size:.8rem;color:#555;margin-bottom:16px}
+.up-next span{color:#9ca3af}
+
+/* Dedication / request info */
+.dedication{
+  background:rgba(0,200,160,.1);border:1px solid rgba(0,200,160,.25);
+  border-radius:8px;padding:10px 14px;margin-bottom:16px;
+  font-size:.82rem;color:#c4b5fd;text-align:left;
+  animation:fadeIn .3s ease;
+}
+.dedication.hidden{display:none}
+.dedication .ded-label{font-size:.7rem;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.dedication .ded-name{font-weight:600;color:#e0e0e0}
+.dedication .ded-msg{margin-top:6px;font-style:italic;color:#a5b4fc}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+/* Listeners */
+.listeners{font-size:.8rem;color:#555;margin-bottom:20px}
+.listeners span{color:#9ca3af}
+
+/* Request button */
+.btn-request{
+  background:#1e1e22;color:#9ca3af;border:1px solid #232326;
+  border-radius:8px;padding:10px 20px;font-size:.9rem;
+  width:100%;cursor:pointer;transition:background .2s;
+}
+.btn-request:hover{background:#2a2a2e;color:#fff}
+
+/* Tap overlay */
+.tap-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:100;cursor:pointer;
+}
+.tap-overlay.hidden{display:none}
+.tap-text{font-size:1.4rem;color:#fff;font-weight:600}
+.tap-sub{font-size:.85rem;color:#888;margin-top:8px}
+
+/* Request modal */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center;z-index:200;
+}
+.modal-backdrop.hidden{display:none}
+.modal{
+  background:#141416;border-radius:12px;padding:24px;
+  width:90%;max-width:360px;
+}
+.modal h3{color:#fff;margin-bottom:16px;font-size:1.1rem}
+.modal label{display:block;font-size:.85rem;color:#9ca3af;margin-bottom:4px;text-align:left}
+.modal input,.modal textarea{
+  width:100%;padding:8px 12px;background:#0a0a0c;border:1px solid #232326;
+  border-radius:6px;color:#e0e0e0;font-size:.9rem;margin-bottom:12px;
+  font-family:inherit;
+}
+.modal textarea{resize:vertical;min-height:60px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+.modal-actions button{
+  padding:8px 16px;border-radius:6px;font-size:.9rem;
+}
+.btn-cancel{background:#232326;color:#9ca3af}
+.btn-cancel:hover{background:#444}
+.btn-submit{background:#00c8a0;color:#fff}
+.btn-submit:hover{background:#00e6b8}
+.modal .msg{font-size:.85rem;margin-bottom:8px;text-align:center}
+.msg-ok{color:#4ade80}
+.msg-err{color:#f87171}
+
+/* Suggestions dropdown */
+.suggestions-wrap{position:relative}
+.suggestions-list{
+  position:absolute;left:0;right:0;top:100%;z-index:10;
+  background:#18181b;border:1px solid #232326;border-radius:6px;
+  max-height:200px;overflow-y:auto;list-style:none;
+  margin-top:2px;
+}
+.suggestions-list.hidden{display:none}
+.suggestions-list li{
+  padding:8px 12px;cursor:pointer;border-bottom:1px solid #1e1e22;
+}
+.suggestions-list li:last-child{border-bottom:none}
+.suggestions-list li:hover,.suggestions-list li.active{background:#1e1e22}
+.suggestions-list .sg-title{color:#fff;font-size:.9rem}
+.suggestions-list .sg-artist{color:#888;font-size:.8rem}
+
+/* Resolved confirmation */
+.req-resolved{
+  background:#1a3a2a;border:1px solid #4ade80;border-radius:6px;
+  padding:8px 12px;margin-bottom:12px;font-size:.85rem;color:#4ade80;
+  display:flex;align-items:center;gap:8px;
+}
+.req-resolved.hidden{display:none}
+.req-resolved .check-icon{flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- Tap to listen overlay -->
+<div class="tap-overlay hidden" id="tapOverlay">
+  <div class="tap-text">Tap to Listen</div>
+  <div class="tap-sub">Browser requires interaction to play audio</div>
+</div>
+
+<!-- Request modal -->
+<div class="modal-backdrop hidden" id="requestModal">
+  <div class="modal">
+    <h3>Request a Song</h3>
+    <div style="font-size:.8rem;color:#666;margin-bottom:12px;text-align:center">Search by title, artist, or both</div>
+    <div id="reqMsg"></div>
+    <div id="reqResolved" class="req-resolved hidden">
+      <span class="check-icon">&#10003;</span>
+      <span id="reqResolvedText"></span>
+    </div>
+    <div class="suggestions-wrap">
+      <label for="reqTitle">Song Title</label>
+      <input type="text" id="reqTitle" placeholder="Start typing a song title..." autocomplete="off">
+      <ul id="reqSuggestions" class="suggestions-list hidden"></ul>
+    </div>
+    <label for="reqArtist">Artist</label>
+    <input type="text" id="reqArtist" placeholder="Artist name" autocomplete="off">
+    <label for="reqName">Your Name (optional)</label>
+    <input type="text" id="reqName" placeholder="Listener name" maxlength="100">
+    <label for="reqMessage">Message (optional)</label>
+    <textarea id="reqMessage" placeholder="Dedication or note" maxlength="500"></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="reqCancel">Cancel</button>
+      <button class="btn-submit" id="reqSubmit">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Player card -->
+<div class="card">
+  <div class="station-name" id="stationName">Radio</div>
+  <div class="tagline">Online Radio</div>
+
+  <div class="now-playing">
+    <div class="song-title" id="songTitle">—</div>
+    <div class="song-artist" id="songArtist">&nbsp;</div>
+  </div>
+
+  <div class="progress-wrap hidden" id="progressWrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-time">
+      <span id="timeElapsed">0:00</span>
+      <span id="timeRemaining">-0:00</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-play" id="btnPlay" title="Play / Stop">
+      <svg id="iconPlay" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>
+      <svg id="iconStop" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5" y="4" width="14" height="16" rx="2"/></svg>
+    </button>
+  </div>
+
+  <div class="volume-row">
+    <button class="btn-sm" id="btnMute" title="Mute / Unmute">
+      <svg id="iconVol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"/>
+        <path d="M15.54 8.46a5 5 0 010 7.07"/>
+        <path d="M19.07 4.93a10 10 0 010 14.14"/>
+      </svg>
+      <svg id="iconMuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"/>
+        <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+      </svg>
+    </button>
+    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
+  </div>
+
+  <div class="up-next" id="upNext">Up Next: <span>—</span></div>
+  <div class="dedication hidden" id="dedication">
+    <div class="ded-label">Requested by</div>
+    <div class="ded-name" id="dedName"></div>
+    <div class="ded-msg" id="dedMsg"></div>
+  </div>
+  <div class="listeners" id="listeners">Listeners: <span>—</span></div>
+
+  <button class="btn-request" id="btnRequest">Request a Song</button>
+</div>
+
+<script>
+(function(){
+  var audio     = new Audio();
+  var streamUrl = '/stream/live';
+  var iceUrl    = '/stream';
+  var playing   = false;
+  var userVol   = 0.8;
+  var reconnecting   = false;
+  var reconnectTimer = null;
+  var stallTimer     = null;
+  var stationName    = 'Radio';
+
+  // Load station branding
+  fetch('/api/config').then(function(r){ return r.json(); }).then(function(cfg) {
+    stationName = cfg.station_name || 'Radio';
+    document.getElementById('stationName').textContent = stationName;
+    document.title = stationName;
+    document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', stationName);
+    // Rebuild artwork with station name
+    rebuildArtwork();
+    updateMediaSession(null, null);
+  }).catch(function() {});
+
+  var btnPlay   = document.getElementById('btnPlay');
+  var iconPlay  = document.getElementById('iconPlay');
+  var iconStop  = document.getElementById('iconStop');
+  var btnMute   = document.getElementById('btnMute');
+  var iconVol   = document.getElementById('iconVol');
+  var iconMuted = document.getElementById('iconMuted');
+  var slider    = document.getElementById('volumeSlider');
+  var overlay   = document.getElementById('tapOverlay');
+  var titleEl      = document.getElementById('songTitle');
+  var artistEl     = document.getElementById('songArtist');
+  var upNextEl     = document.getElementById('upNext').querySelector('span');
+  var dedEl        = document.getElementById('dedication');
+  var dedNameEl    = document.getElementById('dedName');
+  var dedMsgEl     = document.getElementById('dedMsg');
+  var listenEl     = document.getElementById('listeners').querySelector('span');
+  var btnRequest   = document.getElementById('btnRequest');
+  var progressWrap = document.getElementById('progressWrap');
+  var progressFill = document.getElementById('progressFill');
+  var timeElapsed  = document.getElementById('timeElapsed');
+  var timeRemain   = document.getElementById('timeRemaining');
+
+  // Progress state (updated by API poll, ticked locally every second)
+  var songStartMs  = 0;   // when the current song started (epoch ms)
+  var songDurMs    = 0;   // total song duration in ms
+
+  audio.volume = userVol;
+
+  // ── Media Session artwork (inline SVG data URI) ──
+  var artworkList = [];
+  function rebuildArtwork() {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">'
+      + '<rect width="512" height="512" rx="64" fill="#141416"/>'
+      + '<circle cx="256" cy="240" r="120" fill="none" stroke="#00c8a0" stroke-width="12"/>'
+      + '<circle cx="256" cy="240" r="40" fill="#00c8a0"/>'
+      + '<line x1="256" y1="120" x2="256" y2="100" stroke="#00c8a0" stroke-width="8" stroke-linecap="round"/>'
+      + '<circle cx="256" cy="88" r="10" fill="#00c8a0"/>'
+      + '<text x="256" y="420" text-anchor="middle" font-family="sans-serif" font-size="56" font-weight="700" fill="#ffffff">' + stationName + '</text>'
+      + '</svg>';
+    var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    artworkList = [{ src: url, sizes: '512x512', type: 'image/svg+xml' }];
+  }
+  rebuildArtwork();
+
+  // ── Media Session helpers ──
+  function updateMediaSession(title, artist) {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title:  title || stationName,
+      artist: artist || 'Online Radio',
+      album:  stationName,
+      artwork: artworkList
+    });
+  }
+
+  function updateMediaSessionState(state) {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = state;
+  }
+
+  function initMediaSessionHandlers() {
+    if (!('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.setActionHandler('play', function() {
+      if (!playing) {
+        audio.src = streamUrl + '?t=' + Date.now();
+        audio.muted = false;
+        audio.play();
+        playing = true;
+        updatePlayIcon();
+        updateMuteIcon();
+        updateMediaSessionState('playing');
+      }
+    });
+
+    navigator.mediaSession.setActionHandler('pause', function() {
+      if (playing || reconnecting) {
+        playing = false;
+        stopReconnect();
+        audio.pause();
+        audio.src = '';
+        updatePlayIcon();
+        updateMediaSessionState('paused');
+      }
+    });
+
+    navigator.mediaSession.setActionHandler('stop', function() {
+      if (playing || reconnecting) {
+        playing = false;
+        stopReconnect();
+        audio.pause();
+        audio.src = '';
+        updatePlayIcon();
+        updateMediaSessionState('none');
+      }
+    });
+  }
+
+  initMediaSessionHandlers();
+  updateMediaSession(null, null);
+
+  // ── Auto-play on load ──
+  function startStream() {
+    audio.src = streamUrl + '?t=' + Date.now();
+    audio.load();
+    var p = audio.play();
+    if (p && p.catch) {
+      p.then(function() {
+        playing = true;
+        updatePlayIcon();
+        updateMediaSessionState('playing');
+        overlay.classList.add('hidden');
+      }).catch(function() {
+        // Autoplay blocked — try muted
+        audio.muted = true;
+        audio.play().then(function() {
+          playing = true;
+          updatePlayIcon();
+          updateMuteIcon();
+          updateMediaSessionState('playing');
+          overlay.classList.remove('hidden');
+        }).catch(function() {
+          // Fully blocked
+          overlay.classList.remove('hidden');
+        });
+      });
+    }
+  }
+
+  startStream();
+
+  // ── Auto-reconnect when stream drops ──
+  function onStreamLost() {
+    if (playing && !reconnecting) {
+      startReconnect();
+    }
+  }
+
+  audio.addEventListener('error', onStreamLost);
+  audio.addEventListener('ended', onStreamLost);
+
+  // Stall detection — if audio stalls for 10s with no data, treat as stream lost
+  audio.addEventListener('waiting', function() {
+    if (playing && !reconnecting) {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(function() {
+        if (playing && !reconnecting) {
+          startReconnect();
+        }
+      }, 10000);
+    }
+  });
+
+  audio.addEventListener('playing', function() {
+    clearTimeout(stallTimer);
+    stallTimer = null;
+    if (reconnecting) {
+      stopReconnect();
+      playing = true;
+      updatePlayIcon();
+      updateMediaSessionState('playing');
+    }
+  });
+
+  function startReconnect() {
+    reconnecting = true;
+    titleEl.textContent  = 'Reconnecting...';
+    artistEl.textContent = 'Waiting for broadcast';
+    progressWrap.classList.add('hidden');
+    updateMediaSession('Reconnecting...', stationName);
+    tryReconnect();
+    reconnectTimer = setInterval(tryReconnect, 5000);
+  }
+
+  function tryReconnect() {
+    audio.src = streamUrl + '?t=' + Date.now();
+    audio.load();
+    var p = audio.play();
+    if (p && p.catch) p.catch(function() {});
+  }
+
+  function stopReconnect() {
+    reconnecting = false;
+    clearInterval(reconnectTimer);
+    reconnectTimer = null;
+    clearTimeout(stallTimer);
+    stallTimer = null;
+  }
+
+  // ── Tap overlay ──
+  overlay.addEventListener('click', function() {
+    audio.muted = false;
+    updateMuteIcon();
+    if (!playing) {
+      audio.src = streamUrl + '?t=' + Date.now();
+      audio.play();
+      playing = true;
+    }
+    overlay.classList.add('hidden');
+    updatePlayIcon();
+    updateMediaSessionState('playing');
+  });
+
+  // ── Play / Stop ──
+  btnPlay.addEventListener('click', function() {
+    if (playing || reconnecting) {
+      playing = false;
+      stopReconnect();
+      clearTimeout(stallTimer);
+      stallTimer = null;
+      audio.pause();
+      audio.src = '';
+      updateMediaSessionState('paused');
+    } else {
+      audio.src = streamUrl + '?t=' + Date.now();
+      audio.muted = false;
+      audio.play();
+      playing = true;
+      updateMuteIcon();
+      updateMediaSessionState('playing');
+    }
+    updatePlayIcon();
+  });
+
+  function updatePlayIcon() {
+    iconPlay.style.display = playing ? 'none' : 'block';
+    iconStop.style.display = playing ? 'block' : 'none';
+  }
+
+  // ── Volume ──
+  slider.addEventListener('input', function() {
+    userVol = this.value / 100;
+    audio.volume = userVol;
+    if (userVol > 0 && audio.muted) {
+      audio.muted = false;
+      updateMuteIcon();
+    }
+  });
+
+  // ── Mute toggle ──
+  btnMute.addEventListener('click', function() {
+    audio.muted = !audio.muted;
+    updateMuteIcon();
+  });
+
+  function updateMuteIcon() {
+    iconVol.style.display   = audio.muted ? 'none' : 'block';
+    iconMuted.style.display = audio.muted ? 'block' : 'none';
+  }
+
+  // ── Request button visibility ──
+  function updateRequestButton(isEmergency) {
+    if (isEmergency) {
+      btnRequest.textContent = 'Requests Unavailable';
+      btnRequest.disabled = true;
+      btnRequest.style.opacity = '0.4';
+      btnRequest.style.cursor = 'default';
+    } else {
+      btnRequest.textContent = 'Request a Song';
+      btnRequest.disabled = false;
+      btnRequest.style.opacity = '';
+      btnRequest.style.cursor = '';
+    }
+  }
+
+  // ── Dedication / request display ──
+  function updateDedication(req) {
+    if (req && (req.listener_name || req.message)) {
+      dedNameEl.textContent = req.listener_name || 'A listener';
+      if (req.message) {
+        dedMsgEl.textContent = '"' + req.message + '"';
+        dedMsgEl.style.display = '';
+      } else {
+        dedMsgEl.style.display = 'none';
+      }
+      dedEl.classList.remove('hidden');
+    } else {
+      dedEl.classList.add('hidden');
+    }
+  }
+
+  // ── Now playing poll ──
+  function fetchNowPlaying() {
+    fetch('/api/now-playing').then(function(r){ return r.json(); }).then(function(data) {
+      // Don't overwrite title/artist during reconnection
+      if (!reconnecting) {
+        if (data.song) {
+          titleEl.textContent  = data.song.title;
+          artistEl.textContent = data.song.artist;
+          document.title = data.song.title + ' — ' + data.song.artist + ' | ' + stationName;
+          updateMediaSession(data.song.title, data.song.artist);
+          songStartMs = data.started_at ? new Date(data.started_at).getTime() : 0;
+          songDurMs   = data.song.duration_ms || 0;
+          progressWrap.classList.remove('hidden');
+          tickProgress();
+        } else {
+          titleEl.textContent  = '—';
+          artistEl.innerHTML   = '&nbsp;';
+          document.title = stationName;
+          updateMediaSession(null, null);
+          songStartMs = 0;
+          songDurMs   = 0;
+          progressWrap.classList.add('hidden');
+        }
+      }
+      if (data.next_track) {
+        upNextEl.textContent = data.next_track.title + ' — ' + data.next_track.artist;
+      } else {
+        upNextEl.textContent = '—';
+      }
+      updateDedication(data.request);
+      updateRequestButton(data.is_emergency);
+    }).catch(function(){});
+  }
+
+  // ── Progress bar tick (runs every second) ──
+  function tickProgress() {
+    if (!songStartMs || !songDurMs) {
+      progressFill.style.width = '0%';
+      timeElapsed.textContent  = '0:00';
+      timeRemain.textContent   = '-0:00';
+      return;
+    }
+    var elapsed = Date.now() - songStartMs;
+    if (elapsed < 0) elapsed = 0;
+    if (elapsed > songDurMs) elapsed = songDurMs;
+    var remaining = songDurMs - elapsed;
+    var pct = (elapsed / songDurMs) * 100;
+
+    progressFill.style.width = pct.toFixed(1) + '%';
+    timeElapsed.textContent  = fmtMs(elapsed);
+    timeRemain.textContent   = '-' + fmtMs(remaining);
+  }
+
+  function fmtMs(ms) {
+    var totalSec = Math.floor(ms / 1000);
+    var m = Math.floor(totalSec / 60);
+    var s = totalSec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  fetchNowPlaying();
+  var nowPlayingPoll = setInterval(fetchNowPlaying, 30000); // slower fallback poll
+  setInterval(tickProgress, 1000);
+
+  // ── SSE real-time connection ──
+  (function connectSSE() {
+    if (typeof EventSource === 'undefined') return;
+
+    var sse = new EventSource('/api/sse/now-playing');
+
+    sse.addEventListener('now-playing', function(e) {
+      try {
+        var data = JSON.parse(e.data);
+        if (data.song && !reconnecting) {
+          titleEl.textContent  = data.song.title;
+          artistEl.textContent = data.song.artist;
+          document.title = data.song.title + ' — ' + data.song.artist + ' | ' + stationName;
+          updateMediaSession(data.song.title, data.song.artist);
+          songStartMs = data.song.started_at ? new Date(data.song.started_at).getTime() : 0;
+          songDurMs   = data.song.duration_ms || 0;
+          progressWrap.classList.remove('hidden');
+          tickProgress();
+        }
+        if (data.next_track) {
+          upNextEl.textContent = data.next_track.title + ' — ' + data.next_track.artist;
+        } else {
+          upNextEl.textContent = '—';
+        }
+        updateDedication(data.request);
+        if (typeof data.is_emergency !== 'undefined') {
+          updateRequestButton(data.is_emergency);
+        }
+      } catch (err) {}
+    });
+
+    sse.onerror = function() {
+      // EventSource auto-reconnects; polling fallback still active
+    };
+  })();
+
+  // ── Listener count poll ──
+  function fetchListeners() {
+    fetch(iceUrl + '/status-json.xsl').then(function(r){ return r.json(); }).then(function(data) {
+      var src = data.icestats && data.icestats.source;
+      if (!src) { listenEl.textContent = '0'; return; }
+      // source can be object or array
+      var sources = Array.isArray(src) ? src : [src];
+      var mount = sources.find(function(s){ return s.listenurl && s.listenurl.indexOf('/live') !== -1; });
+      listenEl.textContent = mount ? mount.listeners : '0';
+    }).catch(function(){ listenEl.textContent = '—'; });
+  }
+
+  fetchListeners();
+  setInterval(fetchListeners, 15000);
+
+  // ── Request modal ──
+  var modal        = document.getElementById('requestModal');
+  var reqMsg       = document.getElementById('reqMsg');
+  var reqTitle     = document.getElementById('reqTitle');
+  var reqArtist    = document.getElementById('reqArtist');
+  var reqName      = document.getElementById('reqName');
+  var reqMsgEl     = document.getElementById('reqMessage');
+  var suggestions  = document.getElementById('reqSuggestions');
+  var resolvedEl   = document.getElementById('reqResolved');
+  var resolvedText = document.getElementById('reqResolvedText');
+  var resolvedSong = null;
+  var searchTimer  = null;
+  var sgIdx        = -1;
+
+  function resetReqForm() {
+    reqMsg.innerHTML = '';
+    reqTitle.value = '';
+    reqArtist.value = '';
+    reqName.value = '';
+    reqMsgEl.value = '';
+    resolvedSong = null;
+    resolvedEl.classList.add('hidden');
+    suggestions.classList.add('hidden');
+    suggestions.innerHTML = '';
+    sgIdx = -1;
+  }
+
+  document.getElementById('btnRequest').addEventListener('click', function() {
+    resetReqForm();
+    modal.classList.remove('hidden');
+    reqTitle.focus();
+  });
+
+  document.getElementById('reqCancel').addEventListener('click', function() {
+    modal.classList.add('hidden');
+  });
+
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) modal.classList.add('hidden');
+  });
+
+  // ── Autocomplete search ──
+  function doSearch() {
+    var title = reqTitle.value.trim();
+    var artist = reqArtist.value.trim();
+
+    if (title.length < 2 && artist.length < 2) {
+      suggestions.classList.add('hidden');
+      resolvedSong = null;
+      resolvedEl.classList.add('hidden');
+      return;
+    }
+
+    var url = '/api/search-song?';
+    var params = [];
+    if (title)  params.push('title=' + encodeURIComponent(title));
+    if (artist) params.push('artist=' + encodeURIComponent(artist));
+    url += params.join('&');
+
+    fetch(url).then(function(r){ return r.json(); }).then(function(data) {
+      if (!data.songs || data.songs.length === 0) {
+        suggestions.classList.add('hidden');
+        resolvedSong = null;
+        resolvedEl.classList.add('hidden');
+        return;
+      }
+
+      if (data.resolved) {
+        selectSong(data.songs[0]);
+        suggestions.classList.add('hidden');
+        return;
+      }
+
+      renderSuggestions(data.songs);
+    }).catch(function(){});
+  }
+
+  function renderSuggestions(songs) {
+    var html = '';
+    songs.forEach(function(s, i) {
+      html += '<li data-idx="' + i + '">'
+        + '<div class="sg-title">' + escHtml(s.title) + '</div>'
+        + '<div class="sg-artist">' + escHtml(s.artist) + '</div>'
+        + '</li>';
+    });
+    suggestions.innerHTML = html;
+    suggestions._songs = songs;
+    suggestions.classList.remove('hidden');
+    sgIdx = -1;
+
+    var items = suggestions.querySelectorAll('li');
+    items.forEach(function(li) {
+      li.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-idx'), 10);
+        selectSong(suggestions._songs[idx]);
+        suggestions.classList.add('hidden');
+      });
+    });
+  }
+
+  function selectSong(song) {
+    resolvedSong = song;
+    reqTitle.value = song.title;
+    reqArtist.value = song.artist;
+    resolvedText.textContent = song.title + ' — ' + song.artist;
+    resolvedEl.classList.remove('hidden');
+    suggestions.classList.add('hidden');
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // Debounced search on title input
+  reqTitle.addEventListener('input', function() {
+    resolvedSong = null;
+    resolvedEl.classList.add('hidden');
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 350);
+  });
+
+  // Re-search when artist changes
+  reqArtist.addEventListener('input', function() {
+    resolvedSong = null;
+    resolvedEl.classList.add('hidden');
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 350);
+  });
+
+  // Keyboard navigation for suggestions
+  function handleSuggestionKeys(e) {
+    var items = suggestions.querySelectorAll('li');
+    if (!items.length || suggestions.classList.contains('hidden')) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      sgIdx = Math.min(sgIdx + 1, items.length - 1);
+      updateSgActive(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      sgIdx = Math.max(sgIdx - 1, 0);
+      updateSgActive(items);
+    } else if (e.key === 'Enter' && sgIdx >= 0) {
+      e.preventDefault();
+      selectSong(suggestions._songs[sgIdx]);
+      suggestions.classList.add('hidden');
+    } else if (e.key === 'Escape') {
+      suggestions.classList.add('hidden');
+      sgIdx = -1;
+    }
+  }
+  reqTitle.addEventListener('keydown', handleSuggestionKeys);
+  reqArtist.addEventListener('keydown', handleSuggestionKeys);
+
+  function updateSgActive(items) {
+    items.forEach(function(li, i) {
+      li.classList.toggle('active', i === sgIdx);
+    });
+    if (items[sgIdx]) items[sgIdx].scrollIntoView({ block: 'nearest' });
+  }
+
+  // Close suggestions when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!suggestions.contains(e.target) && e.target !== reqTitle && e.target !== reqArtist) {
+      suggestions.classList.add('hidden');
+    }
+  });
+
+  // ── Submit request ──
+  document.getElementById('reqSubmit').addEventListener('click', function() {
+    var title = reqTitle.value.trim();
+    var artist = reqArtist.value.trim();
+    if (!title && !artist) {
+      reqMsg.innerHTML = '<div class="msg msg-err">Enter a song title or artist name</div>';
+      return;
+    }
+
+    var body = {};
+    if (title) body.title = title;
+    var name = reqName.value.trim();
+    var msg  = reqMsgEl.value.trim();
+    if (artist) body.artist = artist;
+    if (name)   body.listener_name = name;
+    if (msg)    body.message = msg;
+
+    fetch('/api/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, status:r.status, data:d}; }); })
+      .then(function(res) {
+        if (res.ok) {
+          var s = res.data.song;
+          reqMsg.innerHTML = '<div class="msg msg-ok">Requested: ' + escHtml(s.title) + ' — ' + escHtml(s.artist) + '</div>';
+          setTimeout(function(){ modal.classList.add('hidden'); }, 2000);
+        } else if (res.status === 422 && res.data.suggestions) {
+          reqMsg.innerHTML = '<div class="msg msg-err">Multiple matches — please select one:</div>';
+          renderSuggestions(res.data.suggestions);
+        } else {
+          reqMsg.innerHTML = '<div class="msg msg-err">' + escHtml(res.data.error || 'Request failed') + '</div>';
+        }
+      }).catch(function() {
+        reqMsg.innerHTML = '<div class="msg msg-err">Network error</div>';
+      });
+  });
+
+  // ── Service worker registration ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js');
+  }
+
+})();
+</script>
+<script src="/assets/scroll-controls.js"></script>
+<footer style="text-align:center;padding:24px 16px 12px;font-size:.75rem;color:#888">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener" style="color:#888;text-decoration:underline">DownStreamTech</a>. All rights reserved.</footer>
+</body>
+</html>

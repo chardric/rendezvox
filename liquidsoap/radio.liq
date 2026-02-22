@@ -1,0 +1,205 @@
+# ==========================================================
+# iRadio — Liquidsoap Radio Script
+# ==========================================================
+# API-driven automation:
+#   GET  /api/next-track    → returns JSON with song file_path
+#   POST /api/track-started → stamps current_song_id/started_at
+#   POST /api/track-played  → stamps ended_at on play_history
+#
+# Music files at: /var/lib/iradio/music/
+# ==========================================================
+
+# ── Settings ────────────────────────────────────────────
+
+settings.server.socket       := true
+settings.server.socket.path  := "/run/liquidsoap/main.sock"
+settings.server.telnet            := true
+settings.server.telnet.port       := 1234
+settings.server.telnet.bind_addr  := "0.0.0.0"
+
+# ── Logging ─────────────────────────────────────────────
+
+settings.log.file      := true
+settings.log.file.path := "/var/log/iradio/liquidsoap.log"
+settings.log.stdout    := true
+settings.log.level     := 3
+
+# ── Environment ─────────────────────────────────────────
+
+icecast_host     = environment.get("IRADIO_ICECAST_HOST",            default="icecast")
+icecast_port     = int_of_string(environment.get("IRADIO_ICECAST_PORT", default="8000"))
+icecast_mount    = environment.get("IRADIO_ICECAST_MOUNT",           default="/live")
+icecast_password = environment.get("IRADIO_ICECAST_SOURCE_PASSWORD", default="changeme_source")
+api_base         = environment.get("IRADIO_API_URL",                 default="http://iradio-nginx/api")
+music_dir        = "/var/lib/iradio/music"
+silence_file     = "/opt/iradio/silence.mp3"
+internal_secret  = environment.get("IRADIO_INTERNAL_SECRET", default="")
+
+# ── Station config (fetched from API at startup) ──────────
+
+crossfade_str = string.trim(process.read(
+    "curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/config' | jq -r '.crossfade_ms // 3000'"
+))
+crossfade_sec = float_of_string(crossfade_str) / 1000.0
+log.important("Crossfade duration: #{string(crossfade_sec)}s")
+
+# ── Track state ─────────────────────────────────────────
+# playing_id: song_id of the track currently audible to listeners.
+# The song_id for each track is embedded as request metadata
+# ("song_id" key) so it stays in sync even if a file fails to load.
+
+playing_id  = ref("")
+
+# ── Request next track from API ─────────────────────────
+# Called by request.dynamic when it needs a new track.
+# The song_id is attached as metadata on the request itself,
+# so on_metadata always reads the correct id for the track
+# that actually plays — no queue sync issues.
+
+def get_next_track() =
+    log.info("Requesting next track from API...")
+
+    let result = string.trim(process.read(
+        "resp=$(curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/next-track') && " ^
+        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring)) end'"
+    ))
+
+    let parts = string.split(separator="\n", result)
+    let file_path = string.trim(list.nth(default="", parts, 0))
+    let song_id = string.trim(list.nth(default="", parts, 1))
+    let gain_db = string.trim(list.nth(default="0", parts, 2))
+    let source = string.trim(list.nth(default="rotation", parts, 3))
+    let request_id = string.trim(list.nth(default="0", parts, 4))
+
+    if file_path == "" or file_path == "null" then
+        log.info("No active schedule — playing silence, will retry in 10s")
+        [request.create(silence_file)]
+    else
+        # file_path may be absolute (starts with /) or relative — handle both
+        let full_path = if string.sub(file_path, start=0, length=1) == "/" then file_path else "#{music_dir}/#{file_path}" end
+        log.important("Queued: #{full_path} (song_id=#{song_id}, gain=#{gain_db}dB, source=#{source})")
+        [request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",iradio_source=\"#{source}\",iradio_request_id=\"#{request_id}\":#{full_path}")]
+    end
+end
+
+# ── Audio sources ───────────────────────────────────────
+
+radio = request.dynamic.list(get_next_track)
+radio = amplify(override="liq_amplify", 1., radio)
+
+# ── Crossfade ─────────────────────────────────────────
+
+radio = crossfade(duration=crossfade_sec, radio)
+
+# ── Track lifecycle via on_metadata ─────────────────────
+# Fires at the START of crossfade (new track fading in).
+# The song_id is read from the track's own metadata, so it
+# always matches the audio that's actually playing.
+# API notifications are delayed by crossfade_sec so the
+# dashboard/listener page shows the audible track.
+
+radio = source.on_metadata(radio, fun (m) -> begin
+    let prev = playing_id()
+    let sid = m["song_id"]
+    let src = m["iradio_source"]
+    let rid = m["iradio_request_id"]
+
+    if sid != "" then
+        playing_id := sid
+
+        # Delay API calls until crossfade completes
+        thread.run(delay=crossfade_sec, fun () -> begin
+            # Stamp previous track as ended
+            if prev != "" and prev != "0" then
+                log.info("Track ended (song_id=#{prev}), notifying API...")
+                ignore(process.read(
+                    "curl -sf -X POST -H 'Content-Type: application/json' -H 'X-Internal-Secret: #{internal_secret}' " ^
+                    "-d '{\"song_id\": #{prev}}' '#{api_base}/track-played' 2>/dev/null || true"
+                ))
+            end
+
+            # Tell API this track is now playing (include source + request_id from metadata)
+            if sid != "0" then
+                let artist = m["artist"]
+                let title  = m["title"]
+                log.important("Now playing: #{artist} — #{title} (song_id=#{sid}, source=#{src})")
+                ignore(process.read(
+                    "curl -sf -X POST -H 'Content-Type: application/json' -H 'X-Internal-Secret: #{internal_secret}' " ^
+                    "-d '{\"song_id\": #{sid}, \"source\": \"#{src}\", \"request_id\": #{rid}}' " ^
+                    "'#{api_base}/track-started' 2>/dev/null || true"
+                ))
+            end
+        end)
+    else
+        # Silence or unknown track — clear playing state
+        playing_id := ""
+    end
+end)
+
+# Fallback to silence if source fails entirely
+radio = mksafe(radio)
+
+# ── Jingle overlay (exactly one per hour at minute 0) ───
+jingles_dir = "/var/lib/iradio/jingles"
+
+# Fires true exactly once when the clock enters minute 0 each hour
+hourly_activate = predicate.activates({0m})
+
+def pick_jingle() =
+    if hourly_activate() then
+        path = string.trim(process.read(
+            "find '#{jingles_dir}' -maxdepth 1 -type f " ^
+            "\\( -iname '*.mp3' -o -iname '*.ogg' -o -iname '*.wav' " ^
+            "-o -iname '*.flac' -o -iname '*.aac' -o -iname '*.m4a' \\) " ^
+            "2>/dev/null | sort -R | head -1"
+        ))
+        if path == "" then
+            log.info("Hourly jingle: no files found, skipping")
+            []
+        else
+            log.important("Hourly jingle: #{path}")
+            [request.create(path)]
+        end
+    else
+        []
+    end
+end
+
+# Plays exactly one jingle per hourly activation, then goes silent
+jingles = request.dynamic.list(pick_jingle, retry_delay=30.0)
+
+# Duck main audio to 15% while jingle plays, fade over 0.5s
+radio = smooth_add(
+    duration=0.5,
+    p=0.15,
+    normal=radio,
+    special=jingles
+)
+
+# ── Stream on/off control ─────────────────────────────
+# Controllable via telnet:
+#   var.set stream_active = false   (stop broadcasting)
+#   var.set stream_active = true    (resume broadcasting)
+
+stream_active = interactive.bool("stream_active", true)
+radio_out = switch(track_sensitive=false, [({stream_active()}, radio)])
+
+# ── Output to Icecast ──────────────────────────────────
+
+output.icecast(
+    id                  = "stream",
+    fallible            = true,
+    %mp3(bitrate=192, samplerate=44100, stereo=true),
+    host                = icecast_host,
+    port                = icecast_port,
+    password            = icecast_password,
+    mount               = icecast_mount,
+    name                = "iRadio",
+    description         = "iRadio Automation Stream",
+    genre               = "Various",
+    url                 = "http://localhost",
+    public              = false,
+    on_connect          = fun () -> log.important("Connected to Icecast at #{icecast_host}:#{string(icecast_port)}#{icecast_mount}"),
+    on_disconnect       = fun () -> log.severe("Disconnected from Icecast — will auto-reconnect"),
+    radio_out
+)

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Activate Account</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<style>
+  .strength-bar { height: 4px; border-radius: 2px; background: var(--bg-input); margin-top: 6px; overflow: hidden; }
+  .strength-bar-fill { height: 100%; width: 0; transition: width .3s, background .3s; }
+  .strength-label { font-size: .75rem; color: var(--text-dim); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <h1 id="brandTitle">Admin</h1>
+    <div class="sub">Welcome! Set your password to activate your account.</div>
+    <div id="error" class="text-danger text-center mb-16 hidden"></div>
+    <div id="success" class="text-center mb-16 hidden" style="color:var(--success);font-size:.85rem"></div>
+    <div id="noToken" class="text-center hidden" style="color:var(--danger);font-size:.85rem;margin-bottom:16px">
+      Invalid activation link. Please contact your administrator for a new invitation.
+    </div>
+    <form id="activateForm">
+      <label for="password">New password</label>
+      <input type="password" id="password" autocomplete="new-password" required minlength="6" placeholder="Choose a password">
+      <div class="strength-bar"><div id="strengthFill" class="strength-bar-fill"></div></div>
+      <div id="strengthLabel" class="strength-label"></div>
+
+      <label for="confirmPassword" style="margin-top:12px">Confirm password</label>
+      <input type="password" id="confirmPassword" autocomplete="new-password" required placeholder="Re-enter your password">
+
+      <button type="submit" id="btnSubmit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px">Activate Account</button>
+    </form>
+    <div style="text-align:center;margin-top:16px">
+      <a href="/admin/" style="font-size:.8rem;color:var(--text-dim)">Back to Sign In</a>
+    </div>
+  </div>
+  <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
+</div>
+<script>
+(function() {
+  // Load station branding
+  fetch('/api/config').then(function(r) { return r.json(); }).then(function(cfg) {
+    var name = cfg.station_name || 'iRadio';
+    document.getElementById('brandTitle').textContent = name;
+    document.title = name + ' Admin — Activate Account';
+  }).catch(function() {});
+
+  // Read token from URL
+  var params = new URLSearchParams(window.location.search);
+  var token  = params.get('token') || '';
+
+  if (!token) {
+    document.getElementById('noToken').classList.remove('hidden');
+    document.getElementById('activateForm').style.display = 'none';
+    return;
+  }
+
+  // Password strength indicator
+  var passwordEl = document.getElementById('password');
+  passwordEl.addEventListener('input', function() {
+    var pw    = passwordEl.value;
+    var score = 0;
+    if (pw.length >= 6)                              score++;
+    if (pw.length >= 10)                             score++;
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw))       score++;
+    if (/[0-9]/.test(pw))                            score++;
+    if (/[^a-zA-Z0-9]/.test(pw))                     score++;
+    score = Math.min(4, Math.max(pw.length > 0 ? 1 : 0, score));
+
+    var labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+    var colors = ['', '#f87171', '#fbbf24', '#4ade80', '#22d3ee'];
+    var widths = ['0%', '25%', '50%', '75%', '100%'];
+
+    var fill  = document.getElementById('strengthFill');
+    var label = document.getElementById('strengthLabel');
+    fill.style.width      = widths[score];
+    fill.style.background = colors[score];
+    label.textContent     = labels[score];
+    label.style.color     = colors[score];
+  });
+
+  document.getElementById('activateForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var errEl     = document.getElementById('error');
+    var successEl = document.getElementById('success');
+    var btn       = document.getElementById('btnSubmit');
+    var password  = document.getElementById('password').value;
+    var confirm   = document.getElementById('confirmPassword').value;
+
+    errEl.classList.add('hidden');
+
+    if (password !== confirm) {
+      errEl.textContent = 'Passwords do not match.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Activating…';
+
+    fetch('/api/activate-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ token: token, password: password })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.error) {
+        errEl.textContent = data.error;
+        errEl.classList.remove('hidden');
+      } else {
+        successEl.innerHTML = (data.message || 'Account activated.') +
+          ' <a href="/admin/" style="color:var(--accent);font-weight:600">Sign in now</a>';
+        successEl.classList.remove('hidden');
+        document.getElementById('activateForm').style.display = 'none';
+      }
+    })
+    .catch(function() {
+      errEl.textContent = 'Something went wrong. Please try again.';
+      errEl.classList.remove('hidden');
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.textContent = 'Activate Account';
+    });
+  });
+})();
+</script>
+</body>
+</html>
