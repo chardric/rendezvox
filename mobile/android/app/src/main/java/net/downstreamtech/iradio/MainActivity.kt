@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +24,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Request notification permission on Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
         }
@@ -33,39 +34,31 @@ class MainActivity : ComponentActivity() {
                     factory = PlayerViewModel.Factory(this@MainActivity)
                 )
                 val state by viewModel.state.collectAsStateWithLifecycle()
-
+                var showSplash by remember { mutableStateOf(true) }
                 var showRequest by remember { mutableStateOf(false) }
-                var showSettings by remember { mutableStateOf(false) }
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(BgDark)
                 ) {
-                    if (state.serverUrl.isBlank()) {
-                        // First-run: show setup screen
-                        SetupScreen(
-                            onConnect = { url -> viewModel.setServerUrl(url) }
-                        )
-                    } else if (showSettings) {
-                        // Settings screen
-                        SettingsScreen(
-                            currentUrl = state.serverUrl,
-                            onSave = { url ->
-                                viewModel.setServerUrl(url)
-                                showSettings = false
-                            },
-                            onBack = { showSettings = false }
-                        )
-                    } else {
-                        // Main player
+                    AnimatedVisibility(
+                        visible = !showSplash,
+                        enter = fadeIn(animationSpec = tween(400))
+                    ) {
                         PlayerScreen(
                             state = state,
                             onTogglePlayback = { viewModel.togglePlayback() },
                             onVolumeChange = { viewModel.setVolume(it) },
-                            onRequestSong = { showRequest = true },
-                            onOpenSettings = { showSettings = true }
+                            onRequestSong = { showRequest = true }
                         )
+                    }
+
+                    AnimatedVisibility(
+                        visible = showSplash,
+                        exit = fadeOut(animationSpec = tween(400))
+                    ) {
+                        SplashScreen(onFinished = { showSplash = false })
                     }
 
                     if (showRequest) {

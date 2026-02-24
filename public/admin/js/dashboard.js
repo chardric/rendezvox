@@ -412,32 +412,40 @@ var iRadioDashboard = (function() {
     var durationStr = durationHrs > 0 ? durationHrs + 'h ' + durationMin + 'm' : durationMin + 'm';
     var diskStr = formatBytes(data.disk_bytes);
 
+    var diskFreeStr = formatBytes(data.disk_free_bytes || 0);
+    var diskTotalStr = formatBytes(data.disk_total_bytes || 0);
+
     var html = '';
     html += statBox(data.songs_active, 'Active Songs', data.songs_inactive > 0 ? data.songs_inactive + ' inactive' : '');
     html += statBox(data.artists, 'Artists', '');
     html += statBox(data.genres, 'Genres', '');
     html += statBox(durationStr, 'Total Duration', '');
     html += statBox(formatNumber(data.total_plays), 'Total Plays', '');
-    html += statBox(diskStr, 'Disk Usage', '');
+    html += statBox(diskStr, 'Disk Usage', diskFreeStr + ' free of ' + diskTotalStr);
     html += statBox(data.active_playlists, 'Playlists', '');
     html += statBox(data.active_schedules, 'Schedules', '');
 
     el.innerHTML = html;
 
-    // Notices — render as individual cards (some are clickable links)
-    var notices = [];
-    if (data.pending_imports > 0) notices.push({ count: data.pending_imports, label: 'Pending Imports' });
-    if (data.songs_trashed > 0)   notices.push({ count: data.songs_trashed, label: 'In Trash' });
-    if (data.untagged > 0)        notices.push({ count: data.untagged, label: 'Untagged Songs' });
-    if (data.unnormalized > 0)    notices.push({ count: data.unnormalized, label: 'Unnormalized' });
-    if (data.missing_files > 0)   notices.push({ count: data.missing_files, label: 'Missing Files', href: '/admin/songs.html?filter=missing' });
-    if (data.dup_artists > 0)     notices.push({ count: data.dup_artists, label: 'Duplicate Artists', href: '/admin/duplicates.html' });
+    // Notices — always show all health indicators with links to act on them
+    var notices = [
+      { count: data.pending_imports || 0, label: 'Pending Uploads', href: '/admin/media.html#uploads' },
+      { count: data.untagged || 0,        label: 'Untagged',        href: '/admin/media.html' },
+      { count: data.unnormalized || 0,    label: 'Unnormalized' },
+      { count: data.dup_songs || 0,       label: 'Duplicate Songs', href: '/admin/duplicates.html' },
+      { count: data.dup_artists || 0,     label: 'Duplicate Artists',href: '/admin/duplicates.html' },
+      { count: data.zero_byte_files || 0, label: 'Zero-byte Files', href: '/admin/duplicates.html' },
+      { count: data.missing_files || 0,   label: 'Missing Files' },
+      { count: data.songs_trashed || 0,   label: 'In Trash' },
+    ];
 
     var wrap = document.getElementById('libraryNotices');
     var grid = document.getElementById('libraryNoticesGrid');
-    if (notices.length > 0) {
+    var hasAny = notices.some(function(n) { return n.count > 0; });
+    if (hasAny) {
       var nhtml = '';
       notices.forEach(function(n) {
+        if (n.count === 0) return;
         var tag = n.href ? 'a' : 'div';
         var hrefAttr = n.href ? ' href="' + n.href + '"' : '';
         var style = n.href ? ' style="text-decoration:none;cursor:pointer"' : '';

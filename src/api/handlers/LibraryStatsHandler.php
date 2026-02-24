@@ -100,22 +100,34 @@ class LibraryStatsHandler
         ");
         $dupArtists = (int) $stmt->fetchColumn();
 
-        // Active songs with missing files on disk
+        // Active songs with missing or zero-byte files on disk
         $missingFiles = 0;
+        $zeroByteFiles = 0;
         $stmt = $db->query("
             SELECT file_path FROM songs
             WHERE is_active = true AND trashed_at IS NULL AND file_path IS NOT NULL
         ");
         while ($row = $stmt->fetch()) {
             $path = $row['file_path'];
-            // Resolve relative paths against the music directory
             if ($path !== '' && $path[0] !== '/') {
                 $path = self::MUSIC_DIR . '/' . $path;
             }
             if (!file_exists($path)) {
                 $missingFiles++;
+            } elseif ((int) filesize($path) === 0) {
+                $zeroByteFiles++;
             }
         }
+
+        // Duplicate songs (same file_hash)
+        $stmt = $db->query("
+            SELECT COALESCE(SUM(cnt - 1), 0) AS dup_count FROM (
+                SELECT COUNT(*) AS cnt FROM songs
+                WHERE file_hash IS NOT NULL AND file_hash != '' AND trashed_at IS NULL
+                GROUP BY file_hash HAVING COUNT(*) > 1
+            ) sub
+        ");
+        $dupSongs = (int) $stmt->fetchColumn();
 
         // Disk free space for low-disk-space notice
         $diskSpace = DiskSpace::check();
@@ -138,6 +150,8 @@ class LibraryStatsHandler
             'unnormalized'       => $unnormalized,
             'untagged'           => $untagged,
             'dup_artists'        => $dupArtists,
+            'dup_songs'          => $dupSongs,
+            'zero_byte_files'    => $zeroByteFiles,
             'missing_files'      => $missingFiles,
             'active_playlists'   => $playlistCount,
             'active_schedules'   => $scheduleCount,

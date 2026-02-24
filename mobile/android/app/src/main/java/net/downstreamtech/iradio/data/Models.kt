@@ -1,7 +1,9 @@
 package net.downstreamtech.iradio.data
 
+const val BASE_URL = "https://radio.chadlinuxtech.net"
+
 data class StationConfig(
-    val station_name: String = "iRadio",
+    val station_name: String = "RendezVox",
     val tagline: String = "Online Radio"
 )
 
@@ -9,7 +11,8 @@ data class SongInfo(
     val id: Int = 0,
     val title: String = "",
     val artist: String = "",
-    val duration_ms: Long = 0
+    val duration_ms: Long = 0,
+    val has_cover_art: Boolean = false
 )
 
 data class RequestInfo(
@@ -50,10 +53,12 @@ data class RequestResponse(
 )
 
 data class NowPlayingState(
-    val stationName: String = "iRadio",
+    val stationName: String = "RendezVox",
     val tagline: String = "Online Radio",
     val songTitle: String = "\u2014",
     val songArtist: String = "",
+    val songId: Int = 0,
+    val hasCoverArt: Boolean = false,
     val durationMs: Long = 0,
     val startedAtMs: Long = 0,
     val nextTitle: String = "\u2014",
@@ -65,6 +70,8 @@ data class NowPlayingState(
     val isPlaying: Boolean = false,
     val isConnecting: Boolean = false,
     val isBuffering: Boolean = false,
-    val serverUrl: String = "",
     val volume: Float = 0.8f
-)
+) {
+    val coverArtUrl: String
+        get() = if (hasCoverArt && songId > 0) "$BASE_URL/api/cover?id=$songId" else ""
+}

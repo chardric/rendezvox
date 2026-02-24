@@ -30,8 +30,11 @@ var iRadioPlaylists = (function() {
   var autoYearsData      = null;
 
   var PLAYLIST_COLORS = [
-    '#00c8a0', '#f87171', '#34d399', '#fbbf24', '#60a5fa',
-    '#a78bfa', '#f472b6', '#2dd4bf', '#fb923c', '#818cf8'
+    '#00c8a0', '#f87171', '#60a5fa', '#fbbf24', '#a78bfa',
+    '#f472b6', '#2dd4bf', '#fb923c', '#818cf8', '#34d399',
+    '#38bdf8', '#e879f9', '#facc15', '#4ade80', '#fb7185',
+    '#22d3ee', '#c084fc', '#fdba74', '#a3e635', '#67e8f9',
+    '#f9a8d4', '#86efac', '#94a3b8', '#fde68a'
   ];
   var allPlaylists = [];
   var currentStreamingPlaylistId = null;
@@ -153,7 +156,7 @@ var iRadioPlaylists = (function() {
         ? '<span class="badge badge-active" title="This playlist will be used when emergency mode is triggered">Ready</span>'
         : '<span class="badge badge-inactive" title="Enable this playlist so it can be used during emergency mode">Disabled</span>';
       var epStreamBadge = (currentStreamingPlaylistId && ep.id === currentStreamingPlaylistId)
-        ? ' <span class="streaming-icon" title="Now streaming"></span>'
+        ? ' <span class="streaming-icon" title="Now streaming">ON AIR</span>'
         : '';
       desc.innerHTML = '<strong>' + escHtml(ep.name) + '</strong> — ' + songLabel + ' ' + statusBadge + epStreamBadge;
       actions.innerHTML =
@@ -313,11 +316,62 @@ var iRadioPlaylists = (function() {
     iRadioAPI.get('/admin/playlists').then(function(data) {
       allPlaylists = data.playlists || [];
       currentStreamingPlaylistId = data.current_playlist_id || null;
+      fixDuplicateColors();
+    });
+  }
+
+  // Convert 6-digit hex to [r, g, b]
+  function hexToRgb(hex) {
+    var h = hex.replace('#', '');
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+
+  // Euclidean RGB distance (0–441)
+  function colorDistance(a, b) {
+    var ra = hexToRgb(a), rb = hexToRgb(b);
+    return Math.sqrt(Math.pow(ra[0]-rb[0],2) + Math.pow(ra[1]-rb[1],2) + Math.pow(ra[2]-rb[2],2));
+  }
+
+  // Detect visually similar colors (exact OR perceptually close) and silently reassign, then render
+  function fixDuplicateColors() {
+    var DIST_THRESHOLD = 80; // colors within this RGB distance are "too similar"
+    var confirmed = []; // playlist colors already locked in
+    var fixes = [];
+
+    allPlaylists.forEach(function(p) {
+      if (!p.color) return;
+      var tooClose = confirmed.some(function(c) { return colorDistance(p.color, c) < DIST_THRESHOLD; });
+      if (tooClose) {
+        fixes.push(p);
+      } else {
+        confirmed.push(p.color);
+      }
+    });
+
+    if (fixes.length === 0) {
       renderEmergencyCard(allPlaylists);
-      // Filter out emergency from main table
       var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
       renderTable(regular);
+      return;
+    }
+
+    // Assign new distinct colors (not close to any confirmed color)
+    fixes.forEach(function(p) {
+      var newColor = pickDistinctColor(confirmed);
+      p.color = newColor;
+      confirmed.push(newColor);
     });
+
+    // Save all fixes in parallel, then render once done
+    var saves = fixes.map(function(p) {
+      return iRadioAPI.put('/admin/playlists/' + p.id, { color: p.color });
+    });
+    var render = function() {
+      renderEmergencyCard(allPlaylists);
+      var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
+      renderTable(regular);
+    };
+    Promise.all(saves).then(render).catch(render);
   }
 
   function getUsedColors(excludeId) {
@@ -328,6 +382,22 @@ var iRadioPlaylists = (function() {
       }
     });
     return used;
+  }
+
+  // Pick a color from the palette that is visually distinct from all colors in `takenColors`
+  function pickDistinctColor(takenColors) {
+    var DIST_THRESHOLD = 80;
+    var available = PLAYLIST_COLORS.filter(function(c) {
+      return takenColors.every(function(t) { return colorDistance(c, t) >= DIST_THRESHOLD; });
+    });
+    if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
+    // Fall back to least-similar color in the palette
+    var best = PLAYLIST_COLORS[0], bestDist = 0;
+    PLAYLIST_COLORS.forEach(function(c) {
+      var minDist = Math.min.apply(null, takenColors.map(function(t) { return colorDistance(c, t); }));
+      if (minDist > bestDist) { bestDist = minDist; best = c; }
+    });
+    return best;
   }
 
   function pickRandomColor(excludeId) {
@@ -362,12 +432,15 @@ var iRadioPlaylists = (function() {
       var typeLabel = p.type.charAt(0).toUpperCase() + p.type.slice(1);
       var songCount = p.song_count !== null ? p.song_count : '<span title="Dynamic">&mdash;</span>';
       var swatch = p.color ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + escHtml(p.color) + ';vertical-align:middle;margin-right:6px"></span>' : '';
-      var streamingBadge = (currentStreamingPlaylistId && p.id === currentStreamingPlaylistId)
-        ? ' <span class="streaming-icon" title="Now streaming"></span>'
+      var isStreaming = !!(currentStreamingPlaylistId && p.id === currentStreamingPlaylistId);
+      var streamingBadge = isStreaming
+        ? ' <span class="streaming-icon" title="Now streaming">ON AIR</span>'
         : '';
       var toggleChecked = p.is_active ? ' checked' : '';
-      var isStreaming = currentStreamingPlaylistId && p.id === currentStreamingPlaylistId;
-      html += '<tr>' +
+      var trAttr = isStreaming
+        ? ' class="on-air" style="--pl-color:' + escHtml(p.color || '#00c8a0') + '"'
+        : '';
+      html += '<tr' + trAttr + '>' +
         '<td><input type="checkbox" class="pl-row-check" data-id="' + p.id + '" data-name="' + escHtml(p.name) + '"' + (isStreaming ? ' disabled title="Currently streaming"' : '') + ' style="width:16px;height:16px;cursor:' + (isStreaming ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent)"></td>' +
         '<td>' + (idx + 1) + '</td>' +
         '<td>' + swatch + escHtml(p.name) + streamingBadge + '</td>' +

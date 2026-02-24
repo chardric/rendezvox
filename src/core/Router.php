@@ -142,6 +142,15 @@ class Router
             Response::error('Method not allowed', 405);
         }
 
+        // Browser navigating to an unknown non-API path → redirect to listener page
+        $acceptsHtml = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'text/html');
+        $isApiPath   = str_starts_with($uri, '/api/') || $uri === '/api';
+        if ($acceptsHtml && !$isApiPath) {
+            http_response_code(302);
+            header('Location: /');
+            exit;
+        }
+
         Response::error('Not found', 404);
     }
 

@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -9,7 +12,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "net.downstreamtech.iradio"
+        applicationId = "net.downstreamtech.rendezvox"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -18,9 +21,9 @@ android {
 
     signingConfigs {
         create("release") {
-            val props = java.util.Properties()
+            val props = Properties()
             val propsFile = rootProject.file("keystore.properties")
-            if (propsFile.exists()) props.load(propsFile.inputStream())
+            if (propsFile.exists()) props.load(FileInputStream(propsFile))
 
             storeFile = file(props.getProperty("storeFile", "../iradio-release.jks"))
             storePassword = props.getProperty("storePassword", "")
@@ -58,7 +61,7 @@ android {
         val variant = this
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "iRadio-${variant.versionName}.apk"
+            output.outputFileName = "RendezVox-${variant.versionName}.apk"
         }
     }
 }
@@ -87,4 +90,7 @@ dependencies {
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
+
+    // Image loading (cover art)
+    implementation("io.coil-kt:coil-compose:2.7.0")
 }

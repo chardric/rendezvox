@@ -63,7 +63,7 @@ var iRadioDuplicates = (function() {
       html += '<div class="card" style="margin-bottom:16px;padding:16px" data-group="' + idx + '">';
       html += '<div class="flex items-center justify-between" style="margin-bottom:12px">';
       html += '<strong>Group ' + (idx + 1) + badge + '</strong>';
-      html += '<button type="button" class="btn btn-danger btn-sm" onclick="iRadioDuplicates.resolveGroup(' + idx + ')">Delete Unselected</button>';
+      html += '<button type="button" class="btn btn-danger btn-sm" onclick="iRadioDuplicates.resolveGroup(' + idx + ')">Delete Duplicates</button>';
       html += '</div>';
 
       html += '<table style="width:100%"><thead><tr>';
@@ -79,12 +79,14 @@ var iRadioDuplicates = (function() {
 
       g.songs.forEach(function(s) {
         var checked = s.id === g.recommended_keep_id ? ' checked' : '';
-        html += '<tr>';
+        var isBad = s.file_size === 0 || s.file_missing;
+        var rowStyle = isBad ? ' style="background:rgba(248,113,113,0.08)"' : '';
+        html += '<tr' + rowStyle + '>';
         html += '<td><input type="radio" name="group_' + idx + '" value="' + s.id + '"' + checked + '></td>';
         html += '<td>' + escHtml(s.title) + '</td>';
         html += '<td>' + escHtml(s.artist_name) + '</td>';
         html += '<td style="font-size:0.8rem;word-break:break-all;max-width:240px">' + escHtml(s.file_path) + '</td>';
-        html += '<td>' + formatBytes(s.file_size) + '</td>';
+        html += '<td>' + formatSize(s) + '</td>';
         html += '<td>' + formatDuration(s.duration_ms) + '</td>';
         html += '<td>' + s.play_count + '</td>';
         html += '<td style="font-size:0.8rem">' + (s.created_at ? s.created_at.substring(0, 10) : '') + '</td>';
@@ -205,6 +207,16 @@ var iRadioDuplicates = (function() {
         gLen + ' group' + (gLen !== 1 ? 's' : '') + ', ' +
         totalDupes + ' duplicate' + (totalDupes !== 1 ? 's' : '') + ' remaining.';
     }
+  }
+
+  function formatSize(song) {
+    if (song.file_missing) {
+      return '<span style="color:var(--danger);font-weight:600">Missing</span>';
+    }
+    if (song.file_size === 0) {
+      return '<span style="color:var(--danger);font-weight:600">0 B</span>';
+    }
+    return formatBytes(song.file_size);
   }
 
   function formatBytes(bytes) {

@@ -389,8 +389,11 @@ if (!$dryRun && !$dbOnly) {
         if (is_dir($newDir) && $oldDir !== $newDir) {
             if (strtolower($oldDir) === strtolower($newDir)) {
                 $tmpDir = $oldDir . '.tmp_rename_' . getmypid();
-                rename($oldDir, $tmpDir);
-                rename($tmpDir, $newDir);
+                if (rename($oldDir, $tmpDir) && !rename($tmpDir, $newDir)) {
+                    rename($tmpDir, $oldDir); // rollback
+                    echo "  WARN: case-rename failed, rolled back: {$oldDir}\n";
+                    continue;
+                }
             } else {
                 echo "  SKIP dir (target exists): {$oldDir} -> {$newDir}\n";
                 continue;
@@ -413,8 +416,11 @@ if (!$dryRun && !$dbOnly) {
             $stats['files_renamed']++;
         } elseif (strtolower($oldFile) === strtolower($newFile)) {
             $tmpFile = $oldFile . '.tmp_rename_' . getmypid();
-            rename($oldFile, $tmpFile);
-            rename($tmpFile, $newFile);
+            if (rename($oldFile, $tmpFile) && !rename($tmpFile, $newFile)) {
+                rename($tmpFile, $oldFile); // rollback
+                echo "  WARN: case-rename failed, rolled back: " . basename($oldFile) . "\n";
+                continue;
+            }
             echo "  FILE: " . basename($oldFile) . " -> " . basename($newFile) . "\n";
             $stats['files_renamed']++;
         }

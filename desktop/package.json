@@ -1,0 +1,58 @@
+{
+  "name": "rendezvox",
+  "productName": "RendezVox",
+  "version": "1.0.0",
+  "description": "RendezVox — Online Radio Player",
+  "homepage": "https://radio.chadlinuxtech.net",
+  "main": "main.js",
+  "author": {
+    "name": "DownStreamTech",
+    "email": "support@downstreamtech.net"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:linux": "electron-builder --linux deb",
+    "build:win": "electron-builder --win nsis",
+    "build:all": "electron-builder --linux deb --win nsis"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "net.downstreamtech.rendezvox",
+    "productName": "RendezVox",
+    "copyright": "© 2026 DownStreamTech",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*"
+    ],
+    "linux": {
+      "target": [
+        { "target": "deb", "arch": ["x64", "arm64"] }
+      ],
+      "category": "AudioVideo",
+      "icon": "build/icons",
+      "maintainer": "DownStreamTech <support@downstreamtech.net>",
+      "description": "RendezVox — Online FM Radio Player"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "src/icons/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "deb": {
+      "depends": ["libgtk-3-0", "libnss3", "libxss1", "libasound2"]
+    }
+  }
+}

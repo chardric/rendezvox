@@ -2,7 +2,6 @@ package net.downstreamtech.iradio.ui
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -25,13 +24,10 @@ import java.util.*
 
 class PlayerViewModel(private val context: Context) : ViewModel() {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("iradio_prefs", Context.MODE_PRIVATE)
-
     private val _state = MutableStateFlow(NowPlayingState())
     val state: StateFlow<NowPlayingState> = _state.asStateFlow()
 
-    private var api: RadioApi? = null
+    private val api = RadioApi(BASE_URL)
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
     private var pollingJob: Job? = null
@@ -53,38 +49,16 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     }
 
     init {
-        val savedUrl = prefs.getString("server_url", null)
-        if (!savedUrl.isNullOrBlank()) {
-            _state.update { it.copy(serverUrl = savedUrl) }
-            connectToServer(savedUrl)
-        }
-    }
-
-    fun setServerUrl(url: String) {
-        val cleanUrl = url.trimEnd('/')
-        prefs.edit().putString("server_url", cleanUrl).apply()
-        _state.update { it.copy(serverUrl = cleanUrl) }
-        connectToServer(cleanUrl)
-    }
-
-    private fun connectToServer(url: String) {
-        api = RadioApi(url)
-
-        // Fetch station config
+        connectMediaController()
         viewModelScope.launch {
-            val config = api?.fetchConfig() ?: return@launch
+            val config = api.fetchConfig()
             _state.update {
                 it.copy(
-                    stationName = config.station_name,
+                    stationName = config.station_name.ifBlank { "RendezVox" },
                     tagline = config.tagline
                 )
             }
         }
-
-        // Connect to media session
-        connectMediaController()
-
-        // Start polling
         startPolling()
         startSSE()
         startListenerPolling()
@@ -97,7 +71,6 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
             try {
                 controller = controllerFuture?.get()
                 controller?.addListener(playerListener)
-                // Sync initial state
                 _state.update {
                     it.copy(
                         isPlaying = controller?.isPlaying == true,
@@ -110,7 +83,6 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
 
     fun togglePlayback() {
         val ctrl = controller ?: return
-        val currentApi = api ?: return
 
         if (ctrl.isPlaying || ctrl.playbackState == Player.STATE_BUFFERING) {
             ctrl.stop()
@@ -119,7 +91,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         } else {
             val s = _state.value
             val mediaItem = PlaybackService.buildMediaItem(
-                streamUrl = currentApi.streamUrl,
+                streamUrl = api.streamUrl,
                 title = if (s.songTitle != "\u2014") s.songTitle else s.stationName,
                 artist = s.songArtist.ifBlank { "Online Radio" },
                 stationName = s.stationName
@@ -151,11 +123,9 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         sseJob = viewModelScope.launch {
             while (isActive) {
                 try {
-                    api?.connectSSE { data ->
-                        handleNowPlayingData(data)
-                    }
+                    api.connectSSE { data -> handleNowPlayingData(data) }
                 } catch (_: Exception) {}
-                delay(5_000) // Reconnect delay
+                delay(5_000)
             }
         }
     }
@@ -164,7 +134,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         listenerJob?.cancel()
         listenerJob = viewModelScope.launch {
             while (isActive) {
-                val count = api?.fetchListenerCount() ?: 0
+                val count = api.fetchListenerCount()
                 _state.update { it.copy(listenerCount = count) }
                 delay(15_000)
             }
@@ -172,23 +142,20 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     }
 
     private suspend fun fetchNowPlaying() {
-        val data = api?.fetchNowPlaying() ?: return
+        val data = api.fetchNowPlaying() ?: return
         handleNowPlayingData(data)
     }
 
     private fun handleNowPlayingData(data: NowPlayingData) {
         _state.update { current ->
             val song = data.song
-            val startedMs = if (data.started_at != null) {
-                parseIsoDate(data.started_at)
-            } else if (song != null) {
-                // Use SSE song started_at if available
-                0L
-            } else 0L
+            val startedMs = data.started_at?.let { parseIsoDate(it) } ?: 0L
 
             current.copy(
                 songTitle = song?.title ?: "\u2014",
                 songArtist = song?.artist ?: "",
+                songId = song?.id ?: 0,
+                hasCoverArt = song?.has_cover_art ?: false,
                 durationMs = song?.duration_ms ?: 0,
                 startedAtMs = startedMs,
                 nextTitle = data.next_track?.title ?: "\u2014",
@@ -199,7 +166,6 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
             )
         }
 
-        // Update media session metadata
         val song = data.song
         if (song != null && controller?.isPlaying == true) {
             val s = _state.value
@@ -208,15 +174,11 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
                 .setArtist(song.artist)
                 .setStation(s.stationName)
                 .build()
-            // Update current media item metadata
             controller?.let { ctrl ->
                 if (ctrl.mediaItemCount > 0) {
                     val currentItem = ctrl.currentMediaItem
                     if (currentItem != null) {
-                        val updated = currentItem.buildUpon()
-                            .setMediaMetadata(metadata)
-                            .build()
-                        ctrl.replaceMediaItem(0, updated)
+                        ctrl.replaceMediaItem(0, currentItem.buildUpon().setMediaMetadata(metadata).build())
                     }
                 }
             }
@@ -224,35 +186,27 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun parseIsoDate(dateStr: String): Long {
-        return try {
-            val formats = arrayOf(
-                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-                "yyyy-MM-dd'T'HH:mm:ss'Z'",
-                "yyyy-MM-dd'T'HH:mm:ssXXX",
-                "yyyy-MM-dd HH:mm:ss"
-            )
-            for (fmt in formats) {
-                try {
-                    val sdf = SimpleDateFormat(fmt, Locale.US)
-                    sdf.timeZone = TimeZone.getTimeZone("UTC")
-                    return sdf.parse(dateStr)?.time ?: 0L
-                } catch (_: Exception) {}
-            }
-            0L
-        } catch (_: Exception) {
-            0L
+        val formats = arrayOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd HH:mm:ss"
+        )
+        for (fmt in formats) {
+            try {
+                val sdf = SimpleDateFormat(fmt, Locale.US)
+                sdf.timeZone = TimeZone.getTimeZone("UTC")
+                return sdf.parse(dateStr)?.time ?: 0L
+            } catch (_: Exception) {}
         }
+        return 0L
     }
 
-    // --- Song Request ---
+    suspend fun searchSongs(title: String, artist: String?): SearchResult =
+        api.searchSong(title, artist)
 
-    suspend fun searchSongs(title: String, artist: String?): SearchResult {
-        return api?.searchSong(title, artist) ?: SearchResult()
-    }
-
-    suspend fun submitSongRequest(body: RequestBody): Pair<Int, RequestResponse> {
-        return api?.submitRequest(body) ?: Pair(0, RequestResponse(error = "Not connected"))
-    }
+    suspend fun submitSongRequest(body: RequestBody): Pair<Int, RequestResponse> =
+        api.submitRequest(body)
 
     override fun onCleared() {
         super.onCleared()
@@ -265,8 +219,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return PlayerViewModel(context.applicationContext) as T
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            PlayerViewModel(context.applicationContext) as T
     }
 }
