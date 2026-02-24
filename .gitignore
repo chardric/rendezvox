@@ -7,6 +7,9 @@ docker/.env
 .credentials
 CLAUDE.md
 
+# Github Bootstrap
+github_bootstrap.sh
+
 # OS
 .DS_Store
 Thumbs.db
