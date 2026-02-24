@@ -666,7 +666,7 @@ Nginx rate limits on sensitive endpoints:
 
 ## Changelog
 
-### v1.0.0-beta — 2026-02-22
+### v1.0.0 — 2026-02-24
 
 **Radio Automation**
 - Liquidsoap audio engine with API-driven track selection and crossfade
@@ -681,14 +681,24 @@ Nginx rate limits on sensitive endpoints:
 - Dashboard with DJ booth monitor, live progress bar, stream controls
 - Real-time SSE (Server-Sent Events) for now-playing updates
 - Music library management with drag-and-drop media browser
+- Drag-and-drop file and folder uploads with auto-detection
+- Parallel file uploads (4 concurrent) for faster bulk importing
+- Folder upload preserves directory structure for playlist creation
 - Automatic metadata extraction, audio fingerprinting, genre tagging
+- Full tagging pipeline: AcoustID fingerprint → MusicBrainz → TheAudioDB fallback
+- Tag clearing and rewriting with fresh metadata from external sources
+- Cover art preservation through the tag rewrite cycle
+- Duplicate detection moves files to `_duplicates/` instead of deleting
+- Unidentified files moved to `_untagged/` with embedded metadata preserved
 - Playlist system (manual, auto-generated, emergency) with JSONB rules
+- Batch playlist import from filesystem folders
 - Visual calendar schedule builder with priority-based overlap resolution
 - Song request moderation queue with auto-approve option
 - Role-based access control (Super Admin, Admin, Editor, Viewer)
 - User management with avatar upload and login IP tracking
 - Analytics: listener stats, popular songs, popular requests
 - Station settings panel with weather widget integration
+- Disk space monitoring with low-space warnings
 
 **Public Listener Page**
 - Single-page player with play/stop, volume, progress bar
@@ -708,7 +718,7 @@ Nginx rate limits on sensitive endpoints:
 **Security**
 - IP spoofing prevention: `REMOTE_ADDR` only (attacker headers ignored)
 - Internal endpoint protection via shared secret (`IRADIO_INTERNAL_SECRET`)
-- Path traversal protection on avatar serving
+- Path traversal protection on avatar serving and folder uploads
 - Input length limits on all public-facing endpoints
 - Rate limiting on login, setup, search, and public API endpoints
 - SMTP log scrubbed from API responses

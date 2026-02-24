@@ -141,23 +141,32 @@ radio = mksafe(radio)
 
 # ── Jingle overlay (exactly one per hour at minute 0) ───
 jingles_dir = "/var/lib/iradio/jingles"
+jingle_state = "/var/lib/iradio/jingles/.last_index"
 
 # Fires true exactly once when the clock enters minute 0 each hour
 hourly_activate = predicate.activates({0m})
 
 def pick_jingle() =
     if hourly_activate() then
+        # Sequential round-robin: list files sorted alphabetically,
+        # read last-played index from state file, pick the next one.
         path = string.trim(process.read(
-            "find '#{jingles_dir}' -maxdepth 1 -type f " ^
+            "files=$(find '#{jingles_dir}' -maxdepth 1 -type f " ^
             "\\( -iname '*.mp3' -o -iname '*.ogg' -o -iname '*.wav' " ^
             "-o -iname '*.flac' -o -iname '*.aac' -o -iname '*.m4a' \\) " ^
-            "2>/dev/null | sort -R | head -1"
+            "2>/dev/null | sort) && " ^
+            "count=$(echo \"$files\" | grep -c . 2>/dev/null || echo 0) && " ^
+            "[ \"$count\" -gt 0 ] || exit 0 && " ^
+            "last=$(cat '#{jingle_state}' 2>/dev/null || echo -1) && " ^
+            "next=$(( (last + 1) % count )) && " ^
+            "echo \"$next\" > '#{jingle_state}' && " ^
+            "echo \"$files\" | sed -n \"$((next + 1))p\""
         ))
         if path == "" then
             log.info("Hourly jingle: no files found, skipping")
             []
         else
-            log.important("Hourly jingle: #{path}")
+            log.important("Hourly jingle (sequential): #{path}")
             [request.create(path)]
         end
     else

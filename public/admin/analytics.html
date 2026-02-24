@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Analytics</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css">
+<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
 </head>
 <body>
 <div class="app">
@@ -18,63 +18,86 @@
   <main class="main">
     <h1 class="page-title">Analytics</h1>
 
-    <!-- ── Listener chart ───────────────────────────── -->
-    <div class="card" style="margin-bottom:24px;padding:20px">
-      <div class="flex items-center justify-between" style="margin-bottom:12px">
-        <div class="card-label" style="margin-bottom:0">Listeners Over Time</div>
-        <select id="listenerRange" style="width:auto;margin-bottom:0;min-width:100px">
-          <option value="1h">Last 1h</option>
-          <option value="6h">Last 6h</option>
-          <option value="24h" selected>Last 24h</option>
-          <option value="7d">Last 7d</option>
-          <option value="30d">Last 30d</option>
-        </select>
-      </div>
-      <canvas id="listenerChart" height="200" style="width:100%"></canvas>
-      <div id="listenerEmpty" class="empty hidden">No listener data for this range</div>
+    <div class="tabs" id="analyticsTabs">
+      <button class="tab active" data-tab="listeners">Listeners</button>
+      <button class="tab" data-tab="played">Most Played</button>
+      <button class="tab" data-tab="requested">Most Requested</button>
+      <button class="tab" data-tab="stats">Library Stats</button>
     </div>
 
-    <!-- ── Most played songs ────────────────────────── -->
-    <div class="card" style="margin-bottom:24px;padding:20px">
-      <div class="card-label">Most Played Songs (All Time)</div>
-      <canvas id="popularChart" height="250" style="width:100%"></canvas>
-      <div class="table-wrap mt-16">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Title</th>
-              <th>Artist</th>
-              <th>Genre</th>
-              <th>Plays</th>
-            </tr>
-          </thead>
-          <tbody id="popularTable">
-            <tr><td colspan="5" class="empty">Loading…</td></tr>
-          </tbody>
-        </table>
+    <!-- ── Listeners tab ─────────────────────────────── -->
+    <div class="tab-panel active" id="tab-listeners">
+      <div class="card" style="padding:20px">
+        <div class="flex items-center justify-between" style="margin-bottom:12px">
+          <div class="card-label" style="margin-bottom:0">Listeners Over Time</div>
+          <select id="listenerRange" style="width:auto;margin-bottom:0;min-width:100px">
+            <option value="1h">Last 1h</option>
+            <option value="6h">Last 6h</option>
+            <option value="24h" selected>Last 24h</option>
+            <option value="7d">Last 7d</option>
+            <option value="30d">Last 30d</option>
+          </select>
+        </div>
+        <canvas id="listenerChart" height="200" style="width:100%"></canvas>
+        <div id="listenerEmpty" class="empty hidden">No listener data for this range</div>
       </div>
     </div>
 
-    <!-- ── Most requested songs ─────────────────────── -->
-    <div class="card" style="margin-bottom:24px;padding:20px">
-      <div class="card-label">Most Requested Songs</div>
-      <canvas id="requestChart" height="280" style="width:100%;margin-bottom:12px"></canvas>
-      <div class="table-wrap mt-8">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Title</th>
-              <th>Artist</th>
-              <th>Requests</th>
-              <th>Played</th>
-            </tr>
-          </thead>
-          <tbody id="requestedTable">
-            <tr><td colspan="5" class="empty">Loading…</td></tr>
-          </tbody>
-        </table>
+    <!-- ── Most Played tab ───────────────────────────── -->
+    <div class="tab-panel" id="tab-played">
+      <div class="card" style="padding:20px">
+        <div class="card-label">Most Played Songs (All Time)</div>
+        <canvas id="popularChart" height="250" style="width:100%"></canvas>
+        <div class="table-wrap mt-16">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Artist</th>
+                <th>Genre</th>
+                <th>Plays</th>
+              </tr>
+            </thead>
+            <tbody id="popularTable">
+              <tr><td colspan="5" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Most Requested tab ────────────────────────── -->
+    <div class="tab-panel" id="tab-requested">
+      <div class="card" style="padding:20px">
+        <div class="card-label">Most Requested Songs</div>
+        <canvas id="requestChart" height="280" style="width:100%;margin-bottom:12px"></canvas>
+        <div class="table-wrap mt-8">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Artist</th>
+                <th>Requests</th>
+                <th>Played</th>
+              </tr>
+            </thead>
+            <tbody id="requestedTable">
+              <tr><td colspan="5" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Library Stats tab ─────────────────────────── -->
+    <div class="tab-panel" id="tab-stats">
+      <div class="card" style="padding:20px">
+        <div class="card-label" style="margin-bottom:16px">Library Overview</div>
+        <div id="libraryStatsGrid">
+          <div class="spinner"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -85,6 +108,7 @@
 <script src="/assets/scroll-controls.js"></script>
 <script src="/admin/js/api.js"></script>
 <script src="/admin/js/auth.js"></script>
+<script src="/admin/js/theme.js"></script>
 <script src="/admin/js/nav.js"></script>
 <script src="/admin/js/analytics.js"></script>
 <script>

@@ -42,25 +42,53 @@ class SongPurgeHandler
             return;
         }
 
-        $result = $this->purgeSongs(array_map('intval', $ids));
+        $result = $this->purgeSongs(array_map('intval', $ids), 'trashed_at IS NOT NULL');
 
         Response::json($result);
     }
 
-    private function purgeSongs(array $ids): array
+    public function purgeInactive(): void
+    {
+        $db   = Database::get();
+        $body = json_decode(file_get_contents('php://input'), true);
+
+        // If specific IDs provided, purge only those; otherwise purge all inactive
+        if (!empty($body['ids']) && is_array($body['ids'])) {
+            $ids = array_values(array_unique(array_filter(
+                array_map('intval', $body['ids']),
+                fn($id) => $id > 0
+            )));
+        } else {
+            $stmt = $db->query('SELECT id FROM songs WHERE is_active = false AND trashed_at IS NULL');
+            $ids  = array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+        }
+
+        if (empty($ids)) {
+            Response::json(['purged' => 0, 'errors' => []]);
+            return;
+        }
+
+        $result = $this->purgeSongs($ids, 'is_active = false AND trashed_at IS NULL');
+
+        Response::json($result);
+    }
+
+    /**
+     * @param string $condition SQL WHERE condition that guards which songs can be purged
+     */
+    private function purgeSongs(array $ids, string $condition = 'trashed_at IS NOT NULL'): array
     {
         $db     = Database::get();
         $purged = 0;
         $errors = [];
 
         foreach ($ids as $id) {
-            // Fetch file_path and hash — only allow purging trashed songs
-            $stmt = $db->prepare('SELECT file_path, file_hash FROM songs WHERE id = :id AND trashed_at IS NOT NULL');
+            $stmt = $db->prepare("SELECT file_path, file_hash FROM songs WHERE id = :id AND {$condition}");
             $stmt->execute(['id' => $id]);
             $row = $stmt->fetch();
 
             if ($row === false) {
-                $errors[] = ['id' => $id, 'error' => 'Song not found or not trashed'];
+                $errors[] = ['id' => $id, 'error' => 'Song not found or condition not met'];
                 continue;
             }
 
@@ -68,7 +96,7 @@ class SongPurgeHandler
             $fileHash = $row['file_hash'];
 
             // Delete DB row
-            $del = $db->prepare('DELETE FROM songs WHERE id = :id AND trashed_at IS NOT NULL');
+            $del = $db->prepare("DELETE FROM songs WHERE id = :id AND {$condition}");
             $del->execute(['id' => $id]);
 
             if ($del->rowCount() === 0) {
@@ -86,7 +114,6 @@ class SongPurgeHandler
             $fullPath = self::MUSIC_DIR . '/' . $filePath;
             if (file_exists($fullPath)) {
                 @unlink($fullPath);
-                // Remove empty parent dirs up to MUSIC_DIR
                 $dir = dirname($fullPath);
                 while ($dir !== self::MUSIC_DIR && $dir !== dirname(self::MUSIC_DIR)) {
                     if (is_dir($dir) && count(scandir($dir)) === 2) {

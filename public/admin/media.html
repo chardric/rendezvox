@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Media</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css">
+<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
 <style>
   /* ── Filter bar ────────────────────────────────────── */
   .filter-bar {
@@ -319,6 +319,7 @@
         <label style="display:flex;align-items:center;gap:5px;font-size:0.82rem;opacity:0.6;margin-left:8px;cursor:pointer">
           <input type="checkbox" id="showInactive"> Show inactive
         </label>
+        <button class="btn btn-ghost btn-sm hidden" style="color:#f87171;margin-left:4px" id="btnPurgeInactive">Purge All Inactive</button>
       </div>
 
       <!-- Search + count -->
@@ -332,6 +333,9 @@
         <span class="bulk-count" id="bulkCount">0 selected</span>
         <span id="bulkLibraryActions">
           <button class="btn btn-ghost btn-sm" style="color:#f87171" id="btnBulkTrash">Move to Trash</button>
+        </span>
+        <span id="bulkInactiveActions" class="hidden">
+          <button class="btn btn-ghost btn-sm" style="color:#f87171" id="btnBulkPurgeInactive">Delete Selected</button>
         </span>
         <span id="bulkTrashActions" class="hidden">
           <button class="btn btn-ghost btn-sm" id="btnBulkRestore">Restore</button>
@@ -391,22 +395,19 @@
     <form id="uploadForm" class="compact-form">
 
       <!-- Drop zone -->
-      <div id="dropZone" class="drop-zone" style="padding:20px 14px;margin-bottom:10px">
-        <p>&#127911; Drag files or folders here, or browse below</p>
-        <div style="display:flex;gap:8px;justify-content:center">
-          <label class="btn btn-ghost btn-sm" for="uploadFiles" style="cursor:pointer">Browse Files</label>
-          <button type="button" class="btn btn-ghost btn-sm" id="btnBrowseFolder">Browse Folder</button>
-        </div>
+      <div id="dropZone" class="drop-zone" style="padding:20px 14px;margin-bottom:10px;cursor:pointer">
+        <p id="dropZonePrompt">&#127911; Drag &amp; drop files or a folder here</p>
+        <p id="dropZoneSubtext" style="font-size:0.78rem;opacity:0.45;margin:4px 0 0">or click to browse files</p>
         <input type="file" id="uploadFiles" accept="audio/*" multiple style="display:none">
-        <input type="file" id="uploadFolder" webkitdirectory multiple style="display:none">
         <div class="file-list" id="dropFileList"></div>
+        <button type="button" class="btn btn-ghost btn-sm hidden" id="btnClearDrop" style="margin-top:8px">Clear</button>
       </div>
 
-      <div class="form-row">
+      <div class="form-row hidden" id="uploadGenreRow">
         <div style="flex:1">
           <label for="uploadGenreSel">Genre *</label>
           <div class="flex gap-8 items-center">
-            <select id="uploadGenreSel" required style="margin-bottom:0;flex:1"></select>
+            <select id="uploadGenreSel" style="margin-bottom:0;flex:1"></select>
             <button type="button" class="btn btn-ghost btn-sm" id="btnNewGenre">+</button>
           </div>
         </div>
@@ -419,7 +420,7 @@
         </div>
       </div>
 
-      <p style="font-size:0.78rem;opacity:0.45;margin:2px 0 8px">Title and artist are auto-read from ID3 tags by the organizer.</p>
+      <p id="uploadHint" class="hidden" style="font-size:0.78rem;opacity:0.45;margin:2px 0 8px">Title and artist are auto-read from ID3 tags by the organizer.</p>
 
       <!-- Upload progress bar -->
       <div id="uploadProgress" class="hidden" style="margin-bottom:8px">
@@ -555,9 +556,11 @@
 <script src="/assets/scroll-controls.js"></script>
 <script src="/admin/js/api.js"></script>
 <script src="/admin/js/auth.js"></script>
+<script src="/admin/js/theme.js"></script>
 <script src="/admin/js/nav.js"></script>
 <script src="/admin/js/icons.js"></script>
-<script src="/admin/js/media.js?v=2"></script>
+<script src="/admin/js/confirm.js"></script>
+<script src="/admin/js/media.js?v=5"></script>
 <script>
   if (iRadioAuth.requireLogin()) {
     iRadioNav.init();

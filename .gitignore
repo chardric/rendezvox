@@ -5,6 +5,7 @@
 # Environment secrets
 docker/.env
 .credentials
+CLAUDE.md
 
 # OS
 .DS_Store

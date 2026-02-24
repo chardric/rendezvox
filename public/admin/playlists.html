@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Playlists</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css">
+<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
 </head>
 <body>
 <div class="app">
-  <button id="hamburger" class="hamburger">
+  <button type="button" id="hamburger" class="hamburger">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
   <div id="overlay" class="overlay"></div>
@@ -29,7 +29,17 @@
 
     <div class="flex items-center justify-between" style="margin-bottom:20px">
       <h1 class="page-title" style="margin-bottom:0">Playlists</h1>
-      <button class="btn btn-primary" id="btnCreate">+ New Playlist</button>
+      <div class="flex gap-8">
+        <button type="button" class="btn btn-ghost" id="btnImportFolders">Import from Folders</button>
+        <button type="button" class="btn btn-primary" id="btnCreate">+ New Playlist</button>
+      </div>
+    </div>
+
+    <!-- ── Bulk action bar (hidden until selection) ── -->
+    <div id="bulkBar" class="hidden" style="display:none;align-items:center;gap:12px;padding:8px 14px;margin-bottom:8px;background:rgba(0,200,160,.08);border:1px solid var(--accent);border-radius:8px">
+      <span id="bulkCount" style="font-size:.85rem;font-weight:600"></span>
+      <button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff;margin-left:auto" id="btnBulkDelete">Delete Selected</button>
+      <button type="button" class="btn btn-sm btn-ghost" id="btnBulkCancel">Cancel</button>
     </div>
 
     <!-- ── Playlist list ────────────────────────────── -->
@@ -37,6 +47,7 @@
       <table>
         <thead>
           <tr>
+            <th style="width:36px"><input type="checkbox" id="plSelectAll" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)"></th>
             <th>#</th>
             <th>Name</th>
             <th>Type</th>
@@ -47,7 +58,7 @@
           </tr>
         </thead>
         <tbody id="playlistTable">
-          <tr><td colspan="7" class="empty">Loading…</td></tr>
+          <tr><td colspan="8" class="empty">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -60,11 +71,11 @@
           <p id="autoDetailNote" class="text-dim hidden" style="font-size:0.78rem;margin:2px 0 0">Dynamic — songs matched by filters. No repeat until all consumed.</p>
         </div>
         <div class="flex gap-8">
-          <button class="btn btn-ghost btn-sm" id="btnShuffle">Shuffle</button>
-          <button class="btn btn-ghost btn-sm" id="btnAddSong">+ Add Song</button>
-          <button class="btn btn-ghost btn-sm" id="btnAddFolder">+ From Folder</button>
-          <button class="btn btn-ghost btn-sm" id="btnSurpriseMe">Surprise Me!</button>
-          <button class="btn btn-ghost btn-sm" id="btnCloseDetail">Close</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnShuffle">Shuffle</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnAddSong">+ Add Song</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnAddFolder">+ From Folder</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnSurpriseMe">Surprise Me!</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnCloseDetail">Close</button>
         </div>
       </div>
       <div class="table-wrap">
@@ -74,7 +85,7 @@
               <th>#</th>
               <th>Title</th>
               <th>Artist</th>
-              <th>Genre</th>
+              <th>Genre/Category</th>
               <th>Duration</th>
               <th>Played</th>
               <th>Actions</th>
@@ -123,7 +134,7 @@
             <select id="autoArtists" multiple size="4" style="width:100%;background:var(--bg-subtle,rgba(255,255,255,0.04));border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:6px;color:inherit;padding:3px;margin-bottom:0"></select>
           </div>
           <div style="flex:1">
-            <label>Genre</label>
+            <label>Genre/Category</label>
             <select id="autoCategories" multiple size="4" style="width:100%;background:var(--bg-subtle,rgba(255,255,255,0.04));border:1px solid var(--border,rgba(255,255,255,0.12));border-radius:6px;color:inherit;padding:3px;margin-bottom:0"></select>
           </div>
           <div style="flex:1">
@@ -172,7 +183,7 @@
         <option value="">All Artists</option>
       </select>
       <select id="addSongCategory" style="margin-bottom:0;min-width:150px">
-        <option value="">All Genres</option>
+        <option value="">All Genres/Categories</option>
       </select>
     </div>
     <div style="font-size:.8rem;color:var(--text-dim);margin-bottom:8px" id="addSongResultCount"></div>
@@ -184,7 +195,7 @@
             <th style="width:36px;text-align:center"><input type="checkbox" id="addSongSelectAll" title="Select all" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)"></th>
             <th>Title</th>
             <th>Artist</th>
-            <th>Genre</th>
+            <th>Genre/Category</th>
             <th>Duration</th>
           </tr>
         </thead>
@@ -208,8 +219,9 @@
     <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     <h3>Add Songs from Folder</h3>
     <div class="compact-form">
-      <label for="addFolderSel">Folder</label>
-      <select id="addFolderSel" style="width:100%"></select>
+      <label>Folder</label>
+      <input type="hidden" id="addFolderSel" value="">
+      <div id="addFolderTree" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px;background:var(--bg-subtle,rgba(255,255,255,0.04));margin-bottom:8px"></div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px">
         <input type="checkbox" id="addFolderRecursive" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);margin:0">
         Include subfolders
@@ -218,6 +230,43 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" id="btnCancelAddFolder">Cancel</button>
         <button type="button" class="btn btn-primary" id="btnConfirmAddFolder">Add Songs</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Import from Folders Modal ──────────────────── -->
+<div class="modal-backdrop hidden" id="importFoldersModal">
+  <div class="modal" style="max-width:560px">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3>Import Playlists from Folders</h3>
+    <div class="compact-form">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="importRecursive" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);margin:0">
+        Include subfolders when adding songs
+      </label>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnImportSelectAll">Select All</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnImportSelectNone">Select None</button>
+      </div>
+      <div id="importFolderTree" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-subtle,rgba(255,255,255,0.04))">
+        <p class="text-dim" style="margin:0;font-size:.85rem">Loading folders…</p>
+      </div>
+      <!-- Batch import progress bar (hidden until import starts) -->
+      <div id="batchImportProgress" style="display:none;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span id="batchImportLabel" style="font-size:.85rem">Importing…</span>
+          <span id="batchImportPct" style="font-size:.85rem;color:var(--text-dim)">0%</span>
+        </div>
+        <div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div id="batchImportBar" style="width:0%;height:100%;background:var(--accent);border-radius:3px;transition:width .3s ease"></div>
+        </div>
+        <p id="batchImportDetails" class="text-dim" style="font-size:.75rem;margin:4px 0 0"></p>
+      </div>
+
+      <div class="modal-actions" style="margin-top:12px">
+        <button type="button" class="btn btn-ghost" id="btnCancelImportFolders">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmImportFolders" disabled>Import (0)</button>
       </div>
     </div>
   </div>
@@ -251,12 +300,14 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js"></script>
-<script src="/admin/js/api.js"></script>
-<script src="/admin/js/auth.js"></script>
-<script src="/admin/js/nav.js"></script>
-<script src="/admin/js/icons.js"></script>
-<script src="/admin/js/playlists.js"></script>
+<script src="/assets/scroll-controls.js?_=1"></script>
+<script src="/admin/js/api.js?_=1"></script>
+<script src="/admin/js/auth.js?_=1"></script>
+<script src="/admin/js/theme.js"></script>
+<script src="/admin/js/nav.js?_=1"></script>
+<script src="/admin/js/icons.js?_=1"></script>
+<script src="/admin/js/confirm.js?_=1"></script>
+<script src="/admin/js/playlists.js?_=7"></script>
 <script>
   if (iRadioAuth.requireLogin()) {
     iRadioNav.init();

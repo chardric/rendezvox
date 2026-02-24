@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Dashboard</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css">
+<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
 <style>
 /* ── DJ Booth Monitor ────────────────────────────────── */
 .dj-booth {
@@ -19,6 +19,15 @@
   padding: 14px 20px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+}
+.dj-cover {
+  width: 64px; height: 64px; border-radius: 8px; flex-shrink: 0;
+  background: var(--bg-input); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
+}
+.dj-cover img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .dj-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .dj-live {
@@ -79,55 +88,68 @@
   .dj-right   { margin-left: auto; }
   .dj-title, .dj-artist { max-width: 160px; }
 }
-/* ── DJ Clock ──────────────────────────────────────── */
+/* ── DJ Clock (inline in page header) ─────────────── */
+.dash-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 20px;
+}
+.dash-header .page-title { margin-bottom: 0; }
 .dj-clock {
-  text-align: center;
-  padding: 18px 20px 14px;
-  margin-bottom: 24px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-shrink: 0;
 }
 .dj-clock-time {
-  font-size: 3.4rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: .04em;
+  letter-spacing: .02em;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-  color: var(--text);
+  color: var(--text-heading);
+  line-height: 1;
 }
 .dj-clock-seconds {
-  font-size: 2rem;
-  opacity: .55;
+  font-size: .95rem;
+  opacity: .5;
   font-weight: 600;
 }
 .dj-clock-period {
-  font-size: 2rem;
-  opacity: .55;
+  font-size: .85rem;
+  opacity: .5;
   font-weight: 600;
-  margin-left: 4px;
+  margin-left: 2px;
 }
 .dj-clock-date {
-  font-size: .9rem;
+  font-size: .8rem;
   color: var(--text-dim);
-  margin-top: 4px;
+  white-space: nowrap;
+}
+.dj-clock-sep {
+  color: var(--border);
+  font-size: .8rem;
+  user-select: none;
 }
 .dj-clock-weather {
-  font-size: .82rem;
-  color: var(--text-dim);
-  margin-top: 6px;
   display: none;
+  align-items: center;
+  gap: 10px;
+  font-size: .78rem;
+  color: var(--text-dim);
 }
-.dj-clock-weather.visible { display: flex; justify-content: center; gap: 14px; align-items: center; }
+.dj-clock-weather.visible { display: flex; }
 .wx-item {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   cursor: default;
 }
 .wx-item svg { vertical-align: middle; flex-shrink: 0; }
-.wx-item .wx-val { font-weight: 600; color: var(--text); font-size: .88rem; }
+.wx-item .wx-val { font-weight: 600; color: var(--text); font-size: .78rem; }
 .wx-item .wx-tip {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -137,7 +159,7 @@
   color: var(--text);
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: .75rem;
+  font-size: .72rem;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
@@ -146,9 +168,11 @@
 }
 .wx-item:hover .wx-tip { opacity: 1; }
 @media (max-width: 600px) {
-  .dj-clock-time { font-size: 2.4rem; }
-  .dj-clock-seconds { font-size: 1.4rem; }
-  .dj-clock-period { font-size: 1.4rem; }
+  .dash-header { flex-direction: column; gap: 4px; }
+  .dj-clock { flex-wrap: wrap; gap: 6px; }
+  .dj-clock-time { font-size: 1.2rem; }
+  .dj-clock-seconds { font-size: .8rem; }
+  .dj-clock-period { font-size: .75rem; }
 }
 /* ── Stream Control ─────────────────────────────────── */
 .stream-ctrl {
@@ -177,152 +201,171 @@
   <aside id="sidebar" class="sidebar"></aside>
 
   <main class="main">
-    <h1 class="page-title">Dashboard</h1>
-
-    <!-- ── DJ Clock ──────────────────────────────────── -->
-    <div class="dj-clock">
-      <div class="dj-clock-time" id="djClockTime">00:00<span class="dj-clock-seconds">:00</span></div>
-      <div class="dj-clock-date" id="djClockDate"></div>
-      <div class="dj-clock-weather" id="djClockWeather"></div>
+    <div class="dash-header">
+      <h1 class="page-title">Dashboard</h1>
+      <div class="dj-clock">
+        <span class="dj-clock-time" id="djClockTime">00:00<span class="dj-clock-seconds">:00</span></span>
+        <span class="dj-clock-sep">&middot;</span>
+        <span class="dj-clock-date" id="djClockDate"></span>
+        <span class="dj-clock-weather" id="djClockWeather"></span>
+      </div>
     </div>
 
-    <!-- ── DJ Booth Monitor ─────────────────────────── -->
-    <div class="dj-booth" id="djBooth">
-      <div class="dj-left">
-        <div class="dj-live" id="djLive"><span class="dj-dot"></span><span id="djLiveLabel">IDLE</span></div>
-        <div class="dj-title" id="djTitle">— Idle —</div>
-        <div class="dj-artist" id="djArtist"></div>
-      </div>
-      <div class="dj-center">
-        <div class="dj-progress-track">
-          <div class="dj-progress-fill" id="djProgressFill"></div>
+    <div class="tabs" id="dashboardTabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="recent">Recently Played</button>
+      <button class="tab" data-tab="library">Library</button>
+    </div>
+
+    <!-- ── Dashboard tab (Monitor + Status) ──────────── -->
+    <div class="tab-panel active" id="tab-dashboard">
+
+      <!-- DJ Booth Monitor -->
+      <div class="dj-booth" id="djBooth">
+        <div class="dj-cover" id="djCover">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" opacity=".3"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3"/></svg>
         </div>
-        <div class="dj-times">
-          <span id="djElapsed">0:00</span>
-          <span id="djRemaining">—</span>
+        <div class="dj-left">
+          <div class="dj-live" id="djLive"><span class="dj-dot"></span><span id="djLiveLabel">IDLE</span></div>
+          <div class="dj-title" id="djTitle">— Idle —</div>
+          <div class="dj-artist" id="djArtist"></div>
+        </div>
+        <div class="dj-center">
+          <div class="dj-progress-track">
+            <div class="dj-progress-fill" id="djProgressFill"></div>
+          </div>
+          <div class="dj-times">
+            <span id="djElapsed">0:00</span>
+            <span id="djRemaining">—</span>
+          </div>
+        </div>
+        <div class="dj-right">
+          <button class="dj-btn" id="djPlayBtn" title="Monitor stream">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="dj-btn" id="djSkipBtn" title="Skip to next track">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8-12v12l8.5-6z"/></svg>
+          </button>
+          <div class="dj-vol">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="flex-shrink:0"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+            <input type="range" id="djVolume" min="0" max="100" value="80">
+          </div>
         </div>
       </div>
-      <div class="dj-right">
-        <!-- Monitor / Stop -->
-        <button class="dj-btn" id="djPlayBtn" title="Monitor stream">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <audio id="djAudio" preload="none"></audio>
+
+      <!-- Stream control -->
+      <div class="stream-ctrl">
+        <button class="btn-stream active" id="streamToggle">
+          <svg class="btn-stream-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path id="streamIcon" d="M6 6h12v12H6z"/></svg>
+          <span id="streamLabel">Stop Stream</span>
         </button>
-        <!-- Skip -->
-        <button class="dj-btn" id="djSkipBtn" title="Skip to next track">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm8-12v12l8.5-6z"/></svg>
-        </button>
-        <!-- Volume -->
-        <div class="dj-vol">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="flex-shrink:0"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-          <input type="range" id="djVolume" min="0" max="100" value="80">
+        <span class="stream-status" id="streamStatus">Broadcasting</span>
+      </div>
+
+      <!-- Status cards -->
+      <div class="cards" id="cards">
+        <div class="card">
+          <div class="card-label">Now Playing</div>
+          <div class="card-value" id="npTitle">—</div>
+          <div class="card-sub" id="npArtist"></div>
+          <div class="mt-8" id="npBadge"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Up Next</div>
+          <div class="card-value" id="ntTitle">—</div>
+          <div class="card-sub" id="ntArtist"></div>
+          <div class="mt-8" id="ntBadge"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Listeners</div>
+          <div class="card-value" id="listenerCount">0</div>
+          <div class="card-sub">Peak today: <span id="listenerPeak">0</span></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Emergency Mode</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="emergencyToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="emergencyStatus">Inactive</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Request Queue</div>
+          <div class="card-value" id="approvedRequests">0</div>
+          <div class="card-sub">Pending approval: <span id="pendingRequests">0</span></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Auto-approve Requests</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="autoApproveToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="autoApproveStatus">Off</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Auto-tag Songs</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="autoTagToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="autoTagStatus">Off</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Auto-normalize</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="autoNormToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="autoNormStatus">Off</div>
         </div>
       </div>
     </div>
-    <audio id="djAudio" preload="none"></audio>
 
-    <!-- ── Stream control ─────────────────────────── -->
-    <div class="stream-ctrl">
-      <button class="btn-stream active" id="streamToggle">
-        <svg class="btn-stream-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path id="streamIcon" d="M6 6h12v12H6z"/></svg>
-        <span id="streamLabel">Stop Stream</span>
-      </button>
-      <span class="stream-status" id="streamStatus">Broadcasting</span>
-    </div>
-
-    <!-- ── Status cards ─────────────────────────────── -->
-    <div class="cards" id="cards">
-      <div class="card">
-        <div class="card-label">Now Playing</div>
-        <div class="card-value" id="npTitle">—</div>
-        <div class="card-sub" id="npArtist"></div>
-        <div class="mt-8" id="npBadge"></div>
-      </div>
-      <div class="card">
-        <div class="card-label">Up Next</div>
-        <div class="card-value" id="ntTitle">—</div>
-        <div class="card-sub" id="ntArtist"></div>
-        <div class="mt-8" id="ntBadge"></div>
-      </div>
-      <div class="card">
-        <div class="card-label">Listeners</div>
-        <div class="card-value" id="listenerCount">0</div>
-        <div class="card-sub">Peak today: <span id="listenerPeak">0</span></div>
-      </div>
-      <div class="card">
-        <div class="card-label">Emergency Mode</div>
-        <div class="card-value">
-          <label class="toggle">
-            <input type="checkbox" id="emergencyToggle">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="card-sub" id="emergencyStatus">Inactive</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Request Queue</div>
-        <div class="card-value" id="approvedRequests">0</div>
-        <div class="card-sub">Pending approval: <span id="pendingRequests">0</span></div>
-      </div>
-      <div class="card">
-        <div class="card-label">Auto-approve Requests</div>
-        <div class="card-value">
-          <label class="toggle">
-            <input type="checkbox" id="autoApproveToggle">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="card-sub" id="autoApproveStatus">Off</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Auto-tag Songs</div>
-        <div class="card-value">
-          <label class="toggle">
-            <input type="checkbox" id="autoTagToggle">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="card-sub" id="autoTagStatus">Off</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Auto-normalize</div>
-        <div class="card-value">
-          <label class="toggle">
-            <input type="checkbox" id="autoNormToggle">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="card-sub" id="autoNormStatus">Off</div>
+    <!-- ── Recently Played tab ──────────────────────── -->
+    <div class="tab-panel" id="tab-recent">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Played At</th>
+              <th>Title</th>
+              <th>Artist</th>
+              <th>Genre</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody id="recentPlays">
+            <tr><td colspan="5" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <!-- ── Library Overview ─────────────────────────── -->
-    <div class="card" style="padding:24px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h3 class="settings-section-title" style="margin-bottom:0">Library Overview</h3>
-        <button class="btn btn-ghost btn-sm" id="btnRefreshStats" style="font-size:.75rem">Refresh</button>
+    <!-- ── Library tab ───────────────────────────────── -->
+    <div class="tab-panel" id="tab-library">
+      <div class="card" style="padding:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 class="settings-section-title" style="margin-bottom:0">Library Overview</h3>
+          <button class="btn btn-ghost btn-sm" id="btnRefreshStats" style="font-size:.75rem">Refresh</button>
+        </div>
+        <div id="libraryStats" class="stats-grid">
+          <div class="spinner"></div>
+        </div>
       </div>
-      <div id="libraryStats" class="stats-grid">
-        <div class="spinner"></div>
-      </div>
-    </div>
 
-    <!-- ── Recent activity ──────────────────────────── -->
-    <h2 class="page-title" style="font-size:1.1rem;margin-top:8px">Recently Played</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Played At</th>
-            <th>Title</th>
-            <th>Artist</th>
-            <th>Genre</th>
-            <th>Source</th>
-          </tr>
-        </thead>
-        <tbody id="recentPlays">
-          <tr><td colspan="5" class="empty">Loading…</td></tr>
-        </tbody>
-      </table>
+      <div id="libraryNotices" style="display:none;margin-top:16px">
+        <h3 class="settings-section-title" style="margin-bottom:12px">Notices</h3>
+        <div id="libraryNoticesGrid" class="stats-grid"></div>
+      </div>
     </div>
   </main>
 </div>
@@ -332,8 +375,9 @@
 <script src="/assets/scroll-controls.js"></script>
 <script src="/admin/js/api.js"></script>
 <script src="/admin/js/auth.js"></script>
+<script src="/admin/js/theme.js"></script>
 <script src="/admin/js/nav.js"></script>
-<script src="/admin/js/dashboard.js?v=3"></script>
+<script src="/admin/js/dashboard.js?v=6"></script>
 <script>
   if (iRadioAuth.requireLogin()) {
     iRadioNav.init();

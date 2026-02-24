@@ -230,9 +230,9 @@ var iRadioUsers = (function() {
 
   function actions(u) {
     var btns = '<div style="display:flex;gap:6px;justify-content:flex-end">';
-    btns += '<button class="btn btn-ghost btn-sm btn-edit-user" data-id="' + u.id + '">Edit</button>';
+    btns += '<button type="button" class="btn btn-ghost btn-sm btn-edit-user" data-id="' + u.id + '">Edit</button>';
     if (u.id !== currentUserId) {
-      btns += '<button class="btn btn-sm btn-delete-user" data-id="' + u.id + '" style="color:var(--danger)">Delete</button>';
+      btns += '<button type="button" class="btn btn-sm btn-delete-user" data-id="' + u.id + '" style="color:var(--danger)">Delete</button>';
     }
     btns += '</div>';
     return btns;
@@ -395,7 +395,7 @@ var iRadioUsers = (function() {
       '<div style="margin-bottom:6px"><strong>User created with temporary password:</strong></div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<code style="background:rgba(0,0,0,.1);padding:4px 8px;border-radius:4px;font-size:.85rem;user-select:all">' + escHtml(tempPw) + '</code>' +
-        '<button onclick="navigator.clipboard.writeText(\'' + escHtml(tempPw).replace(/'/g, "\\'") + '\');this.textContent=\'Copied!\'" ' +
+        '<button type="button" onclick="navigator.clipboard.writeText(\'' + escHtml(tempPw).replace(/'/g, "\\'") + '\');this.textContent=\'Copied!\'" ' +
           'style="background:none;border:1px solid rgba(255,255,255,.3);color:inherit;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:.78rem">Copy</button>' +
       '</div>' +
       '<div style="font-size:.78rem;margin-top:6px;opacity:.8">Share this password securely with the user.</div>';
@@ -406,13 +406,15 @@ var iRadioUsers = (function() {
   function deleteUser(id) {
     var u = users.find(function(x) { return x.id === id; });
     if (!u) return;
-    if (!confirm('Delete user "' + u.username + '"? This cannot be undone.')) return;
+    iRadioConfirm('Delete user "' + u.username + '"? This cannot be undone.', { title: 'Delete User', okLabel: 'Delete' }).then(function(ok) {
+      if (!ok) return;
 
-    iRadioAPI.del('/admin/users/' + id).then(function() {
-      showToast('User deleted', 'success');
-      loadUsers();
-    }).catch(function(err) {
-      showToast((err && err.error) || 'Failed to delete user', 'error');
+      iRadioAPI.del('/admin/users/' + id).then(function() {
+        showToast('User deleted', 'success');
+        loadUsers();
+      }).catch(function(err) {
+        showToast((err && err.error) || 'Failed to delete user', 'error');
+      });
     });
   }
 

@@ -10,12 +10,25 @@ fi
 env | grep -E '^(IRADIO_|ICECAST_|POSTGRES_|TZ=)' | sed 's/^/export /' > /etc/environment.iradio
 
 # Ensure media and log directories are writable by www-data
-chmod 777 /var/log/iradio        2>/dev/null || true
-chmod 777 /var/lib/iradio/music   2>/dev/null || true
-chmod 777 /var/lib/iradio/jingles 2>/dev/null || true
-chmod 777 /var/lib/iradio/avatars 2>/dev/null || true
-mkdir -p /var/lib/iradio/music/upload
-chmod 777 /var/lib/iradio/music/upload 2>/dev/null || true
+for dir in /var/log/iradio /var/lib/iradio/music /var/lib/iradio/jingles /var/lib/iradio/avatars /var/lib/iradio/logos; do
+  mkdir -p "$dir"
+  chown www-data:www-data "$dir" 2>/dev/null || true
+  chmod 775 "$dir" 2>/dev/null || true
+done
+# Only chown PHP-owned logs — leave liquidsoap.log alone (owned by UID 100)
+for f in /var/log/iradio/*.log; do
+  [ -f "$f" ] || continue
+  case "$(basename "$f")" in liquidsoap.log|icecast_*.log) continue ;; esac
+  chown www-data:www-data "$f" 2>/dev/null || true
+done
+for mdir in tagged imports upload _untagged; do
+  mkdir -p "/var/lib/iradio/music/$mdir"
+  chown www-data:www-data "/var/lib/iradio/music/$mdir" 2>/dev/null || true
+  chmod 775 "/var/lib/iradio/music/$mdir" 2>/dev/null || true
+done
+
+# Ensure crontab has correct permissions for BusyBox crond (requires 0600)
+chmod 0600 /etc/crontabs/www-data 2>/dev/null || true
 
 # Start cron daemon in background (log level 6 = info)
 crond -b -l 6

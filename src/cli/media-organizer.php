@@ -7,9 +7,9 @@ declare(strict_types=1);
  *
  * Long-running CLI process that watches /var/lib/iradio/music/upload/ for new
  * audio files, validates metadata, detects duplicates, organizes files into
- * Genre/Artist/Title.ext structure, and imports them into the database.
+ * tagged/Genre/Artist/Title.ext structure, and imports them into the database.
  *
- * Files with missing required metadata are quarantined to _quarantine/.
+ * Files with missing required metadata are moved to _untagged/.
  * Duplicate files (by SHA-256) are moved to _duplicates/.
  *
  * Usage:
@@ -22,6 +22,7 @@ declare(strict_types=1);
 // -- Bootstrap (outside web context) --
 require __DIR__ . '/../core/Database.php';
 require __DIR__ . '/../core/MetadataExtractor.php';
+require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
 // -- Configuration --
@@ -31,8 +32,9 @@ $lockFile       = '/tmp/media-organizer.lock';
 $stopFile       = '/tmp/media-organizer.lock.stop';
 $progressFile   = '/tmp/iradio_media_organizer.json';
 $extensions     = ['mp3', 'flac', 'm4a', 'ogg', 'wav'];
-$quarantineDir  = '_quarantine';
+$untaggedDir    = '_untagged';
 $duplicatesDir  = '_duplicates';
+$taggedDir      = 'tagged';
 $stabilityDelay = 3;        // seconds — file mtime must be this old
 
 $dryRun = in_array('--dry-run', $argv ?? []);
@@ -81,6 +83,24 @@ if (!is_dir($uploadDir)) {
 
 // -- Connect to DB --
 $db = Database::get();
+
+// -- Initialize MetadataLookup with API keys from settings --
+$metadataLookup = new MetadataLookup();
+
+function loadLookupKeys(PDO $db, MetadataLookup $lookup): void
+{
+    $stmt = $db->prepare("SELECT key, value FROM settings WHERE key IN ('acoustid_api_key', 'theaudiodb_api_key')");
+    $stmt->execute();
+    while ($row = $stmt->fetch()) {
+        if ($row['key'] === 'acoustid_api_key' && !empty(trim($row['value']))) {
+            $lookup->setAcoustIdKey(trim($row['value']));
+        }
+        if ($row['key'] === 'theaudiodb_api_key' && !empty(trim($row['value']))) {
+            $lookup->setTheAudioDbKey(trim($row['value']));
+        }
+    }
+}
+loadLookupKeys($db, $metadataLookup);
 
 // -- Read poll interval from settings --
 function getPollInterval(PDO $db): int
@@ -219,13 +239,13 @@ function moveFile(string $src, string $dest, bool $dryRun): bool
     return true;
 }
 
-// -- Write quarantine info sidecar --
+// -- Write untagged info sidecar --
 function writeInfoFile(string $filePath, string $reason, bool $dryRun): void
 {
     if ($dryRun) return;
 
     $infoPath = $filePath . '.info.txt';
-    $content  = "Quarantined: " . date('Y-m-d H:i:s') . "\n"
+    $content  = "Untagged: " . date('Y-m-d H:i:s') . "\n"
               . "Reason: {$reason}\n";
     file_put_contents($infoPath, $content);
 }
@@ -392,10 +412,12 @@ function processFile(
     PDO    $db,
     string $absolutePath,
     string $musicDir,
-    string $quarantineDir,
+    string $untaggedDir,
     string $duplicatesDir,
+    string $taggedDir,
     array  &$knownHashes,
-    bool   $dryRun
+    bool   $dryRun,
+    MetadataLookup $lookup = null
 ): array {
     $filename = basename($absolutePath);
     $ext      = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
@@ -414,10 +436,11 @@ function processFile(
     $existingSong = $stmt->fetchColumn();
 
     if ($existingSong !== false) {
-        log_msg("  DUPLICATE (in DB as {$existingSong}) — deleting");
+        log_msg("  DUPLICATE (in DB as {$existingSong}) — moving to _duplicates/");
         if (!$dryRun) {
-            @unlink($absolutePath);
-            // Also remove sidecar if present
+            $dupDest = "{$musicDir}/{$duplicatesDir}/{$filename}";
+            $dupDest = resolveConflict($dupDest);
+            moveFile($absolutePath, $dupDest, false);
             $sidecarPath = dirname($absolutePath) . '/.' . basename($absolutePath) . '.meta';
             @unlink($sidecarPath);
         }
@@ -426,9 +449,11 @@ function processFile(
 
     // Check organizer_hashes
     if (isset($knownHashes[$hash])) {
-        log_msg("  DUPLICATE (hash already seen) — deleting");
+        log_msg("  DUPLICATE (hash already seen) — moving to _duplicates/");
         if (!$dryRun) {
-            @unlink($absolutePath);
+            $dupDest = "{$musicDir}/{$duplicatesDir}/{$filename}";
+            $dupDest = resolveConflict($dupDest);
+            moveFile($absolutePath, $dupDest, false);
             $sidecarPath = dirname($absolutePath) . '/.' . basename($absolutePath) . '.meta';
             @unlink($sidecarPath);
         }
@@ -477,6 +502,68 @@ function processFile(
         }
     }
 
+    // -- Step B2: API lookups — always fingerprint for authoritative metadata --
+    $mbResult = null;
+    if ($lookup) {
+        // Always try AcoustID fingerprint — results REPLACE embedded metadata
+        $fpResult = $lookup->lookupByFingerprint($absolutePath);
+        if ($fpResult) {
+            if (!empty($fpResult['title'])) {
+                $meta['title'] = $fpResult['title'];
+                log_msg("  AcoustID: title = {$fpResult['title']}");
+            }
+            if (!empty($fpResult['artist'])) {
+                $meta['artist'] = $fpResult['artist'];
+                log_msg("  AcoustID: artist = {$fpResult['artist']}");
+            }
+        }
+
+        $needsGenre = (trim($meta['genre']) === '' && $sidecarCategoryId <= 0);
+
+        // Try MusicBrainz genre lookup by artist
+        if ($needsGenre && trim($meta['artist']) !== '') {
+            $mbGenre = $lookup->lookupGenreByArtist($meta['artist']);
+            if ($mbGenre) {
+                $meta['genre'] = $mbGenre;
+                $needsGenre = false;
+                log_msg("  MusicBrainz: genre = {$mbGenre}");
+            }
+        }
+
+        // Try MusicBrainz recording lookup for year, genre, release_id
+        if (trim($meta['title']) !== '' && trim($meta['artist']) !== '') {
+            $mbResult = $lookup->lookupByArtistTitle($meta['artist'], $meta['title']);
+            if ($mbResult) {
+                if (empty($meta['year']) && !empty($mbResult['year'])) {
+                    $meta['year'] = (string) $mbResult['year'];
+                    log_msg("  MusicBrainz: year = {$mbResult['year']}");
+                }
+                if ($needsGenre && !empty($mbResult['genre'])) {
+                    $meta['genre'] = $mbResult['genre'];
+                    $needsGenre = false;
+                    log_msg("  MusicBrainz: genre = {$mbResult['genre']}");
+                }
+            }
+        }
+
+        // TheAudioDB metadata fallback
+        $needsGenre = (trim($meta['genre']) === '' && $sidecarCategoryId <= 0);
+        $needsYear  = empty($meta['year']);
+        if (($needsGenre || $needsYear) && trim($meta['artist']) !== '' && trim($meta['title']) !== '') {
+            $audioDbResult = $lookup->lookupTrackByTheAudioDb($meta['artist'], $meta['title']);
+            if ($audioDbResult) {
+                if ($needsGenre && !empty($audioDbResult['genre'])) {
+                    $meta['genre'] = $audioDbResult['genre'];
+                    log_msg("  TheAudioDB: genre = {$audioDbResult['genre']}");
+                }
+                if ($needsYear && !empty($audioDbResult['year'])) {
+                    $meta['year'] = (string) $audioDbResult['year'];
+                    log_msg("  TheAudioDB: year = {$audioDbResult['year']}");
+                }
+            }
+        }
+    }
+
     $missing = [];
 
     if ($meta['duration_ms'] <= 0) {
@@ -497,15 +584,42 @@ function processFile(
 
     if (!empty($missing)) {
         $reason   = 'Missing: ' . implode(', ', $missing);
-        $destPath = "{$musicDir}/{$quarantineDir}/{$filename}";
+        $destPath = "{$musicDir}/{$untaggedDir}/{$filename}";
         $destPath = resolveConflict($destPath);
 
-        log_msg("  QUARANTINE: {$reason}");
+        log_msg("  UNTAGGED: {$reason}");
         if (moveFile($absolutePath, $destPath, $dryRun)) {
             writeInfoFile($destPath, $reason, $dryRun);
-            return ['status' => 'done', 'action' => 'quarantined', 'path' => $destPath, 'error' => null];
+            // Still import to DB with available metadata
+            $hash2 = hash_file('sha256', $destPath);
+            if ($hash2 !== false) {
+                importSong($db, $destPath, $musicDir, $meta, $hash2, $dryRun, $sidecar);
+                registerHash($db, $hash2, $destPath);
+                $knownHashes[$hash2] = true;
+            }
+            return ['status' => 'done', 'action' => 'untagged', 'path' => $destPath, 'error' => null];
         }
-        return ['status' => 'failed', 'action' => 'quarantined', 'error' => 'Move failed'];
+        return ['status' => 'failed', 'action' => 'untagged', 'error' => 'Move failed'];
+    }
+
+    // -- Step B3: Clear tags and write fresh metadata --
+    $originalCoverArt = null;
+    if (!$dryRun) {
+        $originalCoverArt = MetadataLookup::extractCoverArt($absolutePath);
+
+        $freshTags = [
+            'title'  => trim($meta['title']),
+            'artist' => trim($meta['artist']),
+            'genre'  => trim($meta['genre']),
+        ];
+        if (!empty($meta['year'])) {
+            $freshTags['date'] = (string) $meta['year'];
+        }
+
+        MetadataLookup::clearAndWriteTags($absolutePath, $freshTags);
+
+        // Recalculate hash since file content changed
+        $hash = hash_file('sha256', $absolutePath);
     }
 
     // -- Step C: Build destination path (Genre/Artist/Title.ext) --
@@ -521,7 +635,7 @@ function processFile(
         $destFilename = "{$title}.{$ext}";
     }
 
-    $destPath = "{$musicDir}/{$genre}/{$artist}/{$destFilename}";
+    $destPath = "{$musicDir}/{$taggedDir}/{$genre}/{$artist}/{$destFilename}";
     $destPath = resolveConflict($destPath);
 
     // -- Step D: Move, register hash, and import to DB --
@@ -538,6 +652,40 @@ function processFile(
         $songId = importSong($db, $destPath, $musicDir, $meta, $hash, $dryRun, $sidecar);
         if ($songId !== null) {
             log_msg("  IMPORTED -> song #{$songId}");
+        }
+
+        // Fetch and embed cover art if missing
+        if (!$dryRun && $songId !== null && !MetadataLookup::hasCoverArt($destPath)) {
+            $imageData = null;
+            if ($lookup) {
+                $releaseId = $mbResult['release_id'] ?? null;
+                $imageData = $lookup->lookupCoverArt($meta['artist'] ?: '', $meta['title'] ?: '', $releaseId);
+            }
+
+            if ($imageData) {
+                if (MetadataLookup::embedCoverArt($destPath, $imageData)) {
+                    log_msg("  COVER ART embedded (external)");
+                    $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")
+                       ->execute(['id' => $songId]);
+                }
+            } elseif ($originalCoverArt) {
+                // Re-embed original cover art that was stripped during tag clearing
+                if (MetadataLookup::embedCoverArt($destPath, $originalCoverArt)) {
+                    log_msg("  COVER ART re-embedded (original)");
+                    $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")
+                       ->execute(['id' => $songId]);
+                }
+            }
+
+            // Update file_hash since cover art changed content
+            if ($songId) {
+                $finalHash = hash_file('sha256', $destPath);
+                $db->prepare("UPDATE songs SET file_hash = :hash WHERE id = :id")
+                   ->execute(['hash' => $finalHash, 'id' => $songId]);
+            }
+        } elseif (!$dryRun && $songId !== null && MetadataLookup::hasCoverArt($destPath)) {
+            $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")
+               ->execute(['id' => $songId]);
         }
 
         return ['status' => 'done', 'action' => 'organized', 'path' => $destPath, 'error' => null];
@@ -589,7 +737,7 @@ $stats = [
     'started_at' => date('c'),
     'scanned'    => 0,
     'organized'  => 0,
-    'quarantined'=> 0,
+    'untagged'   => 0,
     'duplicates' => 0,
     'errors'     => 0,
     'last_scan'  => null,
@@ -645,13 +793,13 @@ while (true) {
 
             $stats['scanned']++;
 
-            $result = processFile($db, $absPath, $musicDir, $quarantineDir, $duplicatesDir, $knownHashes, $dryRun);
+            $result = processFile($db, $absPath, $musicDir, $untaggedDir, $duplicatesDir, $taggedDir, $knownHashes, $dryRun, $metadataLookup);
 
             match ($result['action']) {
-                'organized'   => $stats['organized']++,
-                'quarantined' => $stats['quarantined']++,
-                'duplicate'   => $stats['duplicates']++,
-                default       => $stats['errors']++,
+                'organized' => $stats['organized']++,
+                'untagged'  => $stats['untagged']++,
+                'duplicate' => $stats['duplicates']++,
+                default     => $stats['errors']++,
             };
 
             $processedThisCycle++;
@@ -667,7 +815,7 @@ while (true) {
 
         if ($processedThisCycle > 0) {
             log_msg("Cycle done: processed {$processedThisCycle} file(s). Totals: "
-                . "{$stats['organized']} organized, {$stats['quarantined']} quarantined, "
+                . "{$stats['organized']} organized, {$stats['untagged']} untagged, "
                 . "{$stats['duplicates']} duplicates, {$stats['errors']} errors.");
         }
 
@@ -693,7 +841,7 @@ while (true) {
 
 $prefix = $dryRun ? '[DRY-RUN] ' : '';
 log_msg("{$prefix}Media organizer stopped. Final: "
-    . "{$stats['organized']} organized, {$stats['quarantined']} quarantined, "
+    . "{$stats['organized']} organized, {$stats['untagged']} untagged, "
     . "{$stats['duplicates']} duplicates, {$stats['errors']} errors.");
 
 // -- Helpers --

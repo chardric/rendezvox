@@ -7,6 +7,7 @@ RUN apk add --no-cache \
         fcgi \
         ffmpeg \
         chromaprint \
+        tini \
         tzdata \
         postgresql-dev && \
     docker-php-ext-install pdo pdo_pgsql && \
@@ -23,4 +24,5 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 9000
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["entrypoint.sh"]

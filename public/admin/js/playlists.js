@@ -34,6 +34,7 @@ var iRadioPlaylists = (function() {
     '#a78bfa', '#f472b6', '#2dd4bf', '#fb923c', '#818cf8'
   ];
   var allPlaylists = [];
+  var currentStreamingPlaylistId = null;
 
   function init() {
     loadPlaylists();
@@ -100,6 +101,30 @@ var iRadioPlaylists = (function() {
     });
     document.getElementById('btnConfirmAddFolder').addEventListener('click', handleAddFolder);
 
+    // ── Bulk selection ──
+    document.getElementById('plSelectAll').addEventListener('change', function() {
+      var checked = this.checked;
+      document.querySelectorAll('#playlistTable .pl-row-check:not(:disabled)').forEach(function(cb) {
+        cb.checked = checked;
+      });
+      updateBulkBar();
+    });
+    document.getElementById('btnBulkDelete').addEventListener('click', bulkDelete);
+    document.getElementById('btnBulkCancel').addEventListener('click', function() {
+      document.querySelectorAll('#playlistTable .pl-row-check').forEach(function(cb) { cb.checked = false; });
+      document.getElementById('plSelectAll').checked = false;
+      hideBulkBar();
+    });
+
+    // ── Import from Folders modal ──
+    document.getElementById('btnImportFolders').addEventListener('click', openImportFoldersModal);
+    document.getElementById('btnCancelImportFolders').addEventListener('click', function() {
+      document.getElementById('importFoldersModal').classList.add('hidden');
+    });
+    document.getElementById('btnConfirmImportFolders').addEventListener('click', handleImportFolders);
+    document.getElementById('btnImportSelectAll').addEventListener('click', importSelectAll);
+    document.getElementById('btnImportSelectNone').addEventListener('click', importSelectNone);
+
     // Auto-refresh every 5 seconds (picks up changes from other windows/tabs)
     setInterval(function() {
       loadPlaylists();
@@ -121,17 +146,20 @@ var iRadioPlaylists = (function() {
 
     if (!ep) {
       desc.textContent = 'No emergency playlist configured. Create one to enable emergency mode.';
-      actions.innerHTML = '<button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="iRadioPlaylists.createEmergency()">Create Emergency Playlist</button>';
+      actions.innerHTML = '<button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="iRadioPlaylists.createEmergency()">Create Emergency Playlist</button>';
     } else {
       var songLabel = ep.song_count !== null ? ep.song_count + ' songs' : '—';
       var statusBadge = ep.is_active
         ? '<span class="badge badge-active" title="This playlist will be used when emergency mode is triggered">Ready</span>'
         : '<span class="badge badge-inactive" title="Enable this playlist so it can be used during emergency mode">Disabled</span>';
-      desc.innerHTML = '<strong>' + escHtml(ep.name) + '</strong> — ' + songLabel + ' ' + statusBadge;
+      var epStreamBadge = (currentStreamingPlaylistId && ep.id === currentStreamingPlaylistId)
+        ? ' <span class="streaming-icon" title="Now streaming"></span>'
+        : '';
+      desc.innerHTML = '<strong>' + escHtml(ep.name) + '</strong> — ' + songLabel + ' ' + statusBadge + epStreamBadge;
       actions.innerHTML =
-        '<button class="icon-btn" title="View" onclick="iRadioPlaylists.viewDetail(' + ep.id + ')">' + iRadioIcons.view + '</button> ' +
-        '<button class="icon-btn" title="Edit" onclick="iRadioPlaylists.editPlaylist(' + ep.id + ')">' + iRadioIcons.edit + '</button> ' +
-        '<button class="icon-btn danger" title="Delete" onclick="iRadioPlaylists.deletePlaylist(' + ep.id + ')">' + iRadioIcons.del + '</button>';
+        '<button type="button" class="icon-btn" title="View" onclick="iRadioPlaylists.viewDetail(' + ep.id + ')">' + iRadioIcons.view + '</button> ' +
+        '<button type="button" class="icon-btn" title="Edit" onclick="iRadioPlaylists.editPlaylist(' + ep.id + ')">' + iRadioIcons.edit + '</button> ' +
+        '<button type="button" class="icon-btn danger" title="Delete" onclick="iRadioPlaylists.deletePlaylist(' + ep.id + ')">' + iRadioIcons.del + '</button>';
     }
   }
 
@@ -284,6 +312,7 @@ var iRadioPlaylists = (function() {
   function loadPlaylists() {
     iRadioAPI.get('/admin/playlists').then(function(data) {
       allPlaylists = data.playlists || [];
+      currentStreamingPlaylistId = data.current_playlist_id || null;
       renderEmergencyCard(allPlaylists);
       // Filter out emergency from main table
       var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
@@ -322,32 +351,123 @@ var iRadioPlaylists = (function() {
   function renderTable(playlists) {
     var tbody = document.getElementById('playlistTable');
     if (!playlists || playlists.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty">No playlists</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No playlists</td></tr>';
+      hideBulkBar();
       return;
     }
 
     var html = '';
     playlists.forEach(function(p, idx) {
       var typeCls = p.type === 'auto' ? 'badge-request' : 'badge-rotation';
+      var typeLabel = p.type.charAt(0).toUpperCase() + p.type.slice(1);
       var songCount = p.song_count !== null ? p.song_count : '<span title="Dynamic">&mdash;</span>';
       var swatch = p.color ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + escHtml(p.color) + ';vertical-align:middle;margin-right:6px"></span>' : '';
+      var streamingBadge = (currentStreamingPlaylistId && p.id === currentStreamingPlaylistId)
+        ? ' <span class="streaming-icon" title="Now streaming"></span>'
+        : '';
       var toggleChecked = p.is_active ? ' checked' : '';
+      var isStreaming = currentStreamingPlaylistId && p.id === currentStreamingPlaylistId;
       html += '<tr>' +
+        '<td><input type="checkbox" class="pl-row-check" data-id="' + p.id + '" data-name="' + escHtml(p.name) + '"' + (isStreaming ? ' disabled title="Currently streaming"' : '') + ' style="width:16px;height:16px;cursor:' + (isStreaming ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent)"></td>' +
         '<td>' + (idx + 1) + '</td>' +
-        '<td>' + swatch + escHtml(p.name) + '</td>' +
-        '<td><span class="badge ' + typeCls + '">' + p.type + '</span></td>' +
+        '<td>' + swatch + escHtml(p.name) + streamingBadge + '</td>' +
+        '<td><span class="badge ' + typeCls + '">' + typeLabel + '</span></td>' +
         '<td>' + songCount + '</td>' +
         '<td>' + p.cycle_count + '</td>' +
         '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="iRadioPlaylists.toggleActive(' + p.id + ',this.checked)"' + toggleChecked + '><span class="slider"></span></label></td>' +
         '<td style="white-space:nowrap">' +
-          '<button class="icon-btn" title="View" onclick="iRadioPlaylists.viewDetail(' + p.id + ')">' + iRadioIcons.view + '</button> ' +
+          '<button type="button" class="icon-btn" title="View" onclick="iRadioPlaylists.viewDetail(' + p.id + ')">' + iRadioIcons.view + '</button> ' +
           '<label class="icon-btn" title="Change color" style="position:relative;cursor:pointer;color:' + escHtml(p.color || '#00c8a0') + '">' + iRadioIcons.palette + '<input type="color" value="' + escHtml(p.color || '#00c8a0') + '" onchange="iRadioPlaylists.changeColor(' + p.id + ',this.value)" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></label> ' +
-          '<button class="icon-btn" title="Edit" onclick="iRadioPlaylists.editPlaylist(' + p.id + ')">' + iRadioIcons.edit + '</button> ' +
-          '<button class="icon-btn danger" title="Delete" onclick="iRadioPlaylists.deletePlaylist(' + p.id + ')">' + iRadioIcons.del + '</button>' +
+          '<button type="button" class="icon-btn" title="Edit" onclick="iRadioPlaylists.editPlaylist(' + p.id + ')">' + iRadioIcons.edit + '</button> ' +
+          '<button type="button" class="icon-btn danger" title="Delete" onclick="iRadioPlaylists.deletePlaylist(' + p.id + ')">' + iRadioIcons.del + '</button>' +
         '</td>' +
         '</tr>';
     });
     tbody.innerHTML = html;
+
+    // Wire up row checkboxes
+    var checks = tbody.querySelectorAll('.pl-row-check');
+    checks.forEach(function(cb) {
+      cb.addEventListener('change', updateBulkBar);
+    });
+    document.getElementById('plSelectAll').checked = false;
+    hideBulkBar();
+  }
+
+  function getSelectedPlaylists() {
+    var checks = document.querySelectorAll('#playlistTable .pl-row-check:checked');
+    var selected = [];
+    checks.forEach(function(cb) {
+      selected.push({ id: parseInt(cb.getAttribute('data-id')), name: cb.getAttribute('data-name') });
+    });
+    return selected;
+  }
+
+  function updateBulkBar() {
+    var selected = getSelectedPlaylists();
+    var bar = document.getElementById('bulkBar');
+    if (selected.length > 0) {
+      bar.classList.remove('hidden');
+      bar.style.display = 'flex';
+      document.getElementById('bulkCount').textContent = selected.length + ' playlist' + (selected.length !== 1 ? 's' : '') + ' selected';
+    } else {
+      hideBulkBar();
+    }
+    // Update select-all state
+    var all = document.querySelectorAll('#playlistTable .pl-row-check:not(:disabled)');
+    var allChecked = all.length > 0;
+    all.forEach(function(cb) { if (!cb.checked) allChecked = false; });
+    document.getElementById('plSelectAll').checked = allChecked && all.length > 0;
+  }
+
+  function hideBulkBar() {
+    var bar = document.getElementById('bulkBar');
+    bar.classList.add('hidden');
+    bar.style.display = 'none';
+  }
+
+  function bulkDelete() {
+    var selected = getSelectedPlaylists();
+    if (selected.length === 0) return;
+
+    var names = selected.slice(0, 3).map(function(s) { return s.name; }).join(', ');
+    if (selected.length > 3) names += ' + ' + (selected.length - 3) + ' more';
+
+    iRadioConfirm('Delete ' + selected.length + ' playlist' + (selected.length !== 1 ? 's' : '') + '?\n' + names, {
+      title: 'Bulk Delete', okLabel: 'Delete All'
+    }).then(function(ok) {
+      if (!ok) return;
+
+      var btn = document.getElementById('btnBulkDelete');
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
+
+      var ids = selected.map(function(s) { return s.id; });
+      var done = 0;
+      var failed = 0;
+
+      function deleteNext() {
+        if (ids.length === 0) {
+          btn.disabled = false;
+          btn.textContent = 'Delete Selected';
+          hideBulkBar();
+          var msg = done + ' playlist' + (done !== 1 ? 's' : '') + ' deleted';
+          if (failed > 0) msg += ', ' + failed + ' failed';
+          showToast(msg, failed > 0 ? 'error' : 'success');
+          loadPlaylists();
+          return;
+        }
+        var id = ids.shift();
+        iRadioAPI.del('/admin/playlists/' + id).then(function() {
+          done++;
+          deleteNext();
+        }).catch(function() {
+          failed++;
+          deleteNext();
+        });
+      }
+      deleteNext();
+    });
   }
 
   function toggleActive(id, active) {
@@ -470,19 +590,21 @@ var iRadioPlaylists = (function() {
   }
 
   function deletePlaylist(id) {
-    if (!confirm('Delete this playlist?')) return;
+    iRadioConfirm('Delete this playlist?', { title: 'Delete Playlist', okLabel: 'Delete' }).then(function(ok) {
+      if (!ok) return;
 
-    iRadioAPI.del('/admin/playlists/' + id).then(function() {
-      showToast('Playlist deleted');
-      if (activePlaylistId === id) {
-        document.getElementById('detailPanel').classList.add('hidden');
-        activePlaylistId   = null;
-        activePlaylistName = null;
-        activePlaylistType = null;
-      }
-      loadPlaylists();
-    }).catch(function(err) {
-      showToast((err && err.error) || 'Delete failed', 'error');
+      iRadioAPI.del('/admin/playlists/' + id).then(function() {
+        showToast('Playlist deleted');
+        if (activePlaylistId === id) {
+          document.getElementById('detailPanel').classList.add('hidden');
+          activePlaylistId   = null;
+          activePlaylistName = null;
+          activePlaylistType = null;
+        }
+        loadPlaylists();
+      }).catch(function(err) {
+        showToast((err && err.error) || 'Delete failed', 'error');
+      });
     });
   }
 
@@ -530,7 +652,7 @@ var iRadioPlaylists = (function() {
     var thead  = document.getElementById('detailHead');
     var tbody  = document.getElementById('detailSongs');
 
-    thead.innerHTML = '<tr><th>#</th><th>Title</th><th>Artist</th><th>Genre</th><th>Duration</th><th>Played</th><th>Actions</th></tr>';
+    thead.innerHTML = '<tr><th>#</th><th>Title</th><th>Artist</th><th>Genre/Category</th><th>Duration</th><th>Played</th><th>Actions</th></tr>';
 
     if (!songs || songs.length === 0) {
       var msg = isAuto ? 'No songs match the current rules' : 'No songs in playlist';
@@ -584,7 +706,7 @@ var iRadioPlaylists = (function() {
       } else {
         playedCol = 'No';
       }
-      var actionCell = '<button class="icon-btn danger" title="Remove" onclick="iRadioPlaylists.removeSong(' + s.song_id + ')">' + iRadioIcons.remove + '</button>';
+      var actionCell = '<button type="button" class="icon-btn danger" title="Remove" onclick="iRadioPlaylists.removeSong(' + s.song_id + ')">' + iRadioIcons.remove + '</button>';
       var rowAttr    = isAuto
         ? ''
         : ' draggable="true" data-song-id="' + s.song_id + '"';
@@ -709,7 +831,7 @@ var iRadioPlaylists = (function() {
 
   function populateCategoryDropdown() {
     var sel = document.getElementById('addSongCategory');
-    var html = '<option value="">All Genres</option>';
+    var html = '<option value="">All Genres/Categories</option>';
     addSongCategories.forEach(function(c) {
       html += '<option value="' + c.id + '">' + escHtml(c.name) + '</option>';
     });
@@ -863,43 +985,222 @@ var iRadioPlaylists = (function() {
       filterDesc = 'all songs in ' + sel2.options[sel2.selectedIndex].text;
     }
 
-    if (!confirm('Add ' + filterDesc + ' to this playlist?')) return;
+    iRadioConfirm('Add ' + filterDesc + ' to this playlist?', { title: 'Add Songs', okLabel: 'Add', okClass: 'btn-primary' }).then(function(ok) {
+      if (!ok) return;
 
-    var q = '?per_page=500&active=true';
-    if (search)   q += '&search='      + encodeURIComponent(search);
-    if (artistId) q += '&artist_id='   + artistId;
-    if (catId)    q += '&category_id=' + catId;
+      var q = '?per_page=500&active=true';
+      if (search)   q += '&search='      + encodeURIComponent(search);
+      if (artistId) q += '&artist_id='   + artistId;
+      if (catId)    q += '&category_id=' + catId;
 
-    var btn = document.getElementById('btnAddAllFiltered');
-    btn.disabled = true;
-    btn.textContent = 'Adding…';
+      var btn = document.getElementById('btnAddAllFiltered');
+      btn.disabled = true;
+      btn.textContent = 'Adding…';
 
-    iRadioAPI.get('/admin/songs' + q).then(function(data) {
-      var ids = data.songs.map(function(s) { return s.id; });
-      ids = ids.filter(function(sid) { return !playlistSongIds[sid]; });
+      iRadioAPI.get('/admin/songs' + q).then(function(data) {
+        var ids = data.songs.map(function(s) { return s.id; });
+        ids = ids.filter(function(sid) { return !playlistSongIds[sid]; });
 
-      if (ids.length === 0) {
-        showToast('All matching songs are already in the playlist');
+        if (ids.length === 0) {
+          showToast('All matching songs are already in the playlist');
+          btn.disabled = false;
+          btn.textContent = 'Add All Filtered';
+          return;
+        }
+
+        return iRadioAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
+          song_ids: ids
+        }).then(function(result) {
+          showToast(ids.length + ' song' + (ids.length !== 1 ? 's' : '') + ' added');
+          document.getElementById('addSongModal').classList.add('hidden');
+          selectedSongIds = {};
+          loadDetail(activePlaylistId);
+          loadPlaylists();
+        });
+      }).catch(function(err) {
+        showToast((err && err.error) || 'Add all failed', 'error');
+      }).finally(function() {
         btn.disabled = false;
         btn.textContent = 'Add All Filtered';
+      });
+    });
+  }
+
+  // ── Shared collapsible folder tree ──────────────────
+
+  // Folders to skip as tree nodes (their children get promoted)
+  var SKIP_FOLDERS = { '/': true, '/imports': true, '/upload': true, '/tagged': true };
+
+  /**
+   * Build a tree structure from flat folder list.
+   * Each node: { name, path, depth, song_count?, children: [] }
+   * Skips wrapper folders like /imports, /tagged and /upload, promoting their children.
+   */
+  function buildFolderTree(folders) {
+    var roots = [];
+    var stack = []; // stack of { node, depth }
+
+    folders.forEach(function(f) {
+      if (SKIP_FOLDERS[f.path]) {
+        // Clean up the stack so children of skipped folders don't nest under previous siblings
+        while (stack.length > 0 && stack[stack.length - 1].depth >= f.depth) {
+          stack.pop();
+        }
         return;
       }
 
-      return iRadioAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
-        song_ids: ids
-      }).then(function(result) {
-        showToast(ids.length + ' song' + (ids.length !== 1 ? 's' : '') + ' added');
-        document.getElementById('addSongModal').classList.add('hidden');
-        selectedSongIds = {};
-        loadDetail(activePlaylistId);
-        loadPlaylists();
-      });
-    }).catch(function(err) {
-      showToast((err && err.error) || 'Add all failed', 'error');
-    }).finally(function() {
-      btn.disabled = false;
-      btn.textContent = 'Add All Filtered';
+      var node = {
+        name: f.name,
+        path: f.path,
+        depth: f.depth,
+        song_count: f.song_count,
+        file_count: f.file_count,
+        children: []
+      };
+
+      // Pop stack until we find a parent (depth < current depth)
+      while (stack.length > 0 && stack[stack.length - 1].depth >= f.depth) {
+        stack.pop();
+      }
+
+      if (stack.length === 0) {
+        roots.push(node);
+      } else {
+        stack[stack.length - 1].node.children.push(node);
+      }
+      stack.push({ node: node, depth: f.depth });
     });
+    return roots;
+  }
+
+  /**
+   * Render a collapsible folder tree into a container.
+   * opts.mode = 'select' (single click to select) or 'check' (checkboxes)
+   * opts.onSelect(path)  — called when a folder is clicked in select mode
+   * opts.onChange()       — called when a checkbox changes in check mode
+   * opts.existingNames   — map of lowercase names that already exist (for badges)
+   */
+  function renderFolderTree(container, roots, opts) {
+    if (roots.length === 0) {
+      container.innerHTML = '<p class="text-dim" style="margin:0;font-size:.85rem">No folders found</p>';
+      return;
+    }
+    container.innerHTML = '';
+    roots.forEach(function(node) {
+      renderTreeNode(container, node, opts, 0);
+    });
+  }
+
+  function renderTreeNode(parent, node, opts, level) {
+    var hasChildren = node.children.length > 0;
+    var fileCount = node.file_count || 0;
+    var songCount = node.song_count || 0;
+    var exists = opts.existingNames && !!opts.existingNames[node.name.toLowerCase()];
+    // Disable only if playlist exists OR no audio files on disk at all
+    var disabled = opts.mode === 'check' && (exists || fileCount === 0);
+
+    // Row
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:2px 0;padding-left:' + (level * 18) + 'px;';
+    if (disabled) row.style.opacity = '0.5';
+
+    // Toggle arrow
+    var arrow = document.createElement('span');
+    arrow.style.cssText = 'width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;cursor:' + (hasChildren ? 'pointer' : 'default') + ';font-size:12px;color:var(--text-dim);user-select:none;';
+    arrow.textContent = hasChildren ? '\u25B6' : '';
+    row.appendChild(arrow);
+
+    if (opts.mode === 'check') {
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'import-folder-check';
+      cb.setAttribute('data-path', node.path);
+      cb.setAttribute('data-name', node.name);
+      cb.disabled = disabled;
+      cb.style.cssText = 'width:16px;height:16px;flex-shrink:0;cursor:' + (disabled ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent);margin:0;';
+      cb.addEventListener('change', function() {
+        // Propagate to child checkboxes only if this node has a children container
+        if (hasChildren) {
+          var childBox = row.nextElementSibling;
+          if (childBox) {
+            var childChecks = childBox.querySelectorAll('.import-folder-check:not(:disabled)');
+            childChecks.forEach(function(c) { c.checked = cb.checked; });
+          }
+        }
+        if (opts.onChange) opts.onChange();
+      });
+      row.appendChild(cb);
+    }
+
+    // Folder name (clickable in select mode)
+    var label = document.createElement('span');
+    label.style.cssText = 'font-size:.85rem;cursor:' + (opts.mode === 'select' ? 'pointer' : 'default') + ';flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    label.textContent = node.name;
+    if (opts.mode === 'select') {
+      label.setAttribute('data-path', node.path);
+      label.addEventListener('click', function() {
+        // Deselect previous
+        var prev = parent.closest('.modal').querySelector('[data-folder-sel]');
+        if (prev) { prev.style.background = ''; prev.removeAttribute('data-folder-sel'); }
+        row.style.background = 'rgba(0,200,160,0.15)';
+        row.setAttribute('data-folder-sel', '1');
+        if (opts.onSelect) opts.onSelect(node.path, node.name);
+      });
+      label.addEventListener('mouseenter', function() { if (!row.hasAttribute('data-folder-sel')) row.style.background = 'rgba(255,255,255,0.05)'; });
+      label.addEventListener('mouseleave', function() { if (!row.hasAttribute('data-folder-sel')) row.style.background = ''; });
+    }
+    row.appendChild(label);
+
+    // File count (actual audio files on disk)
+    if (node.file_count !== undefined) {
+      var count = document.createElement('span');
+      count.className = 'text-dim';
+      count.style.cssText = 'font-size:.75rem;margin-left:auto;white-space:nowrap;flex-shrink:0;';
+      count.textContent = fileCount + ' files';
+      row.appendChild(count);
+    }
+
+    // Badges
+    if (exists) {
+      var badge = document.createElement('span');
+      badge.className = 'badge badge-inactive';
+      badge.style.cssText = 'font-size:.7rem;padding:1px 5px;flex-shrink:0;';
+      badge.textContent = 'exists';
+      row.appendChild(badge);
+    } else if (fileCount > 0 && songCount === 0) {
+      var unscanBadge = document.createElement('span');
+      unscanBadge.className = 'badge';
+      unscanBadge.style.cssText = 'font-size:.7rem;padding:1px 5px;flex-shrink:0;background:#fbbf24;color:#000;';
+      unscanBadge.textContent = 'not scanned';
+      row.appendChild(unscanBadge);
+    }
+
+    parent.appendChild(row);
+
+    // Children container (hidden by default)
+    if (hasChildren) {
+      var childBox = document.createElement('div');
+      childBox.style.display = 'none';
+
+      var expanded = false;
+      arrow.addEventListener('click', function() {
+        expanded = !expanded;
+        arrow.textContent = expanded ? '\u25BC' : '\u25B6';
+        childBox.style.display = expanded ? '' : 'none';
+      });
+
+      // Also toggle on double-click of the label
+      label.addEventListener('dblclick', function() {
+        expanded = !expanded;
+        arrow.textContent = expanded ? '\u25BC' : '\u25B6';
+        childBox.style.display = expanded ? '' : 'none';
+      });
+
+      node.children.forEach(function(child) {
+        renderTreeNode(childBox, child, opts, level + 1);
+      });
+      parent.appendChild(childBox);
+    }
   }
 
   // ── Add from Folder ──────────────────────────────────
@@ -915,19 +1216,19 @@ var iRadioPlaylists = (function() {
   function openAddFolderModal() {
     if (!activePlaylistId) return;
 
-    var sel  = document.getElementById('addFolderSel');
-    var html = '';
-    allFolders.forEach(function(f) {
-      var indent = '';
-      if (f.depth >= 0) {
-        for (var i = 0; i < f.depth; i++) { indent += '\u00a0\u00a0'; }
-        indent += '\u2514\u2500 ';
-      }
-      html += '<option value="' + escHtml(f.path) + '">' + indent + escHtml(f.name) + '</option>';
-    });
-    sel.innerHTML = html || '<option value="">No folders available</option>';
+    var treeEl = document.getElementById('addFolderTree');
+    var input  = document.getElementById('addFolderSel');
+    input.value = '';
 
-    document.getElementById('addFolderRecursive').checked = false;
+    var roots = buildFolderTree(allFolders);
+    renderFolderTree(treeEl, roots, {
+      mode: 'select',
+      onSelect: function(path, name) {
+        input.value = path;
+      }
+    });
+
+    document.getElementById('addFolderRecursive').checked = true;
     document.getElementById('addFolderNote').textContent  = '';
     var btn = document.getElementById('btnConfirmAddFolder');
     btn.disabled    = false;
@@ -965,6 +1266,205 @@ var iRadioPlaylists = (function() {
       btn.disabled    = false;
       btn.textContent = 'Add Songs';
     });
+  }
+
+  // ── Import Playlists from Folders ─────────────────────
+
+  function openImportFoldersModal() {
+    var tree = document.getElementById('importFolderTree');
+    tree.innerHTML = '<p class="text-dim" style="margin:0;font-size:.85rem">Loading folders…</p>';
+    document.getElementById('btnConfirmImportFolders').disabled = true;
+    document.getElementById('btnConfirmImportFolders').textContent = 'Import (0)';
+    document.getElementById('importRecursive').checked = true;
+    document.getElementById('importFoldersModal').classList.remove('hidden');
+
+    // Fetch folders with song counts
+    iRadioAPI.get('/admin/media/folders?counts=true').then(function(data) {
+      var folders = data.folders || [];
+
+      // Build set of existing playlist names (case-insensitive)
+      var existingNames = {};
+      allPlaylists.forEach(function(p) {
+        existingNames[p.name.toLowerCase()] = true;
+      });
+
+      var roots = buildFolderTree(folders);
+
+      if (roots.length === 0) {
+        tree.innerHTML = '<p class="text-dim" style="margin:0;font-size:.85rem">No folders found</p>';
+        return;
+      }
+
+      renderFolderTree(tree, roots, {
+        mode: 'check',
+        existingNames: existingNames,
+        onChange: updateImportCount
+      });
+    }).catch(function() {
+      tree.innerHTML = '<p class="text-dim" style="margin:0;font-size:.85rem;color:var(--danger)">Failed to load folders</p>';
+    });
+  }
+
+  function updateImportCount() {
+    var checks = document.querySelectorAll('#importFolderTree .import-folder-check:checked');
+    var count = checks.length;
+    var btn = document.getElementById('btnConfirmImportFolders');
+    btn.textContent = 'Import (' + count + ')';
+    btn.disabled = count === 0;
+  }
+
+  function importSelectAll() {
+    var checks = document.querySelectorAll('#importFolderTree .import-folder-check:not(:disabled)');
+    checks.forEach(function(cb) { cb.checked = true; });
+    updateImportCount();
+  }
+
+  function importSelectNone() {
+    var checks = document.querySelectorAll('#importFolderTree .import-folder-check');
+    checks.forEach(function(cb) { cb.checked = false; });
+    updateImportCount();
+  }
+
+  function handleImportFolders() {
+    var checks = document.querySelectorAll('#importFolderTree .import-folder-check:checked');
+    if (checks.length === 0) return;
+
+    var recursive = document.getElementById('importRecursive').checked;
+
+    // Collect all checked paths
+    var allChecked = [];
+    checks.forEach(function(cb) {
+      allChecked.push({
+        path: cb.getAttribute('data-path'),
+        name: cb.getAttribute('data-name')
+      });
+    });
+
+    // When recursive: filter out folders whose ancestor is also checked
+    // (the ancestor's recursive import already covers subfolder songs)
+    var folders;
+    if (recursive) {
+      var checkedPaths = {};
+      allChecked.forEach(function(f) { checkedPaths[f.path] = true; });
+      folders = allChecked.filter(function(f) {
+        var parts = f.path.split('/').filter(Boolean);
+        // Check if any ancestor path is also checked
+        for (var i = 1; i < parts.length; i++) {
+          var ancestor = '/' + parts.slice(0, i).join('/');
+          if (checkedPaths[ancestor]) return false;
+        }
+        return true;
+      });
+    } else {
+      folders = allChecked;
+    }
+
+    if (folders.length === 0) {
+      showToast('No new folders to import (all covered by parent selections)', 'error');
+      return;
+    }
+
+    var btn = document.getElementById('btnConfirmImportFolders');
+    btn.disabled = true;
+    btn.textContent = 'Starting import…';
+
+    iRadioAPI.post('/admin/playlists/batch-import', {
+      folders: folders,
+      recursive: recursive
+    }).then(function(data) {
+      if (data.status === 'started') {
+        // Background job started — poll for progress
+        showToast('Import started — scanning ' + folders.length + ' folder(s)…');
+        pollBatchImportStatus();
+      } else {
+        // Synchronous response (shouldn't happen with new handler, but handle gracefully)
+        document.getElementById('importFoldersModal').classList.add('hidden');
+        var msg = data.message || (data.created.length + ' playlist(s) created');
+        showToast(msg);
+        loadPlaylists();
+        loadFolders();
+      }
+    }).catch(function(err) {
+      showToast((err && err.error) || 'Import failed', 'error');
+      btn.disabled = false;
+      updateImportCount();
+    });
+  }
+
+  var batchImportPollTimer = null;
+
+  function pollBatchImportStatus() {
+    if (batchImportPollTimer) clearInterval(batchImportPollTimer);
+    var idleCount = 0;
+    var progressWrap = document.getElementById('batchImportProgress');
+    if (progressWrap) progressWrap.style.display = 'block';
+
+    batchImportPollTimer = setInterval(function() {
+      iRadioAPI.get('/admin/playlists/batch-import').then(function(data) {
+        if (!data || data.status === 'idle') {
+          if (++idleCount >= 3) {
+            clearInterval(batchImportPollTimer);
+            batchImportPollTimer = null;
+            finishBatchImportUI();
+          }
+          return;
+        }
+        idleCount = 0;
+        showBatchImportProgress(data);
+
+        if (data.status !== 'running') {
+          clearInterval(batchImportPollTimer);
+          batchImportPollTimer = null;
+
+          if (data.status === 'done') {
+            var msg = (data.playlists_created || 0) + ' playlist(s) created';
+            if (data.songs_scanned > 0) msg += ', ' + data.songs_scanned + ' songs scanned';
+            showToast(msg);
+          } else if (data.status === 'stopped') {
+            showToast('Import stopped — ' + (data.playlists_created || 0) + ' playlist(s) created so far');
+          }
+          finishBatchImportUI();
+        }
+      }).catch(function() {
+        // Network error — keep polling
+      });
+    }, 2000);
+  }
+
+  function showBatchImportProgress(p) {
+    var progressWrap = document.getElementById('batchImportProgress');
+    if (!progressWrap) return;
+    progressWrap.style.display = 'block';
+
+    var total = p.total_folders || 1;
+    var processed = p.folders_processed || 0;
+    var pct = Math.round((processed / total) * 100);
+
+    var label = 'Importing playlists…';
+    if (p.current_folder) label = 'Scanning: ' + p.current_folder;
+    if (p.status === 'done') label = 'Import complete';
+    if (p.status === 'stopped') label = 'Import stopped';
+
+    document.getElementById('batchImportLabel').textContent = label;
+    document.getElementById('batchImportPct').textContent = pct + '%';
+    document.getElementById('batchImportBar').style.width = pct + '%';
+    document.getElementById('batchImportDetails').textContent =
+      processed + ' / ' + total + ' folders — ' +
+      (p.playlists_created || 0) + ' created, ' +
+      (p.songs_scanned || 0) + ' songs scanned';
+  }
+
+  function finishBatchImportUI() {
+    var progressWrap = document.getElementById('batchImportProgress');
+    if (progressWrap) {
+      setTimeout(function() { progressWrap.style.display = 'none'; }, 3000);
+    }
+    document.getElementById('importFoldersModal').classList.add('hidden');
+    var btn = document.getElementById('btnConfirmImportFolders');
+    btn.disabled = false;
+    updateImportCount();
+    loadPlaylists();
+    loadFolders();
   }
 
   // ── Drag and drop reorder ───────────────────────────

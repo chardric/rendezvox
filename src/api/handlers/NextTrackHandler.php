@@ -596,49 +596,6 @@ class NextTrackHandler
     }
 
     /**
-     * Check if a song was played in the last N plays (cycle-size window).
-     */
-    private function isSongRecentlyPlayed(PDO $db, int $songId, int $cycleSize): bool
-    {
-        if ($cycleSize <= 0) {
-            return false;
-        }
-
-        $stmt = $db->prepare('
-            SELECT 1
-            FROM (
-                SELECT song_id
-                FROM play_history
-                ORDER BY started_at DESC
-                LIMIT :cycle_size
-            ) recent
-            WHERE recent.song_id = :song_id
-            LIMIT 1
-        ');
-        $stmt->bindValue('cycle_size', $cycleSize, PDO::PARAM_INT);
-        $stmt->bindValue('song_id', $songId, PDO::PARAM_INT);
-        $stmt->execute();
-
-        return (bool) $stmt->fetch();
-    }
-
-    /**
-     * Get the number of active songs in a playlist (for cycle-size calculation).
-     */
-    private function getPlaylistSize(PDO $db, int $playlistId): int
-    {
-        $stmt = $db->prepare('
-            SELECT COUNT(*)
-            FROM playlist_songs ps
-            JOIN songs s ON s.id = ps.song_id
-            WHERE ps.playlist_id = :playlist_id
-              AND s.is_active = true
-        ');
-        $stmt->execute(['playlist_id' => $playlistId]);
-        return (int) $stmt->fetchColumn();
-    }
-
-    /**
      * Reject a request due to rotation rule and remove from queue.
      */
     private function rejectRequest(PDO $db, int $requestId, int $queueId, string $reason): void

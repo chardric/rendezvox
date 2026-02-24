@@ -18,32 +18,27 @@ class NormalizeHandler
     {
         Auth::requireAuth();
 
-        // Handle concurrent runs
-        $progress = $this->readProgress();
-        if ($progress && $progress['status'] === 'running') {
-            if (file_exists(self::LOCK_FILE)) {
-                $pid = (int) @file_get_contents(self::LOCK_FILE);
-                if ($pid > 0 && file_exists("/proc/{$pid}")) {
-                    $cmdline = @file_get_contents("/proc/{$pid}/cmdline");
-                    $isAuto = $cmdline && str_contains($cmdline, '--auto');
+        // Check for any running normalize process (lock file OR process list)
+        $runningPid = $this->findRunningPid();
+        if ($runningPid) {
+            $cmdline = @file_get_contents("/proc/{$runningPid}/cmdline");
+            $isAuto = $cmdline && str_contains($cmdline, '--auto');
 
-                    if ($isAuto) {
-                        // Auto-normalize running — stop it, manual takes priority
-                        file_put_contents(self::LOCK_FILE . '.stop', '1');
-                        for ($i = 0; $i < 20; $i++) {
-                            usleep(500000);
-                            if (!file_exists("/proc/{$pid}")) break;
-                        }
-                        @unlink(self::LOCK_FILE);
-                        @unlink(self::LOCK_FILE . '.stop');
-                    } else {
-                        Response::json([
-                            'message'  => 'Normalization already running',
-                            'progress' => $progress,
-                        ]);
-                        return;
-                    }
+            if ($isAuto) {
+                // Auto-normalize running — stop it, manual takes priority
+                file_put_contents(self::LOCK_FILE . '.stop', '1');
+                for ($i = 0; $i < 20; $i++) {
+                    usleep(500000);
+                    if (!file_exists("/proc/{$runningPid}")) break;
                 }
+                @unlink(self::LOCK_FILE);
+                @unlink(self::LOCK_FILE . '.stop');
+            } else {
+                Response::json([
+                    'message'  => 'Normalization already running',
+                    'progress' => $this->readProgress(),
+                ]);
+                return;
             }
         }
 
@@ -88,9 +83,26 @@ class NormalizeHandler
             return;
         }
 
+        // If progress says "running" but no process exists, mark as stopped
+        if ($progress['status'] === 'running' && !$this->findRunningPid()) {
+            $progress['status'] = 'stopped';
+            $progress['finished_at'] = date('c');
+            @file_put_contents(self::PROGRESS_FILE, json_encode($progress), LOCK_EX);
+        }
+
         // Clean up lock file if finished
         if (in_array($progress['status'], ['done', 'stopped']) && file_exists(self::LOCK_FILE)) {
             @unlink(self::LOCK_FILE);
+        }
+
+        // Clear stale progress from old runs (>5 min old)
+        if (in_array($progress['status'], ['done', 'stopped'])) {
+            $finishedAt = $progress['finished_at'] ?? null;
+            if ($finishedAt && (time() - strtotime($finishedAt)) > 300) {
+                @unlink(self::PROGRESS_FILE);
+                Response::json(['status' => 'idle']);
+                return;
+            }
         }
 
         Response::json($progress);
@@ -141,6 +153,31 @@ class NormalizeHandler
 
         $result['has_run'] = true;
         Response::json($result);
+    }
+
+    /**
+     * Find a running normalize_audio.php process — checks lock file first, falls back to process list.
+     */
+    private function findRunningPid(): ?int
+    {
+        if (file_exists(self::LOCK_FILE)) {
+            $pid = (int) @file_get_contents(self::LOCK_FILE);
+            if ($pid > 0 && file_exists("/proc/{$pid}")) {
+                return $pid;
+            }
+            @unlink(self::LOCK_FILE);
+        }
+
+        $output = [];
+        exec("pgrep -f 'normalize_audio\\.php' 2>/dev/null", $output);
+        foreach ($output as $line) {
+            $pid = (int) trim($line);
+            if ($pid > 0 && $pid !== getmypid() && file_exists("/proc/{$pid}")) {
+                return $pid;
+            }
+        }
+
+        return null;
     }
 
     private function readProgress(): ?array

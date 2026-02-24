@@ -106,9 +106,6 @@ class SSEHandler
 
     private function flush(): void
     {
-        if (function_exists('fastcgi_finish_request')) {
-            // Don't call this — it would end the response
-        }
         @ob_flush();
         flush();
     }

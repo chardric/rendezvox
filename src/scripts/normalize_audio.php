@@ -116,11 +116,52 @@ if (count($allSongs) === 0) {
     exit(0);
 }
 
+$musicDir = '/var/lib/iradio/music';
 $stopFile = '/tmp/iradio_normalize.lock.stop';
 
-foreach ($allSongs as $song) {
+// ── Parallel workers — safe parallelism based on CPU cores & load ──
+$cpuCores   = (int) @shell_exec('nproc') ?: 2;
+$maxWorkers = max(1, (int) floor($cpuCores / 2));  // use at most half the cores
+$load       = sys_getloadavg();
+$load5m     = $load ? $load[1] : 0;  // 5-min average for stability
+if ($load5m > $cpuCores * 0.6) {
+    // System already under moderate load — reduce to 1 worker
+    $maxWorkers = 1;
+}
+logMsg("CPU: {$cpuCores} cores, 5m load: " . round($load5m, 2) . " — using $maxWorkers parallel workers", $autoMode);
+
+/**
+ * Parse ffmpeg loudnorm JSON from output, return [inputI, gainDb] or null.
+ */
+function parseLoudnorm(string $fullOutput, float $targetLufs): ?array
+{
+    $jsonStart = strrpos($fullOutput, '{');
+    $jsonEnd   = strrpos($fullOutput, '}');
+    if ($jsonStart === false || $jsonEnd === false || $jsonEnd <= $jsonStart) {
+        return null;
+    }
+    $data = json_decode(substr($fullOutput, $jsonStart, $jsonEnd - $jsonStart + 1), true);
+    if (!$data || !isset($data['input_i'])) {
+        return null;
+    }
+    $inputI = (float) $data['input_i'];
+    return [$inputI, $targetLufs - $inputI];
+}
+
+/** Active worker slots: [ slotIndex => ['proc'=>resource, 'pipes'=>[], 'songId'=>int, 'output'=>string] ] */
+$workers = [];
+$songIdx = 0;
+$totalSongs = count($allSongs);
+
+while ($songIdx < $totalSongs || count($workers) > 0) {
     // Check for stop signal
     if (file_exists($stopFile)) {
+        // Kill active workers
+        foreach ($workers as $w) {
+            @fclose($w['pipes'][1]);
+            proc_terminate($w['proc']);
+            proc_close($w['proc']);
+        }
         @unlink($stopFile);
         $progress['status']      = 'stopped';
         $progress['finished_at'] = date('c');
@@ -141,66 +182,89 @@ foreach ($allSongs as $song) {
         exit(0);
     }
 
-    $songId   = (int) $song['id'];
-    $filePath = $song['file_path'];
+    // Fill empty worker slots
+    while (count($workers) < $maxWorkers && $songIdx < $totalSongs) {
+        $song     = $allSongs[$songIdx++];
+        $songId   = (int) $song['id'];
+        $filePath = $song['file_path'];
 
-    // Skip if file doesn't exist
-    if (!file_exists($filePath)) {
-        $progress['skipped']++;
-        $progress['processed']++;
-        writeProgress($progress);
-        continue;
+        if ($filePath[0] !== '/') {
+            $filePath = $musicDir . '/' . $filePath;
+        }
+
+        if (!file_exists($filePath)) {
+            $progress['skipped']++;
+            $progress['processed']++;
+            writeProgress($progress);
+            continue;
+        }
+
+        $cmd  = 'ffmpeg -i ' . escapeshellarg($filePath)
+              . ' -af loudnorm=I=-14:TP=-1:LRA=11:print_format=json -f null - 2>&1';
+        $desc = [1 => ['pipe', 'w']];  // stdout+stderr merged via 2>&1 in cmd
+        $proc = proc_open($cmd, $desc, $pipes);
+
+        if (!is_resource($proc)) {
+            $progress['failed']++;
+            $progress['processed']++;
+            writeProgress($progress);
+            continue;
+        }
+
+        stream_set_blocking($pipes[1], false);
+        $workers[] = [
+            'proc'   => $proc,
+            'pipes'  => $pipes,
+            'songId' => $songId,
+            'output' => '',
+        ];
     }
 
-    // Run ffmpeg loudnorm analysis (first pass only)
-    $cmd = 'ffmpeg -i ' . escapeshellarg($filePath)
-         . ' -af loudnorm=I=-14:TP=-1:LRA=11:print_format=json -f null - 2>&1';
+    // Poll active workers for completion
+    foreach ($workers as $idx => &$w) {
+        $chunk = @stream_get_contents($w['pipes'][1]);
+        if ($chunk !== false) {
+            $w['output'] .= $chunk;
+        }
 
-    $output = [];
-    exec($cmd, $output, $exitCode);
+        $status = proc_get_status($w['proc']);
+        if (!$status['running']) {
+            // Read any remaining output
+            $chunk = @stream_get_contents($w['pipes'][1]);
+            if ($chunk !== false) {
+                $w['output'] .= $chunk;
+            }
+            @fclose($w['pipes'][1]);
+            proc_close($w['proc']);
 
-    // Parse JSON from ffmpeg output — it's embedded in stderr
-    $fullOutput = implode("\n", $output);
+            $result = parseLoudnorm($w['output'], $targetLufs);
+            if ($result) {
+                [$inputI, $gainDb] = $result;
+                $stmt = $db->prepare("
+                    UPDATE songs SET loudness_lufs = :lufs, loudness_gain_db = :gain WHERE id = :id
+                ");
+                $stmt->execute([
+                    'lufs' => round($inputI, 2),
+                    'gain' => round($gainDb, 2),
+                    'id'   => $w['songId'],
+                ]);
+                $progress['normalized']++;
+            } else {
+                $progress['failed']++;
+            }
 
-    // Extract JSON block from the output
-    $jsonStart = strrpos($fullOutput, '{');
-    $jsonEnd   = strrpos($fullOutput, '}');
-
-    if ($jsonStart === false || $jsonEnd === false || $jsonEnd <= $jsonStart) {
-        $progress['failed']++;
-        $progress['processed']++;
-        writeProgress($progress);
-        continue;
+            $progress['processed']++;
+            writeProgress($progress);
+            unset($workers[$idx]);
+        }
     }
+    unset($w);
+    $workers = array_values($workers);
 
-    $jsonStr = substr($fullOutput, $jsonStart, $jsonEnd - $jsonStart + 1);
-    $data    = json_decode($jsonStr, true);
-
-    if (!$data || !isset($data['input_i'])) {
-        $progress['failed']++;
-        $progress['processed']++;
-        writeProgress($progress);
-        continue;
+    // Brief sleep to avoid busy-waiting
+    if (count($workers) > 0) {
+        usleep(100000); // 100ms
     }
-
-    $inputI = (float) $data['input_i'];
-    $gainDb = $targetLufs - $inputI;
-
-    // Update the song row
-    $stmt = $db->prepare("
-        UPDATE songs
-        SET loudness_lufs = :lufs, loudness_gain_db = :gain
-        WHERE id = :id
-    ");
-    $stmt->execute([
-        'lufs' => round($inputI, 2),
-        'gain' => round($gainDb, 2),
-        'id'   => $songId,
-    ]);
-
-    $progress['normalized']++;
-    $progress['processed']++;
-    writeProgress($progress);
 }
 
 $progress['status']      = 'done';

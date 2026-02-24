@@ -21,6 +21,7 @@ class NowPlayingHandler
                 s.year,
                 s.duration_ms,
                 s.file_path,
+                s.has_cover_art,
                 a.name       AS artist_name,
                 c.name       AS category_name
             FROM rotation_state rs
@@ -89,12 +90,13 @@ class NowPlayingHandler
             'is_emergency'       => (bool) $row['is_emergency'],
             'songs_since_jingle' => (int) $row['songs_since_jingle'],
             'song' => [
-                'id'          => (int) $row['song_id'],
-                'title'       => $row['song_title'],
-                'artist'      => $row['artist_name'],
-                'year'        => $row['year'] ? (int) $row['year'] : null,
-                'category'    => $row['category_name'],
-                'duration_ms' => (int) $row['duration_ms'],
+                'id'            => (int) $row['song_id'],
+                'title'         => $row['song_title'],
+                'artist'        => $row['artist_name'],
+                'year'          => $row['year'] ? (int) $row['year'] : null,
+                'category'      => $row['category_name'],
+                'duration_ms'   => (int) $row['duration_ms'],
+                'has_cover_art' => (bool) $row['has_cover_art'],
             ],
             'next_track'         => $nextTrack,
             'request'            => $requestInfo,

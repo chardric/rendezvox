@@ -13,6 +13,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../core/Database.php';
 
+$autoMode = in_array('--auto', $argv ?? []);
+
 $db = Database::get();
 
 // ── Lock file — prevent concurrent runs ─────────────────
@@ -26,6 +28,27 @@ if (file_exists($lockFile)) {
 }
 file_put_contents($lockFile, (string) getmypid());
 @chmod($lockFile, 0666);
+
+// ── Auto mode: check setting ────────────────────────────
+if ($autoMode) {
+    $stmt = $db->prepare("SELECT value FROM settings WHERE key = 'auto_library_sync_enabled'");
+    $stmt->execute();
+    $row = $stmt->fetch();
+    if (!$row || $row['value'] !== 'true') {
+        @unlink($lockFile);
+        exit(0); // Auto-sync disabled
+    }
+}
+
+/** Log helper — outputs to stdout (captured by cron >> log file) */
+function logMsg(string $msg, bool $autoMode): void
+{
+    if ($autoMode) {
+        echo '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n";
+    }
+}
+
+logMsg('Auto-sync started', $autoMode);
 
 // ── Progress tracking ───────────────────────────────────
 $progress = [
@@ -56,45 +79,106 @@ $progress['total'] = count($allSongs);
 writeProgress($progress);
 
 if (count($allSongs) === 0) {
+    logMsg('No active songs — exiting', $autoMode);
     $progress['status']      = 'done';
     $progress['finished_at'] = date('c');
     writeProgress($progress);
+    if ($autoMode) {
+        @file_put_contents('/tmp/iradio_auto_sync_last.json', json_encode([
+            'ran_at'      => date('c'),
+            'total'       => 0,
+            'missing'     => 0,
+            'deactivated' => 0,
+            'message'     => 'No active songs found',
+        ]), LOCK_EX);
+        @chmod('/tmp/iradio_auto_sync_last.json', 0666);
+    }
     @unlink($lockFile);
     exit(0);
 }
 
-$stopFile = '/tmp/iradio_library_sync.lock.stop';
+$stopFile   = '/tmp/iradio_library_sync.lock.stop';
+$batchSize  = 100;  // Progress write + stop check frequency
+$missingIds = [];    // Collect for batch DB update
 
-foreach ($allSongs as $song) {
-    // Check for stop signal
-    if (file_exists($stopFile)) {
+foreach ($allSongs as $i => $song) {
+    // Check for stop signal every batch
+    if ($i % $batchSize === 0 && file_exists($stopFile)) {
+        // Flush pending deactivations
+        if (!empty($missingIds)) {
+            $placeholders = implode(',', array_fill(0, count($missingIds), '?'));
+            $db->prepare("UPDATE songs SET is_active = false WHERE id IN ($placeholders)")
+               ->execute($missingIds);
+            $missingIds = [];
+        }
         @unlink($stopFile);
         $progress['status']      = 'stopped';
         $progress['finished_at'] = date('c');
         writeProgress($progress);
+        logMsg('Sync stopped — ' . $progress['processed'] . '/' . $progress['total'] . ' processed, ' . $progress['deactivated'] . ' deactivated', $autoMode);
+        if ($autoMode) {
+            @file_put_contents('/tmp/iradio_auto_sync_last.json', json_encode([
+                'ran_at'      => date('c'),
+                'total'       => $progress['total'],
+                'missing'     => $progress['missing'],
+                'deactivated' => $progress['deactivated'],
+                'message'     => 'Stopped — ' . $progress['deactivated'] . ' deactivated so far',
+            ]), LOCK_EX);
+            @chmod('/tmp/iradio_auto_sync_last.json', 0666);
+        }
         @unlink($lockFile);
         exit(0);
     }
 
-    $filePath = $song['file_path'];
+    $filePath     = $song['file_path'];
     $absolutePath = $musicDir . '/' . $filePath;
 
     if (!file_exists($absolutePath)) {
         $progress['missing']++;
-
-        // Deactivate the song
-        $db->prepare("UPDATE songs SET is_active = false WHERE id = :id")
-           ->execute(['id' => (int) $song['id']]);
-
         $progress['deactivated']++;
+        $missingIds[] = (int) $song['id'];
+
+        // Flush batch every 50 missing files
+        if (count($missingIds) >= 50) {
+            $placeholders = implode(',', array_fill(0, count($missingIds), '?'));
+            $db->prepare("UPDATE songs SET is_active = false WHERE id IN ($placeholders)")
+               ->execute($missingIds);
+            $missingIds = [];
+        }
     }
 
     $progress['processed']++;
-    writeProgress($progress);
+
+    // Write progress every batch instead of every file
+    if ($i % $batchSize === 0 || $i === count($allSongs) - 1) {
+        writeProgress($progress);
+    }
+}
+
+// Flush remaining deactivations
+if (!empty($missingIds)) {
+    $placeholders = implode(',', array_fill(0, count($missingIds), '?'));
+    $db->prepare("UPDATE songs SET is_active = false WHERE id IN ($placeholders)")
+       ->execute($missingIds);
 }
 
 $progress['status']      = 'done';
 $progress['finished_at'] = date('c');
 writeProgress($progress);
+
+logMsg('Sync complete — ' . $progress['missing'] . ' missing, ' . $progress['deactivated'] . ' deactivated out of ' . $progress['total'], $autoMode);
+
+// Write auto-sync summary for the Settings UI
+if ($autoMode) {
+    @file_put_contents('/tmp/iradio_auto_sync_last.json', json_encode([
+        'ran_at'      => date('c'),
+        'total'       => $progress['total'],
+        'missing'     => $progress['missing'],
+        'deactivated' => $progress['deactivated'],
+        'message'     => $progress['missing'] . ' missing, ' . $progress['deactivated'] . ' deactivated',
+    ]), LOCK_EX);
+    @chmod('/tmp/iradio_auto_sync_last.json', 0666);
+}
+
 @unlink($lockFile);
 @unlink($stopFile);

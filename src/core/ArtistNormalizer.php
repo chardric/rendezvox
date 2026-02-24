@@ -26,7 +26,8 @@ class ArtistNormalizer
 
         // Always-split separators (case-insensitive)
         // "x" requires word boundaries so it doesn't match inside names like "Rex"
-        $alwaysSplit = '/\s+(?:feat\.?|ft\.?|featuring|with|×)\s+|\s+x\s+/iu';
+        // After "feat." / "ft." the trailing space is optional (handles "Feat.Sia")
+        $alwaysSplit = '/\s+(?:feat\.?\s*|ft\.?\s*|featuring\s+|with\s+|×\s+)|\s+x\s+/iu';
 
         if (preg_match($alwaysSplit, $name)) {
             $parts = preg_split($alwaysSplit, $name, 2);

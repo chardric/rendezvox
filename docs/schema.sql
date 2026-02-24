@@ -82,6 +82,7 @@ CREATE TABLE songs (
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
     is_requestable  BOOLEAN      NOT NULL DEFAULT TRUE,
     tagged_at       TIMESTAMPTZ,                        -- set by fix_genres.php after processing
+    has_cover_art   BOOLEAN      NOT NULL DEFAULT FALSE, -- embedded cover art present
     loudness_lufs    NUMERIC(6,2),                      -- EBU R128 integrated loudness
     loudness_gain_db NUMERIC(6,2),                      -- gain to apply for target LUFS
     trashed_at      TIMESTAMPTZ,                        -- soft-delete timestamp
@@ -299,6 +300,7 @@ CREATE TABLE settings (
 -- Seed defaults
 INSERT INTO settings (key, value, type, description) VALUES
     ('station_name',          'iRadio',  'string',  'Station display name'),
+    ('station_logo_path',     '',        'string',  'Station logo filename'),
     ('station_timezone',      'UTC',     'string',  'Station timezone for schedules and clock'),
     ('jingle_interval',       '4',       'integer', 'Play a jingle every N songs'),
     ('artist_repeat_block',   '6',       'integer', 'Min songs gap before same artist replays'),
@@ -315,6 +317,7 @@ INSERT INTO settings (key, value, type, description) VALUES
     ('request_auto_approve',       'false', 'boolean', 'Auto-approve requests (skip moderation)'),
     ('request_rate_limit_seconds', '60',    'integer', 'Minimum seconds between requests per IP'),
     ('acoustid_api_key',           '',      'string',  'AcoustID API key for audio fingerprinting'),
+    ('theaudiodb_api_key',         '2',     'string',  'TheAudioDB API key (default "2" is free tier)'),
     ('auto_tag_enabled',           'false', 'boolean', 'Automatically tag new songs in background'),
     ('weather_latitude',           '18.2644', 'string', 'Weather latitude coordinate'),
     ('weather_longitude',          '121.9910', 'string', 'Weather longitude coordinate'),

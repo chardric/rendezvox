@@ -25,6 +25,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../core/Database.php';
+require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
 $dryRun   = in_array('--dry-run', $argv ?? []);
@@ -72,6 +73,8 @@ $progress = [
     'processed' => 0,
     'updated'   => 0,
     'skipped'   => 0,
+    'covers'    => 0,
+    'relocated' => 0,
     'started_at' => date('c'),
 ];
 
@@ -82,40 +85,21 @@ function writeProgress(array &$progress): void
     @chmod($file, 0666);
 }
 
-// ── Load AcoustID API key from settings ──────────────────
-$acoustidKey = '';
-$stmt = $db->prepare("SELECT value FROM settings WHERE key = 'acoustid_api_key'");
+// ── Initialize MetadataLookup ────────────────────────────
+$lookup = new MetadataLookup();
+
+$stmt = $db->prepare("SELECT key, value FROM settings WHERE key IN ('acoustid_api_key', 'theaudiodb_api_key')");
 $stmt->execute();
-$row = $stmt->fetch();
-if ($row && !empty(trim($row['value']))) {
-    $acoustidKey = trim($row['value']);
+while ($row = $stmt->fetch()) {
+    if ($row['key'] === 'acoustid_api_key' && !empty(trim($row['value']))) {
+        $lookup->setAcoustIdKey(trim($row['value']));
+    }
+    if ($row['key'] === 'theaudiodb_api_key' && !empty(trim($row['value']))) {
+        $lookup->setTheAudioDbKey(trim($row['value']));
+    }
 }
 
-// ── HTTP context for MusicBrainz ────────────────────────
-$ua  = 'iRadio/1.0 (scan-and-tag)';
-$ctx = stream_context_create(['http' => [
-    'header'  => "User-Agent: {$ua}\r\nAccept: application/json\r\n",
-    'timeout' => 10,
-]]);
-
-// ── Genre map (shared) ──────────────────────────────────
-$genreMap = [
-    'country' => 'Country', 'country pop' => 'Country', 'country rock' => 'Country',
-    'contemporary country' => 'Country', 'outlaw country' => 'Country',
-    'alt-country' => 'Country', 'americana' => 'Country', 'bluegrass' => 'Country',
-    'rock' => 'Rock', 'soft rock' => 'Rock', 'hard rock' => 'Rock',
-    'classic rock' => 'Rock', 'progressive rock' => 'Rock', 'pop rock' => 'Pop Rock',
-    'alternative rock' => 'Rock', 'indie rock' => 'Rock',
-    'pop' => 'Pop', 'adult contemporary' => 'Pop', 'singer-songwriter' => 'Pop',
-    'jazz' => 'Jazz', 'swing' => 'Jazz', 'soul' => 'Soul', 'r&b' => 'R&B',
-    'funk' => 'Funk', 'blues' => 'Blues', 'folk' => 'Folk',
-    'electronic' => 'Electronic', 'dance' => 'Electronic', 'disco' => 'Disco',
-    'hip hop' => 'Hip Hop', 'rap' => 'Hip Hop',
-    'classical' => 'Classical', 'reggae' => 'Reggae', 'latin' => 'Latin',
-    'metal' => 'Metal', 'punk' => 'Punk', 'gospel' => 'Gospel',
-    'christian' => 'Christian', 'new age' => 'New Age', 'world' => 'World',
-    'easy listening' => 'Easy Listening',
-];
+$musicDir = '/var/lib/iradio/music';
 
 // ── Category cache ──────────────────────────────────────
 $categoryCache = [];
@@ -172,184 +156,6 @@ function findOrCreateArtist(PDO $db, string $name, array &$cache): int
     return $id;
 }
 
-// ── Map genre string to display name ────────────────────
-function mapGenre(string $raw, array &$genreMap): ?string
-{
-    $lower = strtolower($raw);
-    if (isset($genreMap[$lower])) return $genreMap[$lower];
-    foreach ($genreMap as $key => $display) {
-        if (str_contains($lower, $key)) return $display;
-    }
-    return null;
-}
-
-// ── AcoustID: fingerprint + lookup ──────────────────────
-function lookupAcoustID(string $filePath, string $apiKey, $ctx, array &$genreMap): ?array
-{
-    // Run fpcalc
-    $cmd = 'fpcalc -json ' . escapeshellarg($filePath) . ' 2>/dev/null';
-    $output = shell_exec($cmd);
-    if (!$output) return null;
-
-    $fp = json_decode($output, true);
-    if (!$fp || empty($fp['fingerprint']) || empty($fp['duration'])) return null;
-
-    // Query AcoustID API
-    $params = http_build_query([
-        'client'      => $apiKey,
-        'fingerprint' => $fp['fingerprint'],
-        'duration'    => (int) $fp['duration'],
-        'meta'        => 'recordings releasegroups',
-    ]);
-    $url = "https://api.acoustid.org/v2/lookup?" . $params;
-
-    $resp = @file_get_contents($url, false, $ctx);
-    if (!$resp) return null;
-
-    $data = json_decode($resp, true);
-    $results = $data['results'] ?? [];
-    if (empty($results)) return null;
-
-    // Take the best scoring result
-    $best = $results[0];
-    $score = (float) ($best['score'] ?? 0);
-    if ($score < 0.7) return null;
-
-    $recordings = $best['recordings'] ?? [];
-    if (empty($recordings)) return null;
-
-    $rec = $recordings[0];
-    $result = [];
-
-    // Title
-    if (!empty($rec['title'])) {
-        $result['title'] = trim($rec['title']);
-    }
-
-    // Artist
-    $artists = $rec['artists'] ?? [];
-    if (!empty($artists)) {
-        $result['artist'] = trim($artists[0]['name'] ?? '');
-    }
-
-    // Album + Genre from release groups
-    $releaseGroups = $rec['releasegroups'] ?? [];
-    foreach ($releaseGroups as $rg) {
-        // Prefer "Album" type
-        $type = $rg['type'] ?? '';
-        if (!empty($rg['title']) && empty($result['album'])) {
-            if (strtolower($type) === 'album') {
-                $result['album'] = trim($rg['title']);
-            }
-        }
-    }
-    // Fall back to first release group title
-    if (empty($result['album']) && !empty($releaseGroups[0]['title'])) {
-        $result['album'] = trim($releaseGroups[0]['title']);
-    }
-
-    return !empty($result) ? $result : null;
-}
-
-// ── MusicBrainz: get genre for a recording MBID ─────────
-function lookupRecordingGenre(string $mbid, $ctx, array &$genreMap): ?string
-{
-    $url = "https://musicbrainz.org/ws/2/recording/{$mbid}?inc=genres+tags&fmt=json";
-    $resp = @file_get_contents($url, false, $ctx);
-    if (!$resp) return null;
-
-    $data = json_decode($resp, true);
-    $allEntries = array_merge($data['genres'] ?? [], $data['tags'] ?? []);
-    usort($allEntries, fn($a, $b) => ($b['count'] ?? 0) - ($a['count'] ?? 0));
-
-    foreach ($allEntries as $entry) {
-        $mapped = mapGenre($entry['name'], $genreMap);
-        if ($mapped) return $mapped;
-    }
-    return null;
-}
-
-// ── MusicBrainz: artist genre lookup ────────────────────
-function lookupMusicBrainzGenre(string $artistName, $ctx, array &$genreMap): ?string
-{
-    $query = urlencode($artistName);
-    $url = "https://musicbrainz.org/ws/2/artist/?query=artist:" . $query . "&limit=1&fmt=json";
-
-    $resp = @file_get_contents($url, false, $ctx);
-    if (!$resp) return null;
-
-    $data = json_decode($resp, true);
-    $artists = $data['artists'] ?? [];
-    if (empty($artists)) return null;
-
-    $mbid  = $artists[0]['id'] ?? null;
-    $score = (int) ($artists[0]['score'] ?? 0);
-
-    if (!$mbid || $score < 80) return null;
-
-    sleep(1); // rate limit
-
-    $url2 = "https://musicbrainz.org/ws/2/artist/{$mbid}?inc=genres+tags&fmt=json";
-    $resp2 = @file_get_contents($url2, false, $ctx);
-    if (!$resp2) return null;
-
-    $data2 = json_decode($resp2, true);
-
-    $allEntries = array_merge($data2['genres'] ?? [], $data2['tags'] ?? []);
-    usort($allEntries, fn($a, $b) => ($b['count'] ?? 0) - ($a['count'] ?? 0));
-
-    foreach ($allEntries as $entry) {
-        $mapped = mapGenre($entry['name'], $genreMap);
-        if ($mapped) return $mapped;
-    }
-
-    return null;
-}
-
-// ── MusicBrainz: recording lookup for album + year ───────
-function lookupMusicBrainzAlbum(string $title, string $artistName, $ctx): ?array
-{
-    $query = urlencode('recording:"' . $title . '" AND artist:"' . $artistName . '"');
-    $url = "https://musicbrainz.org/ws/2/recording/?query=" . $query . "&limit=1&fmt=json";
-
-    $resp = @file_get_contents($url, false, $ctx);
-    if (!$resp) return null;
-
-    $data = json_decode($resp, true);
-    $recordings = $data['recordings'] ?? [];
-    if (empty($recordings)) return null;
-
-    $score = (int) ($recordings[0]['score'] ?? 0);
-    if ($score < 80) return null;
-
-    $releases = $recordings[0]['releases'] ?? [];
-    if (empty($releases)) return null;
-
-    // Prefer the first "Album" type release; fall back to first release
-    $albumTitle = null;
-    $year       = null;
-    foreach ($releases as $rel) {
-        $group = $rel['release-group']['primary-type'] ?? '';
-        $relDate = $rel['date'] ?? '';
-        if (strtolower($group) === 'album') {
-            $albumTitle = trim($rel['title']);
-            if ($relDate && preg_match('/\b(19|20)\d{2}\b/', $relDate, $m)) {
-                $year = (int) $m[0];
-            }
-            break;
-        }
-    }
-
-    if ($albumTitle === null) {
-        $albumTitle = trim($releases[0]['title']);
-        $relDate = $releases[0]['date'] ?? '';
-        if ($relDate && preg_match('/\b(19|20)\d{2}\b/', $relDate, $m)) {
-            $year = (int) $m[0];
-        }
-    }
-
-    return ['album' => $albumTitle, 'year' => $year];
-}
 
 // ── Extract genre from title parentheses (AI covers) ────
 function extractGenreFromTitle(string $title): ?string
@@ -372,7 +178,7 @@ function extractGenreFromTitle(string $title): ?string
 }
 
 // ── Rename file to "Artist - Title.ext" ──────────────────
-function renameAfterTag(PDO $db, int $songId, string $filePath, string $artist, string $title): ?string
+function renameAfterTag(PDO $db, int $songId, string $filePath, string $artist, string $title, string $musicDir): ?string
 {
     $dir = dirname($filePath);
     $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
@@ -393,51 +199,12 @@ function renameAfterTag(PDO $db, int $songId, string $filePath, string $artist, 
 
     if (!rename($filePath, $newPath)) return null;
 
-    // Update DB file_path
+    // Store relative path in DB
+    $newRelPath = ltrim(str_replace($musicDir . '/', '', $newPath), '/');
     $db->prepare("UPDATE songs SET file_path = :path WHERE id = :id")
-       ->execute(['path' => $newPath, 'id' => $songId]);
+       ->execute(['path' => $newRelPath, 'id' => $songId]);
 
     return $newPath;
-}
-
-// ── Write tags back to audio file via ffmpeg ────────────
-function writeTagsToFile(string $filePath, array $tags): bool
-{
-    if (!file_exists($filePath)) return false;
-
-    $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-    $supported = ['mp3', 'flac', 'ogg', 'wav', 'm4a', 'aac', 'opus', 'wma'];
-    if (!in_array($ext, $supported)) return false;
-
-    $meta = [];
-    foreach ($tags as $key => $value) {
-        if ($value !== '' && $value !== null) {
-            $meta[] = '-metadata';
-            $meta[] = $key . '=' . $value;
-        }
-    }
-    if (empty($meta)) return false;
-
-    $tmpFile = '/tmp/iradio_tag_' . md5($filePath) . '.' . $ext;
-
-    $cmd = 'ffmpeg -y -i ' . escapeshellarg($filePath);
-    // map all streams (audio, cover art, etc.)
-    $cmd .= ' -map 0 -codec copy';
-    foreach ($meta as $part) {
-        $cmd .= ' ' . escapeshellarg($part);
-    }
-    $cmd .= ' ' . escapeshellarg($tmpFile) . ' 2>/dev/null';
-
-    exec($cmd, $output, $exitCode);
-
-    if ($exitCode === 0 && file_exists($tmpFile) && filesize($tmpFile) > 0) {
-        rename($tmpFile, $filePath);
-        return true;
-    }
-
-    // Clean up failed temp file
-    @unlink($tmpFile);
-    return false;
 }
 
 // ── Clean title from filename ───────────────────────────
@@ -517,12 +284,19 @@ foreach ($allSongs as $song) {
         exit(0);
     }
 
-    $artistName = $song['artist_name'];
-    $title      = $song['title'];
-    $genre      = $song['current_genre'];
-    $artistId   = (int) $song['artist_id'];
-    $songId     = (int) $song['id'];
-    $tagsChanged = false;
+    $artistName      = $song['artist_name'];
+    $title           = $song['title'];
+    $genre           = $song['current_genre'];
+    $artistId        = (int) $song['artist_id'];
+    $songId          = (int) $song['id'];
+    $tagsChanged     = false;
+    $gotExternalData = false;
+    $mbResult        = null;
+    $audioDbResult   = null;
+    $originalCoverArt = null;
+
+    // Resolve absolute file path (DB stores relative paths)
+    $currentPath = $musicDir . '/' . $song['file_path'];
 
     // Step 1: Fix empty/missing title from filename
     if (empty(trim($title))) {
@@ -535,31 +309,29 @@ foreach ($allSongs as $song) {
         }
     }
 
-    // Step 2: AcoustID fingerprint lookup (if API key configured)
-    if ($acoustidKey !== '' && file_exists($song['file_path'])) {
-        $acoustResult = lookupAcoustID($song['file_path'], $acoustidKey, $ctx, $genreMap);
-        sleep(1); // AcoustID rate limit
+    // Step 2: AcoustID fingerprint lookup — results REPLACE existing values
+    if (file_exists($currentPath)) {
+        $acoustResult = $lookup->lookupByFingerprint($currentPath);
 
         if ($acoustResult) {
+            $gotExternalData = true;
             $updates = [];
             $params  = ['id' => $songId];
 
-            // Update title if current is empty
-            if (!empty($acoustResult['title']) && empty(trim($title))) {
+            // Always replace title from AcoustID
+            if (!empty($acoustResult['title'])) {
                 $updates[] = 'title = :title';
                 $params['title'] = $acoustResult['title'];
                 $title = $acoustResult['title'];
             }
 
-            // Update artist if current is "Unknown Artist"
+            // Always replace artist from AcoustID
             if (!empty($acoustResult['artist'])) {
-                if (strtolower($artistName) === 'unknown artist' || strtolower($artistName) === 'unknown') {
-                    $newArtistId = findOrCreateArtist($db, $acoustResult['artist'], $artistCache);
-                    $updates[] = 'artist_id = :artist_id';
-                    $params['artist_id'] = $newArtistId;
-                    $artistName = $acoustResult['artist'];
-                    $artistId = $newArtistId;
-                }
+                $newArtistId = findOrCreateArtist($db, $acoustResult['artist'], $artistCache);
+                $updates[] = 'artist_id = :artist_id';
+                $params['artist_id'] = $newArtistId;
+                $artistName = $acoustResult['artist'];
+                $artistId = $newArtistId;
             }
 
             if (!empty($updates) && !$dryRun) {
@@ -589,16 +361,16 @@ foreach ($allSongs as $song) {
             $tagsChanged = true;
         }
     } else {
-        // Genre lookup (cached per artist)
+        // Genre lookup via MusicBrainz artist (cached per artist)
         if (isset($artistGenreCache[$artistName])) {
             $lookedUpGenre = $artistGenreCache[$artistName];
         } else {
-            $lookedUpGenre = lookupMusicBrainzGenre($artistName, $ctx, $genreMap);
-            sleep(1); // rate limit
+            $lookedUpGenre = $lookup->lookupGenreByArtist($artistName);
             $artistGenreCache[$artistName] = $lookedUpGenre;
         }
 
         if ($lookedUpGenre) {
+            $gotExternalData = true;
             if (strtolower($lookedUpGenre) !== strtolower($genre)) {
                 $genre = $lookedUpGenre;
                 $catId = findOrCreateCategory($db, $genre, $categoryCache);
@@ -612,44 +384,201 @@ foreach ($allSongs as $song) {
         } else {
             $progress['skipped']++;
         }
+    }
 
-        // Step 4: Year lookup if still missing
-        $currentYear = $song['year'] ? (int) $song['year'] : null;
-        if ($currentYear === null && !empty(trim($title))) {
-            $cacheKey = strtolower($artistName . '|' . $title);
-            sleep(1); // rate limit
-            $mbResult = lookupMusicBrainzAlbum($title, $artistName, $ctx);
+    // Step 4: MusicBrainz recording lookup (year, album, release_id, genre)
+    if (!empty(trim($title)) && !empty(trim($artistName))) {
+        $mbResult = $lookup->lookupByArtistTitle($artistName, $title);
 
-            if ($mbResult && !empty($mbResult['year']) && !$dryRun) {
+        if ($mbResult) {
+            $gotExternalData = true;
+
+            // Update year if found and currently missing
+            $currentYear = $song['year'] ? (int) $song['year'] : null;
+            if (!empty($mbResult['year']) && $currentYear === null && !$dryRun) {
                 $db->prepare("UPDATE songs SET year = :year WHERE id = :id")
                    ->execute(['year' => $mbResult['year'], 'id' => $songId]);
+                $progress['updated']++;
+                $tagsChanged = true;
+            }
+
+            // Use recording genre if we still don't have one
+            if (!empty($mbResult['genre']) && strtolower($genre) === 'uncategorized') {
+                $genre = $mbResult['genre'];
+                $catId = findOrCreateCategory($db, $genre, $categoryCache);
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                       ->execute(['cat' => $catId, 'id' => $songId]);
+                }
                 $progress['updated']++;
                 $tagsChanged = true;
             }
         }
     }
 
-    // Step 5: Write tags back to audio file
-    $currentPath = $song['file_path'];
-    if ($tagsChanged && !$dryRun && file_exists($currentPath)) {
-        $writeTags = [
+    // Step 5: TheAudioDB metadata fallback (fill remaining gaps)
+    $needGenre = strtolower($genre) === 'uncategorized';
+    $needYear  = empty($song['year']) && empty($mbResult['year'] ?? null);
+    if (!empty(trim($artistName)) && !empty(trim($title)) && ($needGenre || $needYear)) {
+        $audioDbResult = $lookup->lookupTrackByTheAudioDb($artistName, $title);
+
+        if ($audioDbResult) {
+            $gotExternalData = true;
+
+            if ($needGenre && !empty($audioDbResult['genre'])) {
+                $genre = $audioDbResult['genre'];
+                $catId = findOrCreateCategory($db, $genre, $categoryCache);
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                       ->execute(['cat' => $catId, 'id' => $songId]);
+                }
+                $progress['updated']++;
+                $tagsChanged = true;
+            }
+
+            if ($needYear && !empty($audioDbResult['year']) && !$dryRun) {
+                $db->prepare("UPDATE songs SET year = :year WHERE id = :id")
+                   ->execute(['year' => $audioDbResult['year'], 'id' => $songId]);
+                $progress['updated']++;
+                $tagsChanged = true;
+            }
+        }
+    }
+
+    // Step 6: Clear ALL tags and write fresh metadata
+    if (!$dryRun && file_exists($currentPath)) {
+        // Extract original cover art before clearing
+        $originalCoverArt = MetadataLookup::extractCoverArt($currentPath);
+
+        // Build fresh tags
+        $freshTags = [
             'title'  => $title,
             'artist' => $artistName,
             'genre'  => $genre,
         ];
-        if (!empty($mbResult['year'])) {
-            $writeTags['date'] = (string) $mbResult['year'];
+        $year = $mbResult['year'] ?? ($audioDbResult['year'] ?? ($song['year'] ?: null));
+        if ($year) {
+            $freshTags['date'] = (string) $year;
         }
-        writeTagsToFile($currentPath, $writeTags);
+        $album = $mbResult['album'] ?? ($audioDbResult['album'] ?? null);
+        if ($album) {
+            $freshTags['album'] = $album;
+        }
+
+        MetadataLookup::clearAndWriteTags($currentPath, $freshTags);
+
+        // Update file_hash in DB since file content changed
+        $newHash = hash_file('sha256', $currentPath);
+        $db->prepare("UPDATE songs SET file_hash = :hash WHERE id = :id")
+           ->execute(['hash' => $newHash, 'id' => $songId]);
     }
 
-    // Step 6: Rename file to "Artist - Title.ext"
+    // Step 7: Rename file to "Artist - Title.ext"
     if (!$dryRun && !empty(trim($title)) && file_exists($currentPath)) {
-        $renamed = renameAfterTag($db, $songId, $currentPath, $artistName, $title);
+        $renamed = renameAfterTag($db, $songId, $currentPath, $artistName, $title, $musicDir);
         if ($renamed) $currentPath = $renamed;
     }
 
-    // Mark song as processed
+    // Step 8: Cover art — fetch external if missing, re-embed original if stripped
+    if (!$dryRun && file_exists($currentPath)) {
+        if (!MetadataLookup::hasCoverArt($currentPath)) {
+            // Try external cover art
+            $releaseId = $mbResult['release_id'] ?? null;
+            $imageData = $lookup->lookupCoverArt($artistName, $title, $releaseId);
+            if ($imageData) {
+                if (MetadataLookup::embedCoverArt($currentPath, $imageData)) {
+                    $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")
+                       ->execute(['id' => $songId]);
+                    $progress['covers'] = ($progress['covers'] ?? 0) + 1;
+                }
+            } elseif ($originalCoverArt) {
+                // Re-embed original cover art that was stripped during tag clearing
+                if (MetadataLookup::embedCoverArt($currentPath, $originalCoverArt)) {
+                    $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")
+                       ->execute(['id' => $songId]);
+                }
+            }
+        } else {
+            // Already has cover art — mark in DB
+            $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")
+               ->execute(['id' => $songId]);
+        }
+
+        // Update file_hash again if cover art changed file content
+        $finalHash = hash_file('sha256', $currentPath);
+        $db->prepare("UPDATE songs SET file_hash = :hash WHERE id = :id")
+           ->execute(['hash' => $finalHash, 'id' => $songId]);
+    }
+
+    // Step 9: Relocate files
+    if (!$dryRun && file_exists($currentPath)) {
+        $relPath = ltrim(str_replace($musicDir . '/', '', $currentPath), '/');
+
+        // _untagged/ → tagged/ if all fields now filled
+        if (str_starts_with($relPath, '_untagged/') && !empty($genre) && !empty($artistName) && !empty($title)
+            && strtolower($genre) !== 'uncategorized') {
+            $safeGenre  = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($genre));
+            $safeArtist = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($artistName));
+            $safeTitle  = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($title));
+            $ext = strtolower(pathinfo($currentPath, PATHINFO_EXTENSION));
+
+            if ($safeGenre !== '' && $safeArtist !== '' && $safeTitle !== '') {
+                $newDir  = $musicDir . '/tagged/' . $safeGenre . '/' . $safeArtist;
+                $newPath = $newDir . '/' . $safeTitle . '.' . $ext;
+
+                if (!file_exists($newPath)) {
+                    if (!is_dir($newDir)) {
+                        mkdir($newDir, 0775, true);
+                        @chmod($newDir, 0775);
+                        @chown($newDir, 'www-data');
+                        @chgrp($newDir, 'www-data');
+                    }
+                    if (rename($currentPath, $newPath)) {
+                        $newRelPath = ltrim(str_replace($musicDir . '/', '', $newPath), '/');
+                        $db->prepare("UPDATE songs SET file_path = :path WHERE id = :id")
+                           ->execute(['path' => $newRelPath, 'id' => $songId]);
+                        @chmod($newPath, 0664);
+                        @chown($newPath, 'www-data');
+                        @chgrp($newPath, 'www-data');
+                        @unlink($currentPath . '.info.txt');
+                        $progress['relocated'] = ($progress['relocated'] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+
+        // Files NOT in imports/ or _untagged/ with no external data → move to _untagged/
+        elseif (!$gotExternalData && !str_starts_with($relPath, 'imports/') && !str_starts_with($relPath, '_untagged/')) {
+            $ext      = strtolower(pathinfo($currentPath, PATHINFO_EXTENSION));
+            $basename = pathinfo($currentPath, PATHINFO_FILENAME) . '.' . $ext;
+            $destDir  = $musicDir . '/_untagged';
+            $destPath = $destDir . '/' . $basename;
+
+            // Resolve filename conflicts
+            $counter = 1;
+            while (file_exists($destPath)) {
+                $destPath = $destDir . '/' . pathinfo($currentPath, PATHINFO_FILENAME) . "_{$counter}." . $ext;
+                $counter++;
+            }
+
+            if (!is_dir($destDir)) {
+                mkdir($destDir, 0775, true);
+            }
+            if (rename($currentPath, $destPath)) {
+                $newRelPath = ltrim(str_replace($musicDir . '/', '', $destPath), '/');
+                $db->prepare("UPDATE songs SET file_path = :path WHERE id = :id")
+                   ->execute(['path' => $newRelPath, 'id' => $songId]);
+                @chmod($destPath, 0664);
+                // Write info sidecar with embedded metadata
+                $info = "Title: {$title}\nArtist: {$artistName}\nGenre: {$genre}\nOriginal: {$song['file_path']}\n";
+                @file_put_contents($destPath . '.info.txt', $info);
+            }
+        }
+
+        // imports/ files: tagged in place, NOT relocated (preserves folder structure for playlists)
+    }
+
+    // Mark song as processed (always, to prevent infinite retry)
     if (!$dryRun) {
         $db->prepare("UPDATE songs SET tagged_at = NOW() WHERE id = :id")
            ->execute(['id' => $songId]);
@@ -665,7 +594,7 @@ writeProgress($progress);
 @unlink('/tmp/iradio_genre_scan.lock');
 @unlink($stopFile);
 
-logMsg('Scan complete — ' . $progress['updated'] . ' updated, ' . $progress['skipped'] . ' skipped out of ' . $progress['total'], $autoMode);
+logMsg('Scan complete — ' . $progress['updated'] . ' updated, ' . $progress['skipped'] . ' skipped, ' . ($progress['covers'] ?? 0) . ' covers, ' . ($progress['relocated'] ?? 0) . ' relocated out of ' . $progress['total'], $autoMode);
 
 // Write auto-tag summary for the Settings UI
 if ($autoMode) {
@@ -674,7 +603,9 @@ if ($autoMode) {
         'total'     => $progress['total'],
         'updated'   => $progress['updated'],
         'skipped'   => $progress['skipped'],
-        'message'   => $progress['updated'] . ' updated, ' . $progress['skipped'] . ' skipped',
+        'covers'    => $progress['covers'] ?? 0,
+        'relocated' => $progress['relocated'] ?? 0,
+        'message'   => $progress['updated'] . ' updated, ' . ($progress['covers'] ?? 0) . ' covers, ' . ($progress['relocated'] ?? 0) . ' relocated',
     ]), LOCK_EX);
     @chmod('/tmp/iradio_auto_tag_last.json', 0666);
 }

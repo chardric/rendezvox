@@ -33,7 +33,7 @@ class MediaBrowseHandler
         $notice    = null;
 
         // Internal directories hidden from the root folder list
-        $hiddenDirs = ['upload', '_quarantine', '_duplicates'];
+        $hiddenDirs = ['upload', '_untagged', '_duplicates'];
 
         foreach (scandir($absPath) ?: [] as $item) {
             if ($item === '.' || $item === '..' || str_starts_with($item, '.')) continue;

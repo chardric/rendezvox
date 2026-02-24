@@ -6,14 +6,17 @@ class SongCreateHandler
 {
     private const BASE_DIR = '/var/lib/iradio/music';
     private const UPLOAD_DIR = '/var/lib/iradio/music/upload';
+    private const IMPORTS_DIR = '/var/lib/iradio/music/imports';
 
     public function handle(): void
     {
         $db = Database::get();
 
         if (!empty($_FILES['files'])) {
+            $this->checkDiskSpace($_FILES['files']['size']);
             $this->handleBatch($db);
         } elseif (!empty($_FILES['file'])) {
+            $this->checkDiskSpace([$_FILES['file']['size']]);
             $this->handleUpload($db);
         } else {
             $this->handleJson($db);
@@ -103,6 +106,12 @@ class SongCreateHandler
             return ['filename' => $name, 'status' => 'error', 'error' => 'Invalid audio file'];
         }
 
+        // Check for folder upload (relative_path indicates folder structure to preserve)
+        $relativePath = trim($_POST['relative_path'] ?? '');
+        if ($relativePath !== '') {
+            return $this->stageToImports($tmpName, $name, $ext, $relativePath, $sidecar);
+        }
+
         // Sanitize filename
         $basename  = pathinfo($name, PATHINFO_FILENAME);
         $sanitized = preg_replace('/[\/\\\\:*?"<>|]/', '', $basename);
@@ -133,6 +142,96 @@ class SongCreateHandler
             'filename' => $name,
             'status'   => 'queued',
         ];
+    }
+
+    // ── Stage folder upload to imports/ preserving structure ──
+
+    private function stageToImports(string $tmpName, string $originalName, string $ext, string $relativePath, array $sidecar): array
+    {
+        // Sanitize relative path: no "..", no leading "/", no null bytes
+        $safePath = $this->sanitizeRelativePath($relativePath);
+        if ($safePath === null) {
+            return ['filename' => $originalName, 'status' => 'error', 'error' => 'Invalid folder path'];
+        }
+
+        $destDir  = self::IMPORTS_DIR . '/' . dirname($safePath);
+        $filename = basename($safePath);
+
+        // Sanitize the filename portion
+        $basename  = pathinfo($filename, PATHINFO_FILENAME);
+        $sanitized = preg_replace('/[\\\\:*?"<>|]/', '', $basename);
+        $sanitized = trim($sanitized) ?: $basename;
+        $filename  = $sanitized . '.' . $ext;
+
+        if (!is_dir($destDir)) {
+            if (!mkdir($destDir, 0775, true)) {
+                return ['filename' => $originalName, 'status' => 'error', 'error' => 'Failed to create directory'];
+            }
+            @chmod($destDir, 0775);
+        }
+
+        $destPath = $destDir . '/' . $filename;
+
+        // Resolve collisions
+        if (file_exists($destPath)) {
+            $counter = 2;
+            while (file_exists($destDir . '/' . $sanitized . ' (' . $counter . ').' . $ext)) {
+                $counter++;
+            }
+            $filename = $sanitized . ' (' . $counter . ').' . $ext;
+            $destPath = $destDir . '/' . $filename;
+        }
+
+        if (!move_uploaded_file($tmpName, $destPath)) {
+            return ['filename' => $originalName, 'status' => 'error', 'error' => 'Failed to save file'];
+        }
+
+        @chmod($destPath, 0664);
+
+        return [
+            'filename' => $originalName,
+            'status'   => 'queued',
+        ];
+    }
+
+    /**
+     * Sanitize a relative path from webkitRelativePath.
+     * Prevents path traversal and strips dangerous characters.
+     *
+     * @return string|null Sanitized path or null if invalid
+     */
+    private function sanitizeRelativePath(string $path): ?string
+    {
+        // Reject null bytes
+        if (str_contains($path, "\0")) {
+            return null;
+        }
+
+        // Normalize separators
+        $path = str_replace('\\', '/', $path);
+
+        // Split into segments and validate each
+        $segments = explode('/', $path);
+        $clean    = [];
+
+        foreach ($segments as $seg) {
+            $seg = trim($seg);
+            if ($seg === '' || $seg === '.' || $seg === '..') {
+                continue;
+            }
+            // Strip control characters
+            $seg = preg_replace('/[\x00-\x1F]/', '', $seg);
+            if ($seg === '') {
+                continue;
+            }
+            $clean[] = $seg;
+        }
+
+        if (empty($clean)) {
+            return null;
+        }
+
+        return implode('/', $clean);
     }
 
     // ── JSON metadata-only creation ───────────────────────────
@@ -183,6 +282,18 @@ class SongCreateHandler
         if (($aid = (int) ($_POST['artist_id'] ?? 0)) > 0)   $sidecar['artist_id'] = $aid;
         if (($t = trim($_POST['title'] ?? '')) !== '')        $sidecar['title'] = $t;
         return $sidecar;
+    }
+
+    private function checkDiskSpace(array $sizes): void
+    {
+        $total = 0;
+        foreach ($sizes as $s) {
+            $total += (int) $s;
+        }
+        $err = DiskSpace::requireSpace($total);
+        if ($err !== null) {
+            Response::error($err, 507);
+        }
     }
 
     private function ensureUploadDir(): void

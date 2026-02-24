@@ -15,6 +15,8 @@ declare(strict_types=1);
 require __DIR__ . '/../core/Database.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
+$autoMode = in_array('--auto', $argv ?? []);
+
 $db = Database::get();
 
 // ── Lock file — prevent concurrent runs ─────────────────
@@ -28,6 +30,27 @@ if (file_exists($lockFile)) {
 }
 file_put_contents($lockFile, (string) getmypid());
 @chmod($lockFile, 0666);
+
+// ── Auto mode: check setting ────────────────────────────
+if ($autoMode) {
+    $stmt = $db->prepare("SELECT value FROM settings WHERE key = 'auto_artist_dedup_enabled'");
+    $stmt->execute();
+    $row = $stmt->fetch();
+    if (!$row || $row['value'] !== 'true') {
+        @unlink($lockFile);
+        exit(0); // Auto-dedup disabled
+    }
+}
+
+/** Log helper — outputs to stdout (captured by cron >> log file) */
+function logMsg(string $msg, bool $autoMode): void
+{
+    if ($autoMode) {
+        echo '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n";
+    }
+}
+
+logMsg('Auto-dedup started', $autoMode);
 
 // ── Progress tracking ───────────────────────────────────
 $progress = [
@@ -56,9 +79,20 @@ $progress['total'] = count($allArtists);
 writeProgress($progress);
 
 if (count($allArtists) === 0) {
+    logMsg('No artists — exiting', $autoMode);
     $progress['status']      = 'done';
     $progress['finished_at'] = date('c');
     writeProgress($progress);
+    if ($autoMode) {
+        @file_put_contents('/tmp/iradio_auto_dedup_last.json', json_encode([
+            'ran_at'  => date('c'),
+            'total'   => 0,
+            'merged'  => 0,
+            'renamed' => 0,
+            'message' => 'No artists found',
+        ]), LOCK_EX);
+        @chmod('/tmp/iradio_auto_dedup_last.json', 0666);
+    }
     @unlink($lockFile);
     exit(0);
 }
@@ -72,6 +106,17 @@ foreach ($allArtists as $artist) {
         $progress['status']      = 'stopped';
         $progress['finished_at'] = date('c');
         writeProgress($progress);
+        logMsg('Dedup stopped — ' . $progress['processed'] . '/' . $progress['total'] . ' processed, ' . $progress['merged'] . ' merged', $autoMode);
+        if ($autoMode) {
+            @file_put_contents('/tmp/iradio_auto_dedup_last.json', json_encode([
+                'ran_at'  => date('c'),
+                'total'   => $progress['total'],
+                'merged'  => $progress['merged'],
+                'renamed' => $progress['renamed'],
+                'message' => 'Stopped — ' . $progress['merged'] . ' merged so far',
+            ]), LOCK_EX);
+            @chmod('/tmp/iradio_auto_dedup_last.json', 0666);
+        }
         @unlink($lockFile);
         exit(0);
     }
@@ -116,5 +161,20 @@ foreach ($allArtists as $artist) {
 $progress['status']      = 'done';
 $progress['finished_at'] = date('c');
 writeProgress($progress);
+
+logMsg('Dedup complete — ' . $progress['merged'] . ' merged, ' . $progress['renamed'] . ' renamed out of ' . $progress['total'], $autoMode);
+
+// Write auto-dedup summary for the Settings UI
+if ($autoMode) {
+    @file_put_contents('/tmp/iradio_auto_dedup_last.json', json_encode([
+        'ran_at'  => date('c'),
+        'total'   => $progress['total'],
+        'merged'  => $progress['merged'],
+        'renamed' => $progress['renamed'],
+        'message' => $progress['merged'] . ' merged, ' . $progress['renamed'] . ' renamed',
+    ]), LOCK_EX);
+    @chmod('/tmp/iradio_auto_dedup_last.json', 0666);
+}
+
 @unlink($lockFile);
 @unlink($stopFile);

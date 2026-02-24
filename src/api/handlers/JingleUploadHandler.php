@@ -39,6 +39,13 @@ class JingleUploadHandler
             return;
         }
 
+        // Disk space guard
+        $err = DiskSpace::requireSpace((int) $file['size']);
+        if ($err !== null) {
+            Response::error($err, 507);
+            return;
+        }
+
         $dir = '/var/lib/iradio/jingles';
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
