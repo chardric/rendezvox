@@ -16,12 +16,49 @@ var iRadioAnalytics = (function() {
 
   function init() {
     iRadioAPI.getTimezone(); // pre-load station timezone
+    initTabs();
     loadListenerChart('24h');
     loadPopularSongs();
     loadPopularRequests();
+    loadLibraryStats();
 
     document.getElementById('listenerRange').addEventListener('change', function() {
       loadListenerChart(this.value);
+    });
+  }
+
+  // ── Tab switching ──────────────────────────────────────
+  function initTabs() {
+    var tabs = document.querySelectorAll('#analyticsTabs .tab');
+    tabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        switchTab(tab.getAttribute('data-tab'));
+      });
+    });
+    // Restore tab from URL hash
+    var hash = location.hash.replace('#', '');
+    if (hash && document.getElementById('tab-' + hash)) {
+      switchTab(hash);
+    }
+  }
+
+  function switchTab(name) {
+    var panels = document.querySelectorAll('.tab-panel');
+    var tabs = document.querySelectorAll('#analyticsTabs .tab');
+    panels.forEach(function(p) { p.classList.remove('active'); });
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    var panel = document.getElementById('tab-' + name);
+    if (panel) panel.classList.add('active');
+    var tab = document.querySelector('#analyticsTabs .tab[data-tab="' + name + '"]');
+    if (tab) tab.classList.add('active');
+    history.replaceState(null, '', '#' + name);
+
+    // Redraw charts after tab becomes visible (canvas needs non-zero dimensions)
+    requestAnimationFrame(function() {
+      if (name === 'listeners') loadListenerChart(document.getElementById('listenerRange').value);
+      if (name === 'played') loadPopularSongs();
+      if (name === 'requested') loadPopularRequests();
+      if (name === 'stats') loadLibraryStats();
     });
   }
 
@@ -150,7 +187,7 @@ var iRadioAnalytics = (function() {
   // ── Popular songs bar chart ──────────────────────────
 
   function loadPopularSongs() {
-    iRadioAPI.get('/admin/stats/popular-songs?limit=10').then(function(data) {
+    iRadioAPI.get('/admin/stats/popular-songs?limit=15').then(function(data) {
       renderPopularTable(data.songs);
       drawBarChart(document.getElementById('popularChart'), data.songs, 'play_count');
     });
@@ -270,7 +307,7 @@ var iRadioAnalytics = (function() {
   // ── Popular requests ─────────────────────────────────
 
   function loadPopularRequests() {
-    iRadioAPI.get('/admin/stats/popular-requests?limit=10').then(function(data) {
+    iRadioAPI.get('/admin/stats/popular-requests?limit=15').then(function(data) {
       renderRequestedTable(data.songs);
       drawHorizontalBarChart(document.getElementById('requestChart'), data.songs);
     });
@@ -359,6 +396,119 @@ var iRadioAnalytics = (function() {
       ctx.textAlign = 'left';
       ctx.fillText(s.request_count, pad.left + barW + 6, y + barH / 2 + 4);
     });
+  }
+
+  // ── Library stats ──────────────────────────────────────
+
+  function loadLibraryStats() {
+    iRadioAPI.get('/admin/library-stats').then(function(data) {
+      renderLibraryStats(data);
+    }).catch(function() {
+      var el = document.getElementById('libraryStatsGrid');
+      if (el) el.innerHTML = '<div class="empty">Could not load library stats</div>';
+    });
+  }
+
+  function renderLibraryStats(data) {
+    var el = document.getElementById('libraryStatsGrid');
+    if (!el) return;
+
+    var html = '';
+
+    // Row 1 — Song counts
+    html += '<h3 style="color:var(--accent);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px">Songs</h3>';
+    html += '<div class="stats-grid" style="margin-bottom:16px">';
+    html += statBox(fmtNum(data.songs_active), 'Active Songs');
+    html += statBox(fmtNum(data.songs_inactive), 'Inactive Songs');
+    html += statBox(fmtNum(data.songs_trashed), 'Trashed Songs');
+    html += statBox(fmtNum(data.total_plays), 'Total Plays');
+    html += statBox(fmtDuration(data.total_duration_ms), 'Total Duration');
+    html += '</div>';
+
+    // Row 2 — Composition
+    html += '<h3 style="color:var(--accent);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px">Composition</h3>';
+    html += '<div class="stats-grid" style="margin-bottom:16px">';
+    html += statBox(fmtNum(data.artists), 'Artists');
+    html += statBox(fmtNum(data.genres), 'Genres');
+    html += statBox(fmtNum(data.active_playlists), 'Playlists');
+    html += statBox(fmtNum(data.active_schedules), 'Schedules');
+    html += '</div>';
+
+    // Row 3 — Disk Usage
+    html += '<h3 style="color:var(--accent);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px">Disk Usage</h3>';
+    html += '<div class="stats-grid" style="margin-bottom:16px">';
+    html += statBox(fmtBytes(data.disk_bytes), 'Library Size');
+    html += statBox(fmtBytes(data.disk_free_bytes || 0), 'Disk Free');
+    html += statBox(fmtBytes(data.disk_total_bytes || 0), 'Disk Total');
+
+    // Disk usage progress bar (as a stat box)
+    var diskUsedPct = 0;
+    if (data.disk_total_bytes > 0) {
+      diskUsedPct = Math.round(((data.disk_total_bytes - (data.disk_free_bytes || 0)) / data.disk_total_bytes) * 100);
+    }
+    var barColor = diskUsedPct < 60 ? '#4ade80' : diskUsedPct < 85 ? '#facc15' : '#f87171';
+    html += '<div class="stat-box">';
+    html += '<span class="stat-value">' + diskUsedPct + '%</span>';
+    html += '<span class="stat-label">Disk Used</span>';
+    html += '<div class="disk-bar-track"><div class="disk-bar-fill" style="width:' + diskUsedPct + '%;background:' + barColor + '"></div></div>';
+    html += '</div>';
+    html += '</div>';
+
+    // Row 4 — Health Indicators
+    html += '<h3 style="color:var(--accent);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px">Health</h3>';
+    html += '<div class="stats-grid">';
+    html += healthBox(data.untagged || 0, 'Untagged Songs');
+    html += healthBox(data.unnormalized || 0, 'Unnormalized Songs');
+    html += healthBox(data.dup_artists || 0, 'Duplicate Artists');
+    html += healthBox(data.missing_files || 0, 'Missing Files');
+    html += healthBox(data.pending_imports || 0, 'Pending Imports');
+    html += '</div>';
+
+    el.innerHTML = html;
+  }
+
+  function statBox(value, label) {
+    return '<div class="stat-box">' +
+      '<span class="stat-value">' + escHtml(String(value)) + '</span>' +
+      '<span class="stat-label">' + escHtml(label) + '</span>' +
+      '</div>';
+  }
+
+  function healthBox(count, label) {
+    var cls = count > 0 ? ' warn' : '';
+    return '<div class="stat-box' + cls + '">' +
+      '<span class="stat-value">' + fmtNum(count) + '</span>' +
+      '<span class="stat-label">' + escHtml(label) + '</span>' +
+      '</div>';
+  }
+
+  // ── Formatting helpers ─────────────────────────────────
+
+  function fmtBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+  }
+
+  function fmtDuration(ms) {
+    if (!ms || ms <= 0) return '0m';
+    var totalMin = Math.floor(ms / 60000);
+    var days = Math.floor(totalMin / 1440);
+    var hours = Math.floor((totalMin % 1440) / 60);
+    var mins = totalMin % 60;
+    var parts = [];
+    if (days > 0) parts.push(days + 'd');
+    if (hours > 0) parts.push(hours + 'h');
+    if (mins > 0 || parts.length === 0) parts.push(mins + 'm');
+    return parts.join(' ');
+  }
+
+  function fmtNum(n) {
+    if (n === undefined || n === null) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
   }
 
   // ── Helpers ──────────────────────────────────────────

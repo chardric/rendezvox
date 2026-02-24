@@ -7,18 +7,95 @@ declare(strict_types=1);
  */
 class MetadataExtractor
 {
+    /** @var array<string, string> Cached ffprobe output keyed by file path */
+    private static array $cache = [];
+
+    /**
+     * Pre-fetch ffprobe metadata for multiple files in parallel.
+     * Results are cached so subsequent extract() calls are instant.
+     *
+     * @param string[] $filePaths  Absolute paths to audio files
+     * @param int      $maxWorkers Number of concurrent ffprobe processes
+     */
+    public static function prefetch(array $filePaths, int $maxWorkers = 2): void
+    {
+        // Filter out already-cached paths
+        $filePaths = array_values(array_filter($filePaths, fn($p) => !isset(self::$cache[$p])));
+        if (empty($filePaths)) return;
+
+        $workers = [];
+        $fileIdx = 0;
+        $total   = count($filePaths);
+
+        while ($fileIdx < $total || count($workers) > 0) {
+            // Fill worker slots
+            while (count($workers) < $maxWorkers && $fileIdx < $total) {
+                $path = $filePaths[$fileIdx++];
+                $cmd  = sprintf(
+                    'ffprobe -v quiet -print_format json -show_format %s 2>/dev/null',
+                    escapeshellarg($path)
+                );
+                $proc = proc_open($cmd, [1 => ['pipe', 'w']], $pipes);
+                if (!is_resource($proc)) continue;
+                stream_set_blocking($pipes[1], false);
+                $workers[] = ['proc' => $proc, 'pipes' => $pipes, 'path' => $path, 'output' => ''];
+            }
+
+            // Poll workers for completion
+            foreach ($workers as $idx => &$w) {
+                $chunk = @stream_get_contents($w['pipes'][1]);
+                if ($chunk !== false) $w['output'] .= $chunk;
+
+                $status = proc_get_status($w['proc']);
+                if (!$status['running']) {
+                    $chunk = @stream_get_contents($w['pipes'][1]);
+                    if ($chunk !== false) $w['output'] .= $chunk;
+                    @fclose($w['pipes'][1]);
+                    proc_close($w['proc']);
+
+                    self::$cache[$w['path']] = $w['output'];
+                    unset($workers[$idx]);
+                }
+            }
+            unset($w);
+            $workers = array_values($workers);
+
+            if (count($workers) > 0) usleep(50000); // 50ms
+        }
+    }
+
+    /**
+     * Return number of safe parallel workers based on CPU cores and load.
+     */
+    public static function safeWorkerCount(): int
+    {
+        $cores = (int) @shell_exec('nproc') ?: 2;
+        $max   = max(1, (int) floor($cores / 2));
+        $load  = sys_getloadavg();
+        if ($load && $load[1] > $cores * 0.6) {
+            $max = 1;
+        }
+        return $max;
+    }
+
     /**
      * @return array{title: string, artist: string, genre: string, year: int, duration_ms: int}
      */
     public static function extract(string $filePath): array
     {
-        // Run ffprobe
-        $cmd = sprintf(
-            'ffprobe -v quiet -print_format json -show_format %s 2>/dev/null',
-            escapeshellarg($filePath)
-        );
-        $output = shell_exec($cmd);
-        $data   = $output ? json_decode($output, true) : null;
+        // Use cached ffprobe output if available (from prefetch)
+        if (isset(self::$cache[$filePath])) {
+            $output = self::$cache[$filePath];
+            unset(self::$cache[$filePath]);
+        } else {
+            $cmd = sprintf(
+                'ffprobe -v quiet -print_format json -show_format %s 2>/dev/null',
+                escapeshellarg($filePath)
+            );
+            $output = shell_exec($cmd);
+        }
+
+        $data = $output ? json_decode($output, true) : null;
 
         $title    = '';
         $artist   = '';

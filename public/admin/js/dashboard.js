@@ -14,9 +14,12 @@ var iRadioDashboard = (function() {
   // SVG icons for the play/stop button
   var ICON_PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
   var ICON_STOP = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>';
+  var ICON_DISC = '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" opacity=".3"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3"/></svg>';
+  var lastCoverId = null;
 
   function init() {
     djAudio = document.getElementById('djAudio');
+    initTabs();
 
     // Load config, then start polling + SSE
     iRadioAPI.get('/config').then(function(cfg) {
@@ -51,6 +54,33 @@ var iRadioDashboard = (function() {
     // Fetch weather from server-configured location, then every 30 minutes
     fetchWeather();
     setInterval(fetchWeather, 1800000);
+  }
+
+  // ── Tab switching ───────────────────────────────────
+
+  function initTabs() {
+    var tabs = document.querySelectorAll('#dashboardTabs .tab');
+    tabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        switchTab(tab.getAttribute('data-tab'));
+      });
+    });
+    var hash = location.hash.replace('#', '');
+    if (hash && document.getElementById('tab-' + hash)) {
+      switchTab(hash);
+    }
+  }
+
+  function switchTab(name) {
+    var panels = document.querySelectorAll('.tab-panel');
+    var tabs = document.querySelectorAll('#dashboardTabs .tab');
+    panels.forEach(function(p) { p.classList.remove('active'); });
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    var panel = document.getElementById('tab-' + name);
+    if (panel) panel.classList.add('active');
+    var tab = document.querySelector('#dashboardTabs .tab[data-tab="' + name + '"]');
+    if (tab) tab.classList.add('active');
+    history.replaceState(null, '', '#' + name);
   }
 
   // ── DJ Clock ─────────────────────────────────────────
@@ -177,6 +207,21 @@ var iRadioDashboard = (function() {
     });
   }
 
+  function setCoverArt(el, songId) {
+    if (!el) return;
+    if (songId === lastCoverId) return; // no change
+    lastCoverId = songId;
+    if (!songId) {
+      el.innerHTML = ICON_DISC;
+      return;
+    }
+    var img = new Image();
+    img.onload = function() { el.innerHTML = ''; el.appendChild(img); };
+    img.onerror = function() { el.innerHTML = ICON_DISC; };
+    img.src = '/api/cover?id=' + songId;
+    img.alt = 'Cover art';
+  }
+
   function updateDJBooth(np) {
     var liveEl    = document.getElementById('djLive');
     var labelEl   = document.getElementById('djLiveLabel');
@@ -185,6 +230,7 @@ var iRadioDashboard = (function() {
     var fillEl    = document.getElementById('djProgressFill');
     var elapsedEl = document.getElementById('djElapsed');
     var remEl     = document.getElementById('djRemaining');
+    var coverEl   = document.getElementById('djCover');
 
     clearInterval(progressTimer);
 
@@ -196,6 +242,7 @@ var iRadioDashboard = (function() {
       fillEl.style.width   = '0%';
       elapsedEl.textContent = '0:00';
       remEl.textContent     = '—';
+      setCoverArt(coverEl, null);
       return;
     }
 
@@ -203,6 +250,7 @@ var iRadioDashboard = (function() {
     labelEl.textContent  = 'LIVE';
     titleEl.textContent  = np.title;
     artistEl.textContent = np.artist;
+    setCoverArt(coverEl, np.has_cover_art ? np.song_id : null);
 
     var duration  = np.duration_ms || 0;
     var startedAt = np.started_at ? new Date(np.started_at).getTime() : Date.now();
@@ -374,19 +422,34 @@ var iRadioDashboard = (function() {
     html += statBox(data.active_playlists, 'Playlists', '');
     html += statBox(data.active_schedules, 'Schedules', '');
 
-    var infoItems = [];
-    if (data.pending_imports > 0) infoItems.push(data.pending_imports + ' pending import');
-    if (data.songs_trashed > 0) infoItems.push(data.songs_trashed + ' in trash');
-    if (data.untagged > 0) infoItems.push(data.untagged + ' untagged');
-    if (data.unnormalized > 0) infoItems.push(data.unnormalized + ' unnormalized');
-
     el.innerHTML = html;
 
-    if (infoItems.length > 0) {
-      var infoEl = document.createElement('div');
-      infoEl.style.cssText = 'grid-column:1/-1;font-size:.8rem;color:var(--warn);margin-top:4px';
-      infoEl.textContent = infoItems.join(' · ');
-      el.appendChild(infoEl);
+    // Notices — render as individual cards (some are clickable links)
+    var notices = [];
+    if (data.pending_imports > 0) notices.push({ count: data.pending_imports, label: 'Pending Imports' });
+    if (data.songs_trashed > 0)   notices.push({ count: data.songs_trashed, label: 'In Trash' });
+    if (data.untagged > 0)        notices.push({ count: data.untagged, label: 'Untagged Songs' });
+    if (data.unnormalized > 0)    notices.push({ count: data.unnormalized, label: 'Unnormalized' });
+    if (data.missing_files > 0)   notices.push({ count: data.missing_files, label: 'Missing Files', href: '/admin/songs.html?filter=missing' });
+    if (data.dup_artists > 0)     notices.push({ count: data.dup_artists, label: 'Duplicate Artists', href: '/admin/duplicates.html' });
+
+    var wrap = document.getElementById('libraryNotices');
+    var grid = document.getElementById('libraryNoticesGrid');
+    if (notices.length > 0) {
+      var nhtml = '';
+      notices.forEach(function(n) {
+        var tag = n.href ? 'a' : 'div';
+        var hrefAttr = n.href ? ' href="' + n.href + '"' : '';
+        var style = n.href ? ' style="text-decoration:none;cursor:pointer"' : '';
+        nhtml += '<' + tag + ' class="stat-box notice-box"' + hrefAttr + style + '>' +
+          '<span class="stat-value">' + escHtml(String(n.count)) + '</span>' +
+          '<span class="stat-label">' + escHtml(n.label) + '</span>' +
+          '</' + tag + '>';
+      });
+      grid.innerHTML = nhtml;
+      wrap.style.display = '';
+    } else {
+      wrap.style.display = 'none';
     }
   }
 
@@ -589,11 +652,13 @@ var iRadioDashboard = (function() {
             is_playing:  true
           });
           updateDJBooth({
-            title:       data.song.title,
-            artist:      data.song.artist,
-            duration_ms: data.song.duration_ms,
-            started_at:  data.song.started_at,
-            is_playing:  true
+            song_id:       data.song.id,
+            title:         data.song.title,
+            artist:        data.song.artist,
+            duration_ms:   data.song.duration_ms,
+            has_cover_art: data.song.has_cover_art,
+            started_at:    data.song.started_at,
+            is_playing:    true
           });
           renderEmergency(data.is_emergency);
         }

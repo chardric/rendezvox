@@ -73,6 +73,11 @@ class PlaylistSongBulkAddHandler
 
             $db->commit();
 
+            // Shuffle the entire playlist with artist/category/title separation
+            if ($added > 0) {
+                RotationEngine::generateCycleOrder($db, $id);
+            }
+
             Response::json([
                 'message' => $added . ' song(s) added, ' . $skipped . ' skipped (already in playlist)',
                 'added'   => $added,

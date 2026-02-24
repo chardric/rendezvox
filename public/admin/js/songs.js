@@ -12,12 +12,22 @@ var iRadioSongs = (function() {
   function init() {
     loadArtists();
     loadCategories();
+
+    // Apply URL query params (e.g. ?filter=missing from dashboard link)
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('filter') === 'missing') {
+      document.getElementById('filterActive').value = 'missing';
+    }
+
     loadSongs();
 
     // Filters
     document.getElementById('filterSearch').addEventListener('input', debounceLoad);
     document.getElementById('filterCategory').addEventListener('change', function() { currentPage = 1; loadSongs(); });
     document.getElementById('filterActive').addEventListener('change', function() { currentPage = 1; loadSongs(); });
+
+    // Deactivate all missing files
+    document.getElementById('btnDeactivateMissing').addEventListener('click', deactivateAllMissing);
 
     // Pagination
     document.getElementById('btnPrev').addEventListener('click', function() {
@@ -65,11 +75,19 @@ var iRadioSongs = (function() {
     var search   = document.getElementById('filterSearch').value.trim();
     var category = document.getElementById('filterCategory').value;
     var active   = document.getElementById('filterActive').value;
+    var btnDeact = document.getElementById('btnDeactivateMissing');
 
     var q = '?page=' + currentPage + '&per_page=50';
     if (search)   q += '&search='      + encodeURIComponent(search);
     if (category) q += '&category_id=' + category;
-    if (active)   q += '&active='      + active;
+
+    if (active === 'missing') {
+      q += '&missing=true';
+      btnDeact.style.display = '';
+    } else {
+      if (active) q += '&active=' + active;
+      btnDeact.style.display = 'none';
+    }
 
     iRadioAPI.get('/admin/songs' + q)
       .then(function(data) {
@@ -120,7 +138,7 @@ var iRadioSongs = (function() {
         '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="iRadioSongs.toggleSong(' + s.id + ')"' + (s.is_active ? ' checked' : '') + '><span class="slider"></span></label></td>' +
         '<td>' + (s.is_requestable ? 'Yes' : 'No') + '</td>' +
         '<td>' +
-          '<button class="icon-btn" title="Edit" onclick="iRadioSongs.editSong(' + s.id + ')">' + iRadioIcons.edit + '</button>' +
+          '<button type="button" class="icon-btn" title="Edit" onclick="iRadioSongs.editSong(' + s.id + ')">' + iRadioIcons.edit + '</button>' +
         '</td>' +
         '</tr>';
     });
@@ -150,7 +168,7 @@ var iRadioSongs = (function() {
   }
 
   function populateCategorySelects() {
-    var html = '<option value="">Select genre…</option>';
+    var html = '<option value="">Select genre/category…</option>';
     categories.forEach(function(c) {
       html += '<option value="' + c.id + '">' + escHtml(c.name) + ' (' + c.type + ')</option>';
     });
@@ -160,7 +178,7 @@ var iRadioSongs = (function() {
 
   function populateFilterCategory() {
     var sel = document.getElementById('filterCategory');
-    var html = '<option value="">All Genres</option>';
+    var html = '<option value="">All Genres/Categories</option>';
     categories.forEach(function(c) {
       html += '<option value="' + c.id + '">' + escHtml(c.name) + '</option>';
     });
@@ -293,6 +311,39 @@ var iRadioSongs = (function() {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  function deactivateAllMissing() {
+    if (!confirm('Deactivate all songs with missing files?')) return;
+
+    var btn = document.getElementById('btnDeactivateMissing');
+    btn.disabled = true;
+    btn.textContent = 'Working...';
+
+    // Fetch ALL missing songs (up to 10000) to get their IDs
+    iRadioAPI.get('/admin/songs?missing=true&per_page=10000')
+      .then(function(data) {
+        if (!data.songs || data.songs.length === 0) {
+          showToast('No missing files found');
+          btn.disabled = false;
+          btn.textContent = 'Deactivate All Missing';
+          return;
+        }
+        var ids = data.songs.map(function(s) { return s.id; });
+        return iRadioAPI.post('/admin/songs/deactivate-missing', { ids: ids });
+      })
+      .then(function(result) {
+        if (!result) return;
+        showToast('Deactivated ' + result.count + ' songs');
+        loadSongs();
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Failed to deactivate', 'error');
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Deactivate All Missing';
+      });
   }
 
   function showToast(msg, type) {

@@ -63,7 +63,7 @@ var iRadioDuplicates = (function() {
       html += '<div class="card" style="margin-bottom:16px;padding:16px" data-group="' + idx + '">';
       html += '<div class="flex items-center justify-between" style="margin-bottom:12px">';
       html += '<strong>Group ' + (idx + 1) + badge + '</strong>';
-      html += '<button class="btn btn-danger btn-sm" onclick="iRadioDuplicates.resolveGroup(' + idx + ')">Delete Unselected</button>';
+      html += '<button type="button" class="btn btn-danger btn-sm" onclick="iRadioDuplicates.resolveGroup(' + idx + ')">Delete Unselected</button>';
       html += '</div>';
 
       html += '<table style="width:100%"><thead><tr>';
@@ -119,18 +119,23 @@ var iRadioDuplicates = (function() {
       return;
     }
 
-    if (!confirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.')) return;
+    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.', {
+      title: 'Delete Duplicates',
+      okLabel: 'Delete'
+    }).then(function(ok) {
+      if (!ok) return;
 
-    iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
-      .then(function(data) {
-        showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
-        groups.splice(idx, 1);
-        renderGroups();
-        updateSummary();
-      })
-      .catch(function(err) {
-        showToast((err && err.error) || 'Delete failed', 'error');
-      });
+      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
+        .then(function(data) {
+          showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
+          groups.splice(idx, 1);
+          renderGroups();
+          updateSummary();
+        })
+        .catch(function(err) {
+          showToast((err && err.error) || 'Delete failed', 'error');
+        });
+    });
   }
 
   // ── Resolve all groups ────────────────────────────────────
@@ -159,19 +164,24 @@ var iRadioDuplicates = (function() {
       return;
     }
 
-    if (!confirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.')) return;
+    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.', {
+      title: 'Delete All Duplicates',
+      okLabel: 'Delete All'
+    }).then(function(ok) {
+      if (!ok) return;
 
-    iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
-      .then(function(data) {
-        showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
-        groups = [];
-        renderGroups();
-        updateSummary();
-        document.getElementById('btnDeleteAll').style.display = 'none';
-      })
-      .catch(function(err) {
-        showToast((err && err.error) || 'Delete failed', 'error');
-      });
+      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
+        .then(function(data) {
+          showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
+          groups = [];
+          renderGroups();
+          updateSummary();
+          document.getElementById('btnDeleteAll').style.display = 'none';
+        })
+        .catch(function(err) {
+          showToast((err && err.error) || 'Delete failed', 'error');
+        });
+    });
   }
 
   // ── Helpers ───────────────────────────────────────────────

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Settings</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css">
+<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
 </head>
 <body>
 <div class="app">
@@ -18,208 +18,399 @@
   <main class="main">
     <h1 class="page-title">Settings</h1>
 
-    <div id="settingsContainer">
-      <div class="spinner"></div>
+    <div class="tabs" id="settingsTabs">
+      <button class="tab active" data-tab="general">General</button>
+      <button class="tab" data-tab="appearance">Appearance</button>
+      <button class="tab" data-tab="tools">Library Tools</button>
+      <button class="tab" data-tab="email">Email</button>
+      <button class="tab" data-tab="about">About</button>
     </div>
 
-    <!-- Email (SMTP) section -->
-    <div class="card" style="padding:24px;margin-top:24px">
-      <h3 class="settings-section-title">Email (SMTP)</h3>
-      <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-        Configure SMTP for password reset emails and notifications.
-      </p>
-      <div class="settings-field">
-        <label>SMTP Host</label>
-        <input type="text" id="smtpHost" placeholder="e.g. smtp.gmail.com" style="margin-bottom:0">
+    <!-- ── General tab ──────────────────────────────── -->
+    <div class="tab-panel active" id="tab-general">
+      <div id="settingsContainer">
+        <div class="spinner"></div>
       </div>
-      <div style="display:flex;gap:16px;margin-top:12px">
-        <div class="settings-field" style="flex:1">
-          <label>Port</label>
-          <select id="smtpPort" style="margin-bottom:0">
-            <option value="587">587 (STARTTLS)</option>
-            <option value="465">465 (SSL)</option>
-            <option value="25">25 (Plain)</option>
+
+      <!-- Scheduling section -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Scheduling</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Controls how the Surprise Me auto-scheduler fills the weekly grid.
+        </p>
+        <div class="settings-field">
+          <label>Reserved playlist keywords <span style="color:var(--text-dim);font-weight:400">(comma-separated)</span></label>
+          <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Playlists whose names contain these keywords are reserved for 4–6 AM daily and 11 AM–1 PM on 2–3 random weekdays.</div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="text" id="reservedKeywords" placeholder="e.g. Christian, Gospel, Worship" style="margin-bottom:0;flex:1">
+            <button id="btnSaveReservedKeywords" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="iRadioSettings.saveReservedKeywords()">Save Keywords</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Filter section -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Content Filter</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          The profanity filter toggle is in the Requests section above.
+          A built-in list of common English and Filipino offensive words is always active when the filter is enabled.
+          Add your own station-specific blocked words below.
+        </p>
+        <div class="settings-field">
+          <label>Custom blocked words <span style="color:var(--text-dim);font-weight:400">(comma-separated)</span></label>
+          <textarea id="blockedWords" rows="3" placeholder="e.g. spam, promo, inappropriate-term" style="margin-bottom:0;width:100%;resize:vertical;font-family:inherit;font-size:.9rem"></textarea>
+        </div>
+        <button id="btnSaveBlockedWords" class="btn btn-primary btn-sm" style="margin-top:12px" onclick="iRadioSettings.saveBlockedWords()">Save Blocked Words</button>
+      </div>
+    </div>
+
+    <!-- ── Appearance tab ─────────────────────────── -->
+    <div class="tab-panel" id="tab-appearance">
+
+      <!-- Theme picker -->
+      <div class="card" style="padding:24px">
+        <h3 class="settings-section-title">Theme</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Choose a theme for the admin panel. This preference is saved locally in your browser.
+        </p>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <select id="themeSelect" style="margin-bottom:0;max-width:300px"></select>
+          <div id="themePreviewDot" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0"></div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0">
+
+        <h3 class="settings-section-title">Accent Color</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Override the accent color used for highlights and buttons.
+        </p>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="color" id="accentColorPicker" style="width:40px;height:40px;padding:0;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none">
+          <input type="text" id="accentColorHex" placeholder="#00c8a0" maxlength="7" style="max-width:120px;margin-bottom:0">
+          <button class="btn btn-ghost btn-sm" id="btnResetAccent">Reset</button>
+        </div>
+      </div>
+
+      <!-- Station Logo -->
+      <div class="card" style="padding:24px;margin-top:24px" id="logoSection">
+        <h3 class="settings-section-title">Station Logo</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Upload a logo to display in the sidebar, login page, and public player.
+          Recommended: square image, 256&times;256px or larger. Supports PNG, JPG, WebP, GIF, SVG.
+        </p>
+        <div id="logoPreview" style="margin-bottom:16px"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" id="btnUploadLogo">Upload Logo</button>
+          <button class="btn btn-ghost btn-sm hidden" style="color:var(--danger)" id="btnRemoveLogo">Remove Logo</button>
+        </div>
+        <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" style="display:none">
+      </div>
+    </div>
+
+    <!-- ── Library Tools tab ────────────────────────── -->
+    <div class="tab-panel" id="tab-tools">
+
+      <!-- Scan and Tag -->
+      <div class="card" style="padding:24px">
+        <h3 class="settings-section-title">Scan and Tag</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Scan all songs and look up metadata (genre/category) from MusicBrainz, TheAudioDB, and audio file tags.
+          Fixes missing titles from filenames. Songs without a match keep their current values.
+        </p>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Auto-tag new songs</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoTagEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Automatically tag unprocessed songs every 15 minutes</span>
+          </div>
+          <div id="autoTagStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+        </div>
+        <div class="settings-field">
+          <label>AcoustID API key <span style="color:var(--text-dim);font-weight:400">(optional — enables audio fingerprinting)</span></label>
+          <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Get a free key at <a href="https://acoustid.org/new-application" target="_blank" rel="noopener" style="color:var(--accent)">acoustid.org/new-application</a></div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div style="position:relative;flex:1">
+              <input type="password" id="acoustidApiKey" placeholder="Paste your API key here" style="margin-bottom:0;padding-right:36px;width:100%">
+              <button type="button" class="eye-toggle" onclick="iRadioSettings.toggleVis('acoustidApiKey',this)" title="Show/hide API key" aria-label="Toggle API key visibility">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <button id="btnSaveApiKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="iRadioSettings.saveApiKey()">Save Key</button>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label>TheAudioDB API key <span style="color:var(--text-dim);font-weight:400">(optional — enables cover art from TheAudioDB)</span></label>
+          <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Free tier key is <code>2</code>. Get your own at <a href="https://www.theaudiodb.com/api_guide.php" target="_blank" rel="noopener" style="color:var(--accent)">theaudiodb.com</a></div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div style="position:relative;flex:1">
+              <input type="password" id="theAudioDbApiKey" placeholder="Default &quot;2&quot; is free tier" style="margin-bottom:0;padding-right:36px;width:100%">
+              <button type="button" class="eye-toggle" onclick="iRadioSettings.toggleVis('theAudioDbApiKey',this)" title="Show/hide API key" aria-label="Toggle API key visibility">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <button id="btnSaveTheAudioDbKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="iRadioSettings.saveTheAudioDbKey()">Save Key</button>
+          </div>
+        </div>
+        <div id="genreScanStatus" style="display:none;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
+            <span id="genreScanLabel">Scanning…</span>
+            <span id="genreScanPct">0%</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
+            <div id="genreScanBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
+            <span id="genreScanDetails"></span>
+          </div>
+        </div>
+        <button id="btnGenreScan" class="btn btn-primary btn-sm" onclick="iRadioSettings.startGenreScan()">Scan and Tag</button>
+        <button id="btnStopScan" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopGenreScan()">Stop</button>
+      </div>
+
+      <!-- Library Sync -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Library Sync</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Scan all active songs and check that their files still exist on disk.
+          Missing files are deactivated (not deleted) so Liquidsoap won't try to play them.
+        </p>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Auto-sync library</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoSyncEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Automatically check for missing files every 15 minutes</span>
+          </div>
+          <div id="autoSyncStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+        </div>
+        <div id="librarySyncStatus" style="display:none;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
+            <span id="librarySyncLabel">Syncing…</span>
+            <span id="librarySyncPct">0%</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
+            <div id="librarySyncBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
+            <span id="librarySyncDetails"></span>
+          </div>
+        </div>
+        <button id="btnLibrarySync" class="btn btn-primary btn-sm" onclick="iRadioSettings.startLibrarySync()">Sync Library</button>
+        <button id="btnStopSync" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopLibrarySync()">Stop</button>
+      </div>
+
+      <!-- Artist Cleanup -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Artist Cleanup</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Merge duplicate artists created from collaboration tags (feat., &amp;, with).
+          Takes the primary artist and reassigns songs. Duo names like "Brooks &amp; Dunn" are preserved.
+        </p>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Auto-deduplicate artists</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoDedupEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Automatically merge duplicate artists every 15 minutes</span>
+          </div>
+          <div id="autoDedupStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+        </div>
+        <div id="artistDedupStatus" style="display:none;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
+            <span id="artistDedupLabel">Deduplicating…</span>
+            <span id="artistDedupPct">0%</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
+            <div id="artistDedupBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
+            <span id="artistDedupDetails"></span>
+          </div>
+        </div>
+        <button id="btnArtistDedup" class="btn btn-primary btn-sm" onclick="iRadioSettings.startArtistDedup()">Deduplicate Artists</button>
+        <button id="btnStopDedup" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopArtistDedup()">Stop</button>
+      </div>
+
+      <!-- Audio Normalization -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Audio Normalization</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Analyze loudness (LUFS) of all songs and calculate per-track gain for consistent volume.
+          Gain is applied in real-time during playback — no files are modified.
+        </p>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Auto-normalize new songs</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoNormEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Automatically normalize unanalyzed songs every 15 minutes</span>
+          </div>
+          <div id="autoNormStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+        </div>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Target loudness (LUFS)</label>
+          <select id="normTargetLufs" style="margin-bottom:0;max-width:260px">
+            <option value="-23.0">-23.0 LUFS (broadcast standard)</option>
+            <option value="-16.0">-16.0 LUFS (streaming)</option>
+            <option value="-14.0">-14.0 LUFS (default)</option>
+            <option value="-11.0">-11.0 LUFS (loud / club)</option>
           </select>
         </div>
-        <div class="settings-field" style="flex:1">
-          <label>Encryption</label>
-          <select id="smtpEncryption" style="margin-bottom:0">
-            <option value="tls">STARTTLS</option>
-            <option value="ssl">SSL/TLS</option>
-            <option value="none">None</option>
-          </select>
+        <div id="normStatus" style="display:none;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
+            <span id="normLabel">Analyzing…</span>
+            <span id="normPct">0%</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
+            <div id="normBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
+            <span id="normDetails"></span>
+          </div>
         </div>
+        <button id="btnNormalize" class="btn btn-primary btn-sm" onclick="iRadioSettings.startNormalize()">Normalize</button>
+        <button id="btnStopNorm" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopNormalize()">Stop</button>
       </div>
-      <div style="display:flex;gap:16px;margin-top:12px">
-        <div class="settings-field" style="flex:1">
-          <label>Username</label>
-          <input type="text" id="smtpUsername" placeholder="SMTP login" style="margin-bottom:0" autocomplete="off">
+
+      <!-- Path Rename -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Path Rename</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Rename directories and files to proper title case (e.g. "80s COUNTRY MUSIC" &rarr; "80s Country Music").
+          Each rename updates the database immediately so the stream is never interrupted.
+        </p>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Auto-rename paths</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoRenameEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Automatically rename new paths every 15 minutes</span>
+          </div>
+          <div id="autoRenameStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
         </div>
-        <div class="settings-field" style="flex:1">
-          <label>Password</label>
-          <input type="password" id="smtpPassword" placeholder="SMTP password" style="margin-bottom:0" autocomplete="off">
+        <div id="renameStatus" style="display:none;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
+            <span id="renameLabel">Renaming…</span>
+            <span id="renamePct">0%</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
+            <div id="renameBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
+            <span id="renameDetails"></span>
+          </div>
         </div>
+        <button id="btnRenamePaths" class="btn btn-primary btn-sm" onclick="iRadioSettings.startRenamePaths()">Rename Paths</button>
+        <button id="btnStopRename" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopRenamePaths()">Stop</button>
       </div>
-      <div style="display:flex;gap:16px;margin-top:12px">
-        <div class="settings-field" style="flex:1">
-          <label>From Address</label>
-          <input type="email" id="smtpFromAddress" placeholder="noreply@example.com" style="margin-bottom:0">
-        </div>
-        <div class="settings-field" style="flex:1">
-          <label>From Name</label>
-          <input type="text" id="smtpFromName" placeholder="iRadio" style="margin-bottom:0">
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
-        <button class="btn btn-primary btn-sm" onclick="iRadioSettings.saveSmtp()">Save SMTP Settings</button>
-        <button class="btn btn-ghost btn-sm" onclick="iRadioSettings.sendTestEmail()">Send Test Email</button>
-      </div>
-      <div id="smtpTestStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+
     </div>
 
-    <!-- Tools section -->
-    <div class="card" style="padding:24px;margin-top:24px">
-      <h3 class="settings-section-title">Scan and Tag</h3>
-      <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-        Scan all songs and look up metadata (genre) from MusicBrainz.
-        Fixes missing titles from filenames. Songs without a match keep their current values.
-      </p>
-      <div class="settings-field" style="margin-bottom:16px">
-        <label>Auto-tag new songs</label>
-        <div style="display:flex;align-items:center;gap:12px">
-          <label class="toggle">
-            <input type="checkbox" id="autoTagEnabled">
-            <span class="slider"></span>
-          </label>
-          <span style="color:var(--text-dim);font-size:.8rem">Automatically tag unprocessed songs every 15 minutes</span>
+    <!-- ── Email tab ────────────────────────────────── -->
+    <div class="tab-panel" id="tab-email">
+      <div class="card" style="padding:24px">
+        <h3 class="settings-section-title">Email (SMTP)</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Configure SMTP for password reset emails and notifications.
+        </p>
+        <div class="settings-field">
+          <label>SMTP Host</label>
+          <input type="text" id="smtpHost" placeholder="e.g. smtp.gmail.com" style="margin-bottom:0">
         </div>
-        <div id="autoTagStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+        <div style="display:flex;gap:16px;margin-top:12px">
+          <div class="settings-field" style="flex:1">
+            <label>Port</label>
+            <select id="smtpPort" style="margin-bottom:0">
+              <option value="587">587 (STARTTLS)</option>
+              <option value="465">465 (SSL)</option>
+              <option value="25">25 (Plain)</option>
+            </select>
+          </div>
+          <div class="settings-field" style="flex:1">
+            <label>Encryption</label>
+            <select id="smtpEncryption" style="margin-bottom:0">
+              <option value="tls">STARTTLS</option>
+              <option value="ssl">SSL/TLS</option>
+              <option value="none">None</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:12px">
+          <div class="settings-field" style="flex:1">
+            <label>Username</label>
+            <input type="text" id="smtpUsername" placeholder="SMTP login" style="margin-bottom:0" autocomplete="off">
+          </div>
+          <div class="settings-field" style="flex:1">
+            <label>Password</label>
+            <div style="position:relative">
+              <input type="password" id="smtpPassword" placeholder="SMTP password" style="margin-bottom:0;padding-right:36px;width:100%" autocomplete="off">
+              <button type="button" class="eye-toggle" onclick="iRadioSettings.toggleVis('smtpPassword',this)" title="Show/hide password" aria-label="Toggle password visibility">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:12px">
+          <div class="settings-field" style="flex:1">
+            <label>From Address</label>
+            <input type="email" id="smtpFromAddress" placeholder="noreply@example.com" style="margin-bottom:0">
+          </div>
+          <div class="settings-field" style="flex:1">
+            <label>From Name</label>
+            <input type="text" id="smtpFromName" placeholder="iRadio" style="margin-bottom:0">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
+          <button class="btn btn-primary btn-sm" onclick="iRadioSettings.saveSmtp()">Save SMTP Settings</button>
+          <button class="btn btn-ghost btn-sm" onclick="iRadioSettings.sendTestEmail()">Send Test Email</button>
+        </div>
+        <div id="smtpTestStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
       </div>
-      <div class="settings-field">
-        <label>AcoustID API key <span style="color:var(--text-dim);font-weight:400">(optional — enables audio fingerprinting)</span></label>
-        <div style="display:flex;gap:8px;align-items:flex-start">
-          <input type="text" id="acoustidApiKey" placeholder="Get a free key at acoustid.org" style="margin-bottom:0;flex:1">
-          <button id="btnSaveApiKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="iRadioSettings.saveApiKey()">Save Key</button>
-        </div>
-      </div>
-      <div id="genreScanStatus" style="display:none;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
-          <span id="genreScanLabel">Scanning…</span>
-          <span id="genreScanPct">0%</span>
-        </div>
-        <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
-          <div id="genreScanBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
-        </div>
-        <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
-          <span id="genreScanDetails"></span>
-        </div>
-      </div>
-      <button id="btnGenreScan" class="btn btn-primary btn-sm" onclick="iRadioSettings.startGenreScan()">Scan and Tag</button>
-      <button id="btnStopScan" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopGenreScan()">Stop</button>
     </div>
 
-    <!-- Library Sync section -->
-    <div class="card" style="padding:24px;margin-top:24px">
-      <h3 class="settings-section-title">Library Sync</h3>
-      <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-        Scan all active songs and check that their files still exist on disk.
-        Missing files are deactivated (not deleted) so Liquidsoap won't try to play them.
-      </p>
-      <div id="librarySyncStatus" style="display:none;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
-          <span id="librarySyncLabel">Syncing…</span>
-          <span id="librarySyncPct">0%</span>
-        </div>
-        <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
-          <div id="librarySyncBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
-        </div>
-        <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
-          <span id="librarySyncDetails"></span>
-        </div>
-      </div>
-      <button id="btnLibrarySync" class="btn btn-primary btn-sm" onclick="iRadioSettings.startLibrarySync()">Sync Library</button>
-      <button id="btnStopSync" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopLibrarySync()">Stop</button>
-    </div>
+    <!-- ── About tab ────────────────────────────────── -->
+    <div class="tab-panel" id="tab-about">
+      <div class="card" style="padding:24px">
+        <h3 class="settings-section-title">About</h3>
+        <p style="color:var(--text-dim);font-size:.9rem;line-height:1.7;margin-bottom:16px">
+          <strong id="aboutStationName" style="font-size:1.1rem;color:var(--text)">iRadio</strong><br>
+          A hybrid online streaming platform that works like an FM radio station &mdash;
+          fully self-hosted, with automated playlists, live scheduling, song requests,
+          and real-time playback powered by Liquidsoap and Icecast.
+        </p>
+        <span style="color:var(--text-dim);font-size:.8rem" id="aboutVersion"></span>
 
-    <!-- Artist Cleanup section -->
-    <div class="card" style="padding:24px;margin-top:24px">
-      <h3 class="settings-section-title">Artist Cleanup</h3>
-      <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-        Merge duplicate artists created from collaboration tags (feat., &amp;, with).
-        Takes the primary artist and reassigns songs. Duo names like "Brooks &amp; Dunn" are preserved.
-      </p>
-      <div id="artistDedupStatus" style="display:none;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
-          <span id="artistDedupLabel">Deduplicating…</span>
-          <span id="artistDedupPct">0%</span>
-        </div>
-        <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
-          <div id="artistDedupBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
-        </div>
-        <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
-          <span id="artistDedupDetails"></span>
-        </div>
-      </div>
-      <button id="btnArtistDedup" class="btn btn-primary btn-sm" onclick="iRadioSettings.startArtistDedup()">Deduplicate Artists</button>
-      <button id="btnStopDedup" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopArtistDedup()">Stop</button>
-    </div>
+        <hr class="settings-divider">
 
-    <!-- Audio Normalization section -->
-    <div class="card" style="padding:24px;margin-top:24px">
-      <h3 class="settings-section-title">Audio Normalization</h3>
-      <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-        Analyze loudness (LUFS) of all songs and calculate per-track gain for consistent volume.
-        Gain is applied in real-time during playback — no files are modified.
-      </p>
-      <div class="settings-field" style="margin-bottom:16px">
-        <label>Auto-normalize new songs</label>
-        <div style="display:flex;align-items:center;gap:12px">
-          <label class="toggle">
-            <input type="checkbox" id="autoNormEnabled">
-            <span class="slider"></span>
-          </label>
-          <span style="color:var(--text-dim);font-size:.8rem">Automatically normalize unanalyzed songs every 15 minutes</span>
-        </div>
-        <div id="autoNormStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
-      </div>
-      <div class="settings-field" style="margin-bottom:16px">
-        <label>Target loudness (LUFS)</label>
-        <select id="normTargetLufs" style="margin-bottom:0;max-width:260px">
-          <option value="-23.0">-23.0 LUFS (broadcast standard)</option>
-          <option value="-16.0">-16.0 LUFS (streaming)</option>
-          <option value="-14.0">-14.0 LUFS (default)</option>
-          <option value="-11.0">-11.0 LUFS (loud / club)</option>
-        </select>
-      </div>
-      <div id="normStatus" style="display:none;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
-          <span id="normLabel">Analyzing…</span>
-          <span id="normPct">0%</span>
-        </div>
-        <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
-          <div id="normBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
-        </div>
-        <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
-          <span id="normDetails"></span>
-        </div>
-      </div>
-      <button id="btnNormalize" class="btn btn-primary btn-sm" onclick="iRadioSettings.startNormalize()">Normalize</button>
-      <button id="btnStopNorm" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopNormalize()">Stop</button>
-    </div>
+        <h4 style="font-size:.85rem;color:var(--text);margin-bottom:8px">Developer</h4>
+        <p style="color:var(--text-dim);font-size:.85rem;line-height:1.6;margin-bottom:16px">
+          <strong style="color:var(--text)">Richard Ramirez Ayuyang, PhD</strong><br>
+          Professor II, College of Information and Computing Sciences<br>
+          Cagayan State University
+        </p>
 
-    <!-- Content Filter section -->
-    <div class="card" style="padding:24px;margin-top:24px">
-      <h3 class="settings-section-title">Content Filter</h3>
-      <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-        The profanity filter toggle is in the Requests section above.
-        A built-in list of common English and Filipino offensive words is always active when the filter is enabled.
-        Add your own station-specific blocked words below.
-      </p>
-      <div class="settings-field">
-        <label>Custom blocked words <span style="color:var(--text-dim);font-weight:400">(comma-separated)</span></label>
-        <textarea id="blockedWords" rows="3" placeholder="e.g. spam, promo, inappropriate-term" style="margin-bottom:0;width:100%;resize:vertical;font-family:inherit;font-size:.9rem"></textarea>
+        <hr class="settings-divider">
+
+        <h4 style="font-size:.85rem;color:var(--text);margin-bottom:8px">Through</h4>
+        <p style="color:var(--text-dim);font-size:.85rem;line-height:1.6">
+          <a href="https://downstreamtech.net" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">DownStreamTech</a><br>
+          A Philippine-based startup empowering public institutions through affordable,
+          locally-built open-source technology solutions. Serving local government units,
+          schools, and government agencies with custom applications for document management,
+          digital transformation, and IT infrastructure.
+        </p>
       </div>
-      <button id="btnSaveBlockedWords" class="btn btn-primary btn-sm" style="margin-top:12px" onclick="iRadioSettings.saveBlockedWords()">Save Blocked Words</button>
     </div>
 
     <!-- Sticky save bar -->
@@ -238,8 +429,9 @@
 <script src="/assets/scroll-controls.js"></script>
 <script src="/admin/js/api.js"></script>
 <script src="/admin/js/auth.js"></script>
+<script src="/admin/js/theme.js"></script>
 <script src="/admin/js/nav.js"></script>
-<script src="/admin/js/settings.js"></script>
+<script src="/admin/js/settings.js?v=theme1"></script>
 <script>
   if (iRadioAuth.requireRole('super_admin')) {
     iRadioNav.init();

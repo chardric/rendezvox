@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Login</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css">
+<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
 </head>
 <body>
 <div class="login-wrap">
@@ -26,15 +26,24 @@
   </div>
   <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
 </div>
+<script src="/admin/js/theme.js"></script>
 <script src="/admin/js/api.js"></script>
 <script src="/admin/js/auth.js"></script>
 <script>
 (function() {
-  // Load station branding
+  // Load station branding + logo
   iRadioAPI.get('/config').then(function(cfg) {
     var name = cfg.station_name || 'iRadio';
     document.getElementById('brandTitle').textContent = name;
     document.title = name + ' Admin — Login';
+    if (cfg.has_logo) {
+      var img = document.createElement('img');
+      img.src = '/api/logo?v=' + Date.now();
+      img.alt = name;
+      img.style.cssText = 'width:64px;height:64px;object-fit:contain;border-radius:8px;margin:0 auto 12px;display:block';
+      var box = document.querySelector('.login-box');
+      if (box) box.insertBefore(img, box.firstChild);
+    }
   }).catch(function() {});
 
   if (iRadioAuth.isLoggedIn()) {

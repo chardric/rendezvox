@@ -6,6 +6,7 @@ var iRadioNav = (function() {
   var pages = [
     { href: '/admin/dashboard', label: 'Dashboard',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
     { href: '/admin/media',     label: 'Media',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
+    { href: '/admin/files',     label: 'Files',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>' },
     { href: '/admin/playlists', label: 'Playlists',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>' },
     { href: '/admin/schedules', label: 'Schedules',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
     { href: '/admin/jingles',   label: 'Jingles',    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>' },
@@ -50,14 +51,14 @@ var iRadioNav = (function() {
     sidebar.innerHTML =
       '<div class="sidebar-brand">' +
         '<span id="brandName">Admin</span>' +
-        '<button class="sidebar-collapse-btn" id="btnCollapseSidebar" title="Collapse sidebar">' + collapseIcon + '</button>' +
       '</div>' +
+      '<button type="button" class="sidebar-collapse-btn" id="btnCollapseSidebar" title="Collapse sidebar">' + collapseIcon + '</button>' +
       '<nav class="sidebar-nav">' + navHtml + '</nav>' +
       '<div class="sidebar-footer">' +
         '<div class="sidebar-footer-row">' +
           sidebarAvatarHtml +
           '<a href="#" class="username" id="btnOpenProfile" title="Account settings">' + (user ? (user.display_name || user.username) : '') + '</a>' +
-          '<button class="btn-logout" id="btnLogout" title="Logout"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>' +
+          '<button type="button" class="btn-logout" id="btnLogout" title="Logout"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>' +
         '</div>' +
       '</div>';
 
@@ -121,7 +122,7 @@ var iRadioNav = (function() {
       });
     }
 
-    // Load station name for branding
+    // Load station name + logo for branding
     iRadioAPI.get('/config').then(function(cfg) {
       var name = cfg.station_name || 'iRadio';
       window.iRadioStationName = name;
@@ -132,6 +133,10 @@ var iRadioNav = (function() {
         if (current === p.href) pageLabel = p.label;
       });
       document.title = name + ' Admin' + (pageLabel ? ' — ' + pageLabel : '');
+      // Show station logo in sidebar
+      if (cfg.has_logo) {
+        renderSidebarLogo();
+      }
     }).catch(function() {});
 
     // Hamburger toggle
@@ -152,6 +157,9 @@ var iRadioNav = (function() {
 
     // Inject profile modal
     injectProfileModal();
+
+    // Quick theme switcher in sidebar footer
+    initThemeSwitcher();
 
     // Inject copyright footer into .main
     var mainEl = document.querySelector('.main');
@@ -198,7 +206,7 @@ var iRadioNav = (function() {
     modal.innerHTML =
       '<div class="modal" style="max-width:420px">' +
         '<h3>Account</h3>' +
-        '<button class="modal-close" id="profileModalClose">&times;</button>' +
+        '<button type="button" class="modal-close" id="profileModalClose">&times;</button>' +
 
         /* ── Profile header ── */
         '<div class="profile-header">' +
@@ -216,7 +224,7 @@ var iRadioNav = (function() {
           '<label for="profileDisplayName">Display Name</label>' +
           '<div class="profile-name-input-wrap">' +
             '<input type="text" id="profileDisplayName" placeholder="Enter your name" maxlength="255">' +
-            '<button class="btn btn-sm btn-ghost" id="profileNameSave" style="display:none">Save</button>' +
+            '<button type="button" class="btn btn-sm btn-ghost" id="profileNameSave" style="display:none">Save</button>' +
           '</div>' +
         '</div>' +
 
@@ -225,7 +233,7 @@ var iRadioNav = (function() {
           '<label for="profileEmailInput">Email</label>' +
           '<div class="profile-name-input-wrap">' +
             '<input type="email" id="profileEmailInput" placeholder="Enter your email" maxlength="255">' +
-            '<button class="btn btn-sm btn-ghost" id="profileEmailSave" style="display:none">Save</button>' +
+            '<button type="button" class="btn btn-sm btn-ghost" id="profileEmailSave" style="display:none">Save</button>' +
           '</div>' +
         '</div>' +
 
@@ -262,8 +270,8 @@ var iRadioNav = (function() {
           '<label>Confirm New Password</label><input type="password" id="pwConfirm">' +
           '<div id="pwError" style="color:var(--danger);font-size:.82rem;display:none"></div>' +
           '<div class="modal-actions">' +
-            '<button class="btn btn-ghost" id="profileModalCancel">Cancel</button>' +
-            '<button class="btn btn-primary" id="profileModalSave">Change Password</button>' +
+            '<button type="button" class="btn btn-ghost" id="profileModalCancel">Cancel</button>' +
+            '<button type="button" class="btn btn-primary" id="profileModalSave">Change Password</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -542,5 +550,75 @@ var iRadioNav = (function() {
     setTimeout(function() { t.remove(); }, 3000);
   }
 
-  return { init: init };
+  /* ── Sidebar station logo ─────────────────────────────── */
+  function renderSidebarLogo() {
+    var brand = document.querySelector('.sidebar-brand');
+    if (!brand) return;
+    // Remove existing logo wrapper if any
+    var existing = brand.querySelector('.sidebar-logo-wrap');
+    if (existing) existing.remove();
+    var wrap = document.createElement('div');
+    wrap.className = 'sidebar-logo-wrap';
+    wrap.innerHTML = '<img class="sidebar-logo" src="/api/logo?v=' + Date.now() + '" alt="Station Logo">';
+    brand.insertBefore(wrap, brand.firstChild);
+  }
+
+  function removeSidebarLogo() {
+    var wrap = document.querySelector('.sidebar-logo-wrap');
+    if (wrap) wrap.remove();
+  }
+
+  function refreshLogo() {
+    iRadioAPI.get('/config').then(function(cfg) {
+      if (cfg.has_logo) {
+        renderSidebarLogo();
+      } else {
+        removeSidebarLogo();
+      }
+    }).catch(function() {});
+  }
+
+  /* ── Quick theme switcher (sidebar footer) ──────────── */
+  function initThemeSwitcher() {
+    var footer = document.querySelector('.sidebar-footer');
+    if (!footer || !window.iRadioTheme) return;
+
+    var themes = iRadioTheme.list();
+    var current = iRadioTheme.current();
+
+    var row = document.createElement('div');
+    row.className = 'sidebar-theme-row';
+
+    var icon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 000 20 5 5 0 005-5 3 3 0 00-3-3h-1.5a1.5 1.5 0 01-1.5-1.5 1.5 1.5 0 011.5-1.5H14a2 2 0 002-2 10 10 0 00-4-7z"/></svg>';
+
+    var sel = document.createElement('select');
+    sel.className = 'sidebar-theme-select';
+    sel.title = 'Switch theme';
+
+    var lastGroup = '';
+    var html = '';
+    Object.keys(themes).forEach(function(key) {
+      var t = themes[key];
+      if (t.group && t.group !== lastGroup) {
+        if (lastGroup) html += '</optgroup>';
+        html += '<optgroup label="' + t.group + '">';
+        lastGroup = t.group;
+      }
+      var selected = (key === current) ? ' selected' : '';
+      html += '<option value="' + key + '"' + selected + '>' + t.label + '</option>';
+    });
+    if (lastGroup) html += '</optgroup>';
+    sel.innerHTML = html;
+
+    row.innerHTML = icon;
+    row.appendChild(sel);
+    footer.appendChild(row);
+
+    sel.addEventListener('change', function() {
+      iRadioTheme.apply(sel.value);
+      showToast('Theme: ' + (themes[sel.value] || {}).label);
+    });
+  }
+
+  return { init: init, refreshLogo: refreshLogo };
 })();

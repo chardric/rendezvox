@@ -47,7 +47,13 @@ class PlaylistListHandler
             ];
         }
 
-        Response::json(['playlists' => $playlists]);
+        $rsStmt = $db->query("SELECT current_playlist_id FROM rotation_state WHERE id = 1");
+        $currentPlaylistId = $rsStmt ? ($rsStmt->fetchColumn() ?: null) : null;
+
+        Response::json([
+            'playlists'           => $playlists,
+            'current_playlist_id' => $currentPlaylistId ? (int) $currentPlaylistId : null,
+        ]);
     }
 
     private function countAutoSongs(PDO $db, array $rules): int

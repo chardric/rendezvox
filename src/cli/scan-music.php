@@ -17,6 +17,7 @@ declare(strict_types=1);
 // -- Bootstrap (outside web context) --
 require __DIR__ . '/../core/Database.php';
 require __DIR__ . '/../core/MetadataExtractor.php';
+require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
 // -- Configuration --
@@ -74,8 +75,9 @@ $filterIterator = new RecursiveCallbackFilterIterator(
     function ($current) {
         if ($current->isDir()) {
             $name = $current->getFilename();
-            // Skip organizer-managed directories and upload staging
-            return !in_array($name, ['_quarantine', '_duplicates', 'upload']);
+            // Skip hidden directories, organizer-managed directories, and upload staging
+            if (str_starts_with($name, '.')) return false;
+            return !in_array($name, ['tagged', '_untagged', '_duplicates', 'upload']);
         }
         return true;
     }
@@ -130,22 +132,26 @@ foreach ($iterator as $fileInfo) {
     // Find or create artist
     $artistId = findOrCreateArtist($db, $artist ?: 'Unknown Artist');
 
+    // Detect embedded cover art
+    $hasCoverArt = MetadataLookup::hasCoverArt($absolutePath);
+
     // Insert song
     try {
         $stmt2 = $db->prepare('
             INSERT INTO songs (title, artist_id, category_id, file_path, file_hash,
-                               duration_ms, year)
+                               duration_ms, year, has_cover_art)
             VALUES (:title, :artist_id, :category_id, :file_path, :file_hash,
-                    :duration_ms, :year)
+                    :duration_ms, :year, :has_cover_art)
         ');
         $stmt2->execute([
-            'title'       => $title,
-            'artist_id'   => $artistId,
-            'category_id' => $defaultCat,
-            'file_path'   => $relativePath,
-            'file_hash'   => $hash,
-            'duration_ms' => $meta['duration_ms'],
-            'year'        => $meta['year'] ?: null,
+            'title'         => $title,
+            'artist_id'     => $artistId,
+            'category_id'   => $defaultCat,
+            'file_path'     => $relativePath,
+            'file_hash'     => $hash,
+            'duration_ms'   => $meta['duration_ms'],
+            'year'          => $meta['year'] ?: null,
+            'has_cover_art' => $hasCoverArt ? 'true' : 'false',
         ]);
 
         $existingPaths[$relativePath] = true;

@@ -49,11 +49,11 @@ var iRadioRequests = (function() {
 
       if (r.status === 'pending') {
         actions =
-          '<button class="icon-btn success" title="Approve" onclick="iRadioRequests.approve(' + r.id + ')">' + iRadioIcons.approve + '</button> ' +
-          '<button class="icon-btn danger" title="Reject" onclick="iRadioRequests.reject(' + r.id + ')">' + iRadioIcons.reject + '</button>';
+          '<button type="button" class="icon-btn success" title="Approve" onclick="iRadioRequests.approve(' + r.id + ')">' + iRadioIcons.approve + '</button> ' +
+          '<button type="button" class="icon-btn danger" title="Reject" onclick="iRadioRequests.reject(' + r.id + ')">' + iRadioIcons.reject + '</button>';
       } else if (r.status === 'approved') {
         actions =
-          '<button class="icon-btn danger" title="Reject" onclick="iRadioRequests.reject(' + r.id + ')">' + iRadioIcons.reject + '</button>';
+          '<button type="button" class="icon-btn danger" title="Reject" onclick="iRadioRequests.reject(' + r.id + ')">' + iRadioIcons.reject + '</button>';
       }
 
       html += '<tr>' +

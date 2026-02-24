@@ -75,6 +75,7 @@ services:
       - ../music:/var/lib/iradio/music
       - ../jingles:/var/lib/iradio/jingles
       - ../data/avatars:/var/lib/iradio/avatars
+      - ../data/logos:/var/lib/iradio/logos
       - ../data/logs:/var/log/iradio
     networks:
       - iradio_net

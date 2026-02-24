@@ -31,17 +31,67 @@ var iRadioSettings = (function() {
       render();
       loadTimezoneDisplay();
       loadApiKey();
+      loadTheAudioDbKey();
+      loadReservedKeywords();
       loadSmtp();
       loadAutoTag();
+      loadAutoSync();
+      loadAutoDedup();
       loadBlockedWords();
       checkInitialScanStatus();
       checkInitialSyncStatus();
       checkInitialDedupStatus();
       checkInitialNormStatus();
+      checkInitialRenameStatus();
       loadNormTarget();
       loadAutoNorm();
+      loadAutoRename();
       initLocationPicker();
+      initAppearanceTab();
+      initTabs();
     });
+  }
+
+  // ── Tab switching ──────────────────────────────────────
+  function initTabs() {
+    var tabs = document.querySelectorAll('#settingsTabs .tab');
+    tabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        switchTab(tab.getAttribute('data-tab'));
+      });
+    });
+    // Restore tab from URL hash
+    var hash = location.hash.replace('#', '');
+    if (hash && document.getElementById('tab-' + hash)) {
+      switchTab(hash);
+    }
+  }
+
+  function switchTab(name) {
+    var panels = document.querySelectorAll('.tab-panel');
+    var tabs = document.querySelectorAll('#settingsTabs .tab');
+    panels.forEach(function(p) { p.classList.remove('active'); });
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    var panel = document.getElementById('tab-' + name);
+    if (panel) panel.classList.add('active');
+    var tab = document.querySelector('#settingsTabs .tab[data-tab="' + name + '"]');
+    if (tab) tab.classList.add('active');
+    history.replaceState(null, '', '#' + name);
+  }
+
+  // ── Toggle visibility (eye icon) ───────────────────────
+  var EYE_OPEN  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_SHUT  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M1 1l22 22"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/></svg>';
+
+  function toggleVis(inputId, el) {
+    var inp = document.getElementById(inputId);
+    if (!inp) return;
+    var btn = el.closest ? el.closest('.eye-toggle') : el;
+    if (!btn) btn = el;
+    var show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    if (show) { btn.classList.add('active'); } else { btn.classList.remove('active'); }
+    btn.innerHTML = show ? EYE_SHUT : EYE_OPEN;
   }
 
   function loadTimezoneDisplay() {
@@ -76,6 +126,120 @@ var iRadioSettings = (function() {
       .then(function() {
         btn.disabled = false;
         btn.textContent = 'Save Blocked Words';
+      });
+  }
+
+  // ── Reserved Keywords ────────────────────────────────────
+  function loadReservedKeywords() {
+    var s = settings['schedule_reserved_keywords'];
+    var el = document.getElementById('reservedKeywords');
+    if (s && el) el.value = s.value || '';
+  }
+
+  function saveReservedKeywords() {
+    var el = document.getElementById('reservedKeywords');
+    var val = el ? el.value.trim() : '';
+    var btn = document.getElementById('btnSaveReservedKeywords');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    iRadioAPI.put('/admin/settings/schedule_reserved_keywords', { value: val })
+      .then(function() {
+        if (settings['schedule_reserved_keywords']) settings['schedule_reserved_keywords'].value = val;
+        showToast('Reserved keywords saved');
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+      })
+      .then(function() {
+        btn.disabled = false;
+        btn.textContent = 'Save Keywords';
+      });
+  }
+
+  // ── Auto Sync ──────────────────────────────────────────
+  function loadAutoSync() {
+    var s = settings['auto_library_sync_enabled'];
+    var el = document.getElementById('autoSyncEnabled');
+    if (s && el) el.checked = (s.value === 'true');
+    if (el) el.addEventListener('change', saveAutoSync);
+    loadAutoSyncStatus();
+  }
+
+  function loadAutoSyncStatus() {
+    iRadioAPI.get('/admin/auto-sync-status').then(function(data) {
+      var el = document.getElementById('autoSyncStatus');
+      if (!el) return;
+      if (!data.has_run) {
+        el.innerHTML = '<span style="opacity:.6">No auto-sync runs yet</span>';
+      } else {
+        var d = new Date(data.ran_at);
+        var opts = iRadioAPI.tzOpts();
+        var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
+                      d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
+        el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
+          data.total + ' songs checked, ' + (data.missing || 0) + ' missing, ' + (data.deactivated || 0) + ' deactivated';
+      }
+    }).catch(function() {
+      var el = document.getElementById('autoSyncStatus');
+      if (el) el.innerHTML = '<span style="opacity:.6">Could not load auto-sync status</span>';
+    });
+  }
+
+  function saveAutoSync() {
+    var el = document.getElementById('autoSyncEnabled');
+    var val = el.checked ? 'true' : 'false';
+    iRadioAPI.put('/admin/settings/auto_library_sync_enabled', { value: val })
+      .then(function() {
+        if (settings['auto_library_sync_enabled']) settings['auto_library_sync_enabled'].value = val;
+        showToast('Auto-sync ' + (el.checked ? 'enabled' : 'disabled'));
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+        el.checked = !el.checked;
+      });
+  }
+
+  // ── Auto Dedup ─────────────────────────────────────────
+  function loadAutoDedup() {
+    var s = settings['auto_artist_dedup_enabled'];
+    var el = document.getElementById('autoDedupEnabled');
+    if (s && el) el.checked = (s.value === 'true');
+    if (el) el.addEventListener('change', saveAutoDedup);
+    loadAutoDedupStatus();
+  }
+
+  function loadAutoDedupStatus() {
+    iRadioAPI.get('/admin/auto-dedup-status').then(function(data) {
+      var el = document.getElementById('autoDedupStatus');
+      if (!el) return;
+      if (!data.has_run) {
+        el.innerHTML = '<span style="opacity:.6">No auto-dedup runs yet</span>';
+      } else {
+        var d = new Date(data.ran_at);
+        var opts = iRadioAPI.tzOpts();
+        var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
+                      d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
+        el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
+          data.total + ' artists checked, ' + (data.merged || 0) + ' merged, ' + (data.renamed || 0) + ' renamed';
+      }
+    }).catch(function() {
+      var el = document.getElementById('autoDedupStatus');
+      if (el) el.innerHTML = '<span style="opacity:.6">Could not load auto-dedup status</span>';
+    });
+  }
+
+  function saveAutoDedup() {
+    var el = document.getElementById('autoDedupEnabled');
+    var val = el.checked ? 'true' : 'false';
+    iRadioAPI.put('/admin/settings/auto_artist_dedup_enabled', { value: val })
+      .then(function() {
+        if (settings['auto_artist_dedup_enabled']) settings['auto_artist_dedup_enabled'].value = val;
+        showToast('Auto-dedup ' + (el.checked ? 'enabled' : 'disabled'));
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+        el.checked = !el.checked;
       });
   }
 
@@ -180,6 +344,33 @@ var iRadioSettings = (function() {
       .then(function() {
         if (settings['acoustid_api_key']) settings['acoustid_api_key'].value = val;
         showToast('API key saved');
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+      })
+      .then(function() {
+        btn.disabled = false;
+        btn.textContent = 'Save Key';
+      });
+  }
+
+  function loadTheAudioDbKey() {
+    var s = settings['theaudiodb_api_key'];
+    var el = document.getElementById('theAudioDbApiKey');
+    if (s && el) el.value = s.value || '';
+  }
+
+  function saveTheAudioDbKey() {
+    var el = document.getElementById('theAudioDbApiKey');
+    var val = el ? el.value.trim() : '';
+    var btn = document.getElementById('btnSaveTheAudioDbKey');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    iRadioAPI.put('/admin/settings/theaudiodb_api_key', { value: val })
+      .then(function() {
+        if (settings['theaudiodb_api_key']) settings['theaudiodb_api_key'].value = val;
+        showToast('TheAudioDB key saved');
       })
       .catch(function(err) {
         showToast((err && err.error) || 'Save failed', 'error');
@@ -540,9 +731,11 @@ var iRadioSettings = (function() {
     document.getElementById('genreScanLabel').textContent = label;
     document.getElementById('genreScanPct').textContent = pct + '%';
     document.getElementById('genreScanBar').style.width = pct + '%';
-    document.getElementById('genreScanDetails').textContent =
-      processed + ' / ' + total + ' songs — ' +
+    var detail = processed + ' / ' + total + ' songs — ' +
       (p.updated || 0) + ' updated, ' + (p.skipped || 0) + ' skipped';
+    if (p.covers) detail += ', ' + p.covers + ' covers';
+    if (p.relocated) detail += ', ' + p.relocated + ' relocated';
+    document.getElementById('genreScanDetails').textContent = detail;
   }
 
   function checkInitialScanStatus() {
@@ -901,14 +1094,180 @@ var iRadioSettings = (function() {
       .catch(function() { /* ignore */ });
   }
 
+  // ── Auto Path Rename ─────────────────────────────────
+  function loadAutoRename() {
+    var s = settings['auto_rename_paths_enabled'];
+    var el = document.getElementById('autoRenameEnabled');
+    if (s && el) el.checked = (s.value === 'true');
+    if (el) el.addEventListener('change', saveAutoRename);
+    loadAutoRenameStatus();
+  }
+
+  function loadAutoRenameStatus() {
+    iRadioAPI.get('/admin/auto-rename-status').then(function(data) {
+      var el = document.getElementById('autoRenameStatus');
+      if (!el) return;
+      if (!data.has_run) {
+        el.innerHTML = '<span style="opacity:.6">No auto-rename runs yet</span>';
+      } else {
+        var d = new Date(data.ran_at);
+        var opts = iRadioAPI.tzOpts();
+        var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
+                      d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
+        el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
+          (data.dirs_renamed || 0) + ' dirs, ' + (data.files_renamed || 0) + ' files renamed';
+      }
+    }).catch(function() {
+      var el = document.getElementById('autoRenameStatus');
+      if (el) el.innerHTML = '<span style="opacity:.6">Could not load auto-rename status</span>';
+    });
+  }
+
+  function saveAutoRename() {
+    var el = document.getElementById('autoRenameEnabled');
+    var val = el.checked ? 'true' : 'false';
+    iRadioAPI.put('/admin/settings/auto_rename_paths_enabled', { value: val })
+      .then(function() {
+        if (settings['auto_rename_paths_enabled']) settings['auto_rename_paths_enabled'].value = val;
+        showToast('Auto-rename ' + (el.checked ? 'enabled' : 'disabled'));
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+        el.checked = !el.checked;
+      });
+  }
+
+  // ── Path Rename ──────────────────────────────────────
+  var renamePollTimer = null;
+
+  function setRenameButtons(running) {
+    var btnStart = document.getElementById('btnRenamePaths');
+    var btnStop  = document.getElementById('btnStopRename');
+    if (running) {
+      btnStart.disabled = true;
+      btnStart.textContent = 'Renaming…';
+      btnStop.classList.remove('hidden');
+    } else {
+      btnStart.disabled = false;
+      btnStart.textContent = 'Rename Paths';
+      btnStop.classList.add('hidden');
+    }
+  }
+
+  function startRenamePaths() {
+    setRenameButtons(true);
+
+    iRadioAPI.post('/admin/rename-paths', {})
+      .then(function(res) {
+        var msg = res.message || 'Rename started';
+        var isBlocked = msg.indexOf('already running') !== -1;
+        showToast(msg, isBlocked ? 'error' : 'success');
+        if (isBlocked) { setRenameButtons(false); return; }
+        if (res.auto_rename_disabled) {
+          var el = document.getElementById('autoRenameEnabled');
+          if (el) el.checked = false;
+          if (settings['auto_rename_paths_enabled']) settings['auto_rename_paths_enabled'].value = 'false';
+          showToast('Auto-rename disabled — manual rename takes over', 'success');
+        }
+        if (res.progress) showRenameProgress(res.progress);
+        pollRenameStatus();
+      })
+      .catch(function(err) {
+        setRenameButtons(false);
+        showToast((err && err.error) || 'Failed to start rename', 'error');
+      });
+  }
+
+  function stopRenamePaths() {
+    iRadioAPI.del('/admin/rename-paths')
+      .then(function(res) {
+        showToast(res.message || 'Stopping rename…');
+        if (res.message && res.message.indexOf('No') !== -1) {
+          if (renamePollTimer) { clearInterval(renamePollTimer); renamePollTimer = null; }
+          setRenameButtons(false);
+        }
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Failed to stop rename', 'error');
+      });
+  }
+
+  function pollRenameStatus() {
+    if (renamePollTimer) clearInterval(renamePollTimer);
+    var idleCount = 0;
+    renamePollTimer = setInterval(function() {
+      iRadioAPI.get('/admin/rename-paths')
+        .then(function(data) {
+          if (!data || data.status === 'idle') {
+            if (++idleCount >= 3) {
+              clearInterval(renamePollTimer); renamePollTimer = null;
+              setRenameButtons(false);
+            }
+            return;
+          }
+          idleCount = 0;
+          showRenameProgress(data);
+          if (data.status !== 'running') {
+            clearInterval(renamePollTimer);
+            renamePollTimer = null;
+            setRenameButtons(false);
+
+            if (data.status === 'done') {
+              showToast('Rename complete — ' + (data.dirs_renamed || 0) + ' dirs, ' + (data.files_renamed || 0) + ' files');
+            } else if (data.status === 'stopped') {
+              showToast('Rename stopped — ' + (data.dirs_renamed || 0) + ' dirs, ' + (data.files_renamed || 0) + ' files so far');
+            }
+          }
+        });
+    }, 2000);
+  }
+
+  function showRenameProgress(p) {
+    var wrap = document.getElementById('renameStatus');
+    if (!p || p.status === 'idle') {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    var total = p.total || 1;
+    var processed = p.processed || 0;
+    var pct = Math.round((processed / total) * 100);
+
+    var label = 'Renaming ' + (p.phase === 'files' ? 'files' : 'directories') + '…';
+    if (p.status === 'done') label = 'Rename complete';
+    else if (p.status === 'stopped') label = 'Rename stopped';
+
+    document.getElementById('renameLabel').textContent = label;
+    document.getElementById('renamePct').textContent = pct + '%';
+    document.getElementById('renameBar').style.width = pct + '%';
+    document.getElementById('renameDetails').textContent =
+      processed + ' / ' + total + ' — ' +
+      (p.dirs_renamed || 0) + ' dirs, ' + (p.files_renamed || 0) + ' files renamed';
+  }
+
+  function checkInitialRenameStatus() {
+    iRadioAPI.get('/admin/rename-paths')
+      .then(function(data) {
+        if (data.status === 'running') {
+          showRenameProgress(data);
+          setRenameButtons(true);
+          pollRenameStatus();
+        } else if (data.status === 'done' || data.status === 'stopped') {
+          showRenameProgress(data);
+        }
+      })
+      .catch(function() { /* ignore */ });
+  }
+
   // ── Location Picker ─────────────────────────────────
   var locPickerCoords = null; // [lat, lon] resolved for current selection
 
   function initLocationPicker() {
-    var container = document.getElementById('settingsContainer');
+    var container = document.getElementById('tab-general');
     if (!container) return;
 
-    // Find the first card (the settings card) and inject after the Station section
+    // Find the first card (the settings card rendered into #settingsContainer)
     var card = container.querySelector('.card');
     if (!card) return;
 
@@ -1219,6 +1578,375 @@ var iRadioSettings = (function() {
     });
   }
 
+  // ── Appearance Tab ──────────────────────────────────
+
+  function initAppearanceTab() {
+    renderThemeDropdown();
+    initAccentPicker();
+    initLogoUpload();
+  }
+
+  function renderThemeDropdown() {
+    var sel = document.getElementById('themeSelect');
+    var dot = document.getElementById('themePreviewDot');
+    if (!sel) return;
+    var themes = iRadioTheme.list();
+    var current = iRadioTheme.current();
+    var html = '';
+    var lastGroup = '';
+
+    Object.keys(themes).forEach(function(key) {
+      var t = themes[key];
+      if (t.group && t.group !== lastGroup) {
+        if (lastGroup) html += '</optgroup>';
+        html += '<optgroup label="' + escAttr(t.group) + '">';
+        lastGroup = t.group;
+      }
+      var selected = (key === current) ? ' selected' : '';
+      html += '<option value="' + key + '"' + selected + '>' + escHtml(t.label) + '</option>';
+    });
+    if (lastGroup) html += '</optgroup>';
+
+    sel.innerHTML = html;
+    updatePreviewDot(dot, themes, current);
+
+    sel.addEventListener('change', function() {
+      var name = sel.value;
+      iRadioTheme.apply(name);
+      updatePreviewDot(dot, themes, name);
+      syncAccentPicker();
+      showToast('Theme changed to ' + (themes[name] || {}).label);
+    });
+  }
+
+  function updatePreviewDot(dot, themes, name) {
+    if (!dot || !themes[name]) return;
+    dot.style.background = themes[name].vars['--accent'];
+  }
+
+  function initAccentPicker() {
+    var picker = document.getElementById('accentColorPicker');
+    var hex = document.getElementById('accentColorHex');
+    var reset = document.getElementById('btnResetAccent');
+    if (!picker || !hex || !reset) return;
+
+    // Initialize with current accent or theme default
+    syncAccentPicker();
+
+    // Color picker → hex field
+    picker.addEventListener('input', function() {
+      hex.value = picker.value;
+      iRadioTheme.setAccent(picker.value);
+    });
+
+    // Hex field → color picker
+    hex.addEventListener('input', function() {
+      var val = hex.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+        picker.value = val;
+        iRadioTheme.setAccent(val);
+      }
+    });
+
+    // Reset accent
+    reset.addEventListener('click', function() {
+      iRadioTheme.clearAccent();
+      syncAccentPicker();
+      showToast('Accent color reset to theme default');
+    });
+  }
+
+  function syncAccentPicker() {
+    var picker = document.getElementById('accentColorPicker');
+    var hex = document.getElementById('accentColorHex');
+    if (!picker || !hex) return;
+
+    var customAccent = iRadioTheme.accent();
+    if (customAccent) {
+      picker.value = customAccent;
+      hex.value = customAccent;
+    } else {
+      var current = iRadioTheme.current();
+      var themes = iRadioTheme.list();
+      var defaultAccent = themes[current] ? themes[current].vars['--accent'] : '#00c8a0';
+      picker.value = defaultAccent;
+      hex.value = defaultAccent;
+    }
+  }
+
+  function initLogoUpload() {
+    var section = document.getElementById('logoSection');
+    if (!section) return;
+
+    var preview = document.getElementById('logoPreview');
+    var btnUpload = document.getElementById('btnUploadLogo');
+    var btnRemove = document.getElementById('btnRemoveLogo');
+    var fileInput = document.getElementById('logoFileInput');
+
+    // Load current logo state from config
+    iRadioAPI.get('/config').then(function(cfg) {
+      if (cfg.has_logo) {
+        showLogoPreview(preview, btnRemove);
+      }
+    }).catch(function() {});
+
+    // Upload button → trigger file input
+    btnUpload.addEventListener('click', function() {
+      fileInput.click();
+    });
+
+    // File selected → open crop modal
+    fileInput.addEventListener('change', function() {
+      if (!fileInput.files || !fileInput.files[0]) return;
+      var file = fileInput.files[0];
+
+      // SVG — skip crop, upload directly
+      if (file.type === 'image/svg+xml') {
+        uploadLogoFile(file, preview, btnUpload, btnRemove, fileInput);
+        return;
+      }
+
+      openCropModal(file, function(blob) {
+        uploadLogoFile(blob, preview, btnUpload, btnRemove, fileInput);
+      });
+      fileInput.value = '';
+    });
+
+    // Remove button
+    btnRemove.addEventListener('click', function() {
+      btnRemove.disabled = true;
+      btnRemove.textContent = 'Removing…';
+
+      iRadioAPI.del('/admin/logo')
+        .then(function() {
+          preview.innerHTML = '';
+          btnRemove.classList.add('hidden');
+          showToast('Station logo removed');
+          if (window.iRadioNav && window.iRadioNav.refreshLogo) window.iRadioNav.refreshLogo();
+        })
+        .catch(function(err) {
+          showToast((err && err.error) || 'Failed to remove logo', 'error');
+        })
+        .then(function() {
+          btnRemove.disabled = false;
+          btnRemove.textContent = 'Remove Logo';
+        });
+    });
+  }
+
+  function uploadLogoFile(fileOrBlob, preview, btnUpload, btnRemove, fileInput) {
+    var formData = new FormData();
+    if (fileOrBlob instanceof Blob && !(fileOrBlob instanceof File)) {
+      formData.append('file', fileOrBlob, 'logo.png');
+    } else {
+      formData.append('file', fileOrBlob);
+    }
+
+    btnUpload.disabled = true;
+    btnUpload.textContent = 'Uploading…';
+
+    iRadioAPI.upload('/admin/logo', formData)
+      .then(function() {
+        showLogoPreview(preview, btnRemove);
+        showToast('Station logo uploaded');
+        if (window.iRadioNav && window.iRadioNav.refreshLogo) window.iRadioNav.refreshLogo();
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Failed to upload logo', 'error');
+      })
+      .then(function() {
+        btnUpload.disabled = false;
+        btnUpload.textContent = 'Upload Logo';
+        if (fileInput) fileInput.value = '';
+      });
+  }
+
+  function showLogoPreview(preview, btnRemove) {
+    preview.innerHTML = '<img class="logo-preview" src="/api/logo?v=' + Date.now() + '" alt="Station Logo">';
+    btnRemove.classList.remove('hidden');
+  }
+
+  // ── Logo Crop Modal ──────────────────────────────────
+  function openCropModal(file, onCrop) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var imgSrc = e.target.result;
+      var img = new Image();
+      img.onload = function() {
+        buildCropUI(img, imgSrc, onCrop);
+      };
+      img.src = imgSrc;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function buildCropUI(sourceImg, imgSrc, onCrop) {
+    var VIEWPORT = 280;
+    var OUTPUT = 512; // output square size
+
+    // State
+    var scale = 1;
+    var minScale = 0.1;
+    var maxScale = 4;
+    var offsetX = 0;
+    var offsetY = 0;
+    var dragging = false;
+    var dragStartX = 0;
+    var dragStartY = 0;
+    var dragOffsetX = 0;
+    var dragOffsetY = 0;
+
+    // Calculate initial scale so image fills viewport
+    var fitScale = Math.max(VIEWPORT / sourceImg.width, VIEWPORT / sourceImg.height);
+    minScale = fitScale * 0.5;
+    maxScale = fitScale * 5;
+    scale = fitScale;
+    offsetX = (VIEWPORT - sourceImg.width * scale) / 2;
+    offsetY = (VIEWPORT - sourceImg.height * scale) / 2;
+
+    // Build DOM
+    var backdrop = document.createElement('div');
+    backdrop.className = 'crop-modal';
+
+    var box = document.createElement('div');
+    box.className = 'crop-box';
+    box.innerHTML =
+      '<h3>Crop Logo</h3>' +
+      '<div class="crop-viewport" id="cropViewport"></div>' +
+      '<div class="crop-zoom-row">' +
+        '<label>Zoom</label>' +
+        '<input type="range" id="cropZoom" min="' + (minScale * 100) + '" max="' + (maxScale * 100) + '" value="' + (scale * 100) + '" step="1">' +
+      '</div>' +
+      '<div class="crop-actions">' +
+        '<button class="btn btn-ghost btn-sm" id="cropCancel">Cancel</button>' +
+        '<button class="btn btn-primary btn-sm" id="cropConfirm">Crop & Upload</button>' +
+      '</div>';
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+
+    var viewport = document.getElementById('cropViewport');
+    var cropImg = document.createElement('img');
+    cropImg.src = imgSrc;
+    viewport.appendChild(cropImg);
+
+    var zoomSlider = document.getElementById('cropZoom');
+
+    function render() {
+      cropImg.style.transform = 'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + scale + ')';
+    }
+    render();
+
+    // Zoom
+    zoomSlider.addEventListener('input', function() {
+      var newScale = parseFloat(zoomSlider.value) / 100;
+      // Zoom toward center of viewport
+      var cx = VIEWPORT / 2;
+      var cy = VIEWPORT / 2;
+      offsetX = cx - (cx - offsetX) * (newScale / scale);
+      offsetY = cy - (cy - offsetY) * (newScale / scale);
+      scale = newScale;
+      render();
+    });
+
+    // Drag
+    viewport.addEventListener('mousedown', startDrag);
+    viewport.addEventListener('touchstart', startDragTouch, { passive: false });
+
+    function startDrag(e) {
+      e.preventDefault();
+      dragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragOffsetX = offsetX;
+      dragOffsetY = offsetY;
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', endDrag);
+    }
+
+    function startDragTouch(e) {
+      if (e.touches.length !== 1) return;
+      e.preventDefault();
+      dragging = true;
+      dragStartX = e.touches[0].clientX;
+      dragStartY = e.touches[0].clientY;
+      dragOffsetX = offsetX;
+      dragOffsetY = offsetY;
+      document.addEventListener('touchmove', onDragTouch, { passive: false });
+      document.addEventListener('touchend', endDrag);
+    }
+
+    function onDrag(e) {
+      if (!dragging) return;
+      offsetX = dragOffsetX + (e.clientX - dragStartX);
+      offsetY = dragOffsetY + (e.clientY - dragStartY);
+      render();
+    }
+
+    function onDragTouch(e) {
+      if (!dragging || e.touches.length !== 1) return;
+      e.preventDefault();
+      offsetX = dragOffsetX + (e.touches[0].clientX - dragStartX);
+      offsetY = dragOffsetY + (e.touches[0].clientY - dragStartY);
+      render();
+    }
+
+    function endDrag() {
+      dragging = false;
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', endDrag);
+      document.removeEventListener('touchmove', onDragTouch);
+      document.removeEventListener('touchend', endDrag);
+    }
+
+    // Mouse wheel zoom
+    viewport.addEventListener('wheel', function(e) {
+      e.preventDefault();
+      var delta = e.deltaY > 0 ? -0.05 : 0.05;
+      var newScale = Math.min(maxScale, Math.max(minScale, scale + delta * scale));
+      var cx = VIEWPORT / 2;
+      var cy = VIEWPORT / 2;
+      offsetX = cx - (cx - offsetX) * (newScale / scale);
+      offsetY = cy - (cy - offsetY) * (newScale / scale);
+      scale = newScale;
+      zoomSlider.value = scale * 100;
+      render();
+    }, { passive: false });
+
+    // Cancel
+    document.getElementById('cropCancel').addEventListener('click', cleanup);
+    backdrop.addEventListener('click', function(e) {
+      if (e.target === backdrop) cleanup();
+    });
+
+    // Crop & Upload
+    document.getElementById('cropConfirm').addEventListener('click', function() {
+      var canvas = document.createElement('canvas');
+      canvas.width = OUTPUT;
+      canvas.height = OUTPUT;
+      var ctx = canvas.getContext('2d');
+
+      // Map viewport coords to source image coords
+      var ratio = OUTPUT / VIEWPORT;
+      var sx = -offsetX / scale;
+      var sy = -offsetY / scale;
+      var sw = VIEWPORT / scale;
+      var sh = VIEWPORT / scale;
+
+      ctx.drawImage(sourceImg, sx, sy, sw, sh, 0, 0, OUTPUT, OUTPUT);
+
+      canvas.toBlob(function(blob) {
+        cleanup();
+        if (blob) onCrop(blob);
+      }, 'image/png');
+    });
+
+    function cleanup() {
+      endDrag();
+      backdrop.remove();
+    }
+  }
+
   // ── Helpers ──────────────────────────────────────────
 
   function escHtml(str) {
@@ -1247,6 +1975,7 @@ var iRadioSettings = (function() {
     saveAll: saveAll,
     cancelChanges: cancelChanges,
     saveApiKey: saveApiKey,
+    saveTheAudioDbKey: saveTheAudioDbKey,
     saveSmtp: saveSmtp,
     sendTestEmail: sendTestEmail,
     startGenreScan: startGenreScan,
@@ -1257,6 +1986,10 @@ var iRadioSettings = (function() {
     stopArtistDedup: stopArtistDedup,
     startNormalize: startNormalize,
     stopNormalize: stopNormalize,
-    saveBlockedWords: saveBlockedWords
+    startRenamePaths: startRenamePaths,
+    stopRenamePaths: stopRenamePaths,
+    saveBlockedWords: saveBlockedWords,
+    saveReservedKeywords: saveReservedKeywords,
+    toggleVis: toggleVis
   };
 })();

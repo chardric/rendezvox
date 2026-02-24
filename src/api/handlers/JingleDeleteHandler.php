@@ -4,22 +4,33 @@ declare(strict_types=1);
 
 class JingleDeleteHandler
 {
-    public function handle(string $filename): void
+    public function handle(): void
     {
+        $filename = $_GET['filename'] ?? '';
+
         // Prevent path traversal
-        if (strpos($filename, '..') !== false || strpos($filename, '/') !== false || strpos($filename, '\\') !== false) {
+        if (
+            $filename === '' ||
+            $filename !== basename($filename) ||
+            str_contains($filename, '..') ||
+            str_contains($filename, "\0") ||
+            str_contains($filename, '/') ||
+            str_contains($filename, '\\')
+        ) {
             Response::error('Invalid filename', 400);
             return;
         }
 
-        $path = '/var/lib/iradio/jingles/' . $filename;
+        $dir = '/var/lib/iradio/jingles';
+        $path = $dir . '/' . $filename;
 
-        if (!file_exists($path)) {
+        $realPath = realpath($path);
+        if ($realPath === false || !str_starts_with($realPath, $dir . '/')) {
             Response::error('Jingle not found', 404);
             return;
         }
 
-        if (!unlink($path)) {
+        if (!unlink($realPath)) {
             Response::error('Failed to delete jingle', 500);
             return;
         }

@@ -2,3 +2,6 @@
 */5 * * * * . /etc/environment.iradio; php /var/www/html/src/cli/scan-music.php >> /var/log/iradio/scan-music.log 2>&1
 */15 * * * * . /etc/environment.iradio; php /var/www/html/src/scripts/fix_genres.php --auto >> /var/log/iradio/auto-tag.log 2>&1
 */15 * * * * . /etc/environment.iradio; php /var/www/html/src/scripts/normalize_audio.php --auto >> /var/log/iradio/auto-normalize.log 2>&1
+*/15 * * * * . /etc/environment.iradio; php /var/www/html/src/scripts/library_sync.php --auto >> /var/log/iradio/auto-sync.log 2>&1
+*/15 * * * * . /etc/environment.iradio; php /var/www/html/src/scripts/artist_dedup.php --auto >> /var/log/iradio/auto-dedup.log 2>&1
+*/15 * * * * . /etc/environment.iradio; php /var/www/html/src/scripts/rename_paths.php --auto >> /var/log/iradio/auto-rename.log 2>&1

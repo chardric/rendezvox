@@ -17,6 +17,8 @@ var iRadioMedia = (function () {
   var searchTimer  = null;
   var pendingTimer = null;
   var dupGroups    = [];           // duplicate scan results
+  var isFolderUpload = false;      // true when uploading via Browse Folder or folder drag-drop
+  var folderPaths    = {};         // index → relative path for drag-drop folders
 
   // Pagination / filter state
   var currentPage = 1;
@@ -29,6 +31,11 @@ var iRadioMedia = (function () {
 
   // View state: 'library' or 'trash'
   var currentView = 'library';
+
+  function isInactiveView() {
+    var cb = document.getElementById('showInactive');
+    return currentView === 'library' && cb && cb.checked;
+  }
 
   // ── Init ──────────────────────────────────────────────
 
@@ -70,8 +77,12 @@ var iRadioMedia = (function () {
     // Show inactive toggle
     document.getElementById('showInactive').addEventListener('change', function () {
       currentPage = 1;
+      document.getElementById('btnPurgeInactive').classList.toggle('hidden', !this.checked);
       loadSongs();
     });
+
+    // Purge inactive button
+    document.getElementById('btnPurgeInactive').addEventListener('click', purgeInactive);
 
     // Search
     document.getElementById('songSearch').addEventListener('input', function () {
@@ -114,6 +125,7 @@ var iRadioMedia = (function () {
     document.getElementById('btnBulkTrash').addEventListener('click', bulkTrash);
     document.getElementById('btnBulkRestore').addEventListener('click', bulkRestore);
     document.getElementById('btnBulkPurge').addEventListener('click', bulkPurge);
+    document.getElementById('btnBulkPurgeInactive').addEventListener('click', bulkPurgeInactive);
     document.getElementById('btnClearSel').addEventListener('click', function () {
       selectedIds.clear();
       document.querySelectorAll('.song-check').forEach(function (cb) { cb.checked = false; });
@@ -123,10 +135,7 @@ var iRadioMedia = (function () {
     // Upload modal
     initDropZone();
     document.getElementById('uploadFiles').addEventListener('change', onFilesSelected);
-    document.getElementById('btnBrowseFolder').addEventListener('click', function () {
-      document.getElementById('uploadFolder').click();
-    });
-    document.getElementById('uploadFolder').addEventListener('change', onFolderSelected);
+    document.getElementById('btnClearDrop').addEventListener('click', clearDroppedFiles);
     document.getElementById('uploadForm').addEventListener('submit', handleUpload);
     document.getElementById('btnCancelUpload').addEventListener('click', closeUpload);
     document.getElementById('btnNewArtist').addEventListener('click', openNewArtist);
@@ -215,7 +224,8 @@ var iRadioMedia = (function () {
     var input = document.getElementById('uploadFiles');
 
     dz.addEventListener('click', function (e) {
-      if (e.target !== input && !e.target.classList.contains('btn')) input.click();
+      if (e.target.closest('button') || e.target.closest('.file-list') || e.target === input) return;
+      input.click();
     });
 
     dz.addEventListener('dragover', function (e) {
@@ -248,19 +258,28 @@ var iRadioMedia = (function () {
 
       if (hasDirectories) {
         showToast('Reading folder contents...');
-        collectFilesFromEntries(entries).then(function (files) {
+        collectFilesFromEntries(entries).then(function (results) {
           var dt = new DataTransfer();
-          files.forEach(function (f) {
-            var ext = f.name.split('.').pop().toLowerCase();
-            if (AUDIO_EXTS.includes(ext)) dt.items.add(f);
+          folderPaths = {};
+          var idx = 0;
+          results.forEach(function (r) {
+            var ext = r.file.name.split('.').pop().toLowerCase();
+            if (AUDIO_EXTS.includes(ext)) {
+              dt.items.add(r.file);
+              folderPaths[idx] = r.path;
+              idx++;
+            }
           });
           if (dt.files.length === 0) {
+            isFolderUpload = false;
             showToast('No supported audio files found in folder', 'error');
             return;
           }
           input.files = dt.files;
           showFileList(dt.files);
-          showToast(dt.files.length + ' audio file(s) ready to upload');
+          isFolderUpload = true;
+          showFilesUI(true);
+          showToast(dt.files.length + ' audio file(s) ready — folder structure preserved in imports/');
         }).catch(function (err) {
           showToast('Error reading folder: ' + (err.message || err), 'error');
         });
@@ -268,6 +287,8 @@ var iRadioMedia = (function () {
       }
 
       // Plain files (no directories)
+      isFolderUpload = false;
+      folderPaths = {};
       var dt = new DataTransfer();
       var files = e.dataTransfer.files;
       for (var i = 0; i < files.length; i++) {
@@ -280,18 +301,21 @@ var iRadioMedia = (function () {
       }
       input.files = dt.files;
       showFileList(dt.files);
+      showFilesUI(false);
     });
   }
 
   // Recursively collect File objects from FileSystemEntry items (for folder drops)
+  // Returns array of {file: File, path: string} where path is the relative path
   function collectFilesFromEntries(entries) {
-    var files = [];
+    var results = [];
 
     function processEntry(entry) {
       return new Promise(function (resolve) {
         if (entry.isFile) {
           entry.file(function (f) {
-            files.push(f);
+            // entry.fullPath is like "/FolderName/subfolder/file.mp3"
+            results.push({ file: f, path: entry.fullPath.replace(/^\//, '') });
             resolve();
           }, function () { resolve(); });
         } else if (entry.isDirectory) {
@@ -322,7 +346,7 @@ var iRadioMedia = (function () {
     }
 
     return Promise.all(entries.map(processEntry)).then(function () {
-      return files;
+      return results;
     });
   }
 
@@ -363,8 +387,8 @@ var iRadioMedia = (function () {
   }
 
   function populateGenreSelects() {
-    var filterHtml = '<option value="">All Genres</option>';
-    var selectHtml = '<option value="">Select genre...</option>';
+    var filterHtml = '<option value="">All Genres/Categories</option>';
+    var selectHtml = '<option value="">Select genre/category...</option>';
     categories.forEach(function (c) {
       var opt = '<option value="' + c.id + '">' + escHtml(c.name) + '</option>';
       filterHtml += opt;
@@ -398,9 +422,11 @@ var iRadioMedia = (function () {
       if (artistId) params.push('artist_id=' + encodeURIComponent(artistId));
       if (search)   params.push('search=' + encodeURIComponent(search));
 
-      // Default to active-only unless "Show inactive" is checked
+      // Filter by active status based on "Show inactive" checkbox
       var showInactive = document.getElementById('showInactive');
-      if (!showInactive || !showInactive.checked) {
+      if (showInactive && showInactive.checked) {
+        params.push('active=false');
+      } else {
         params.push('active=true');
       }
     }
@@ -464,14 +490,19 @@ var iRadioMedia = (function () {
         dateCol   = s.trashed_at ? formatDate(s.trashed_at) : '-';
         dateLabel = 'Trashed';
         actions =
-          '<button class="icon-btn" title="Restore" onclick="iRadioMedia.restoreSong(' + s.id + ')">' + IC.restore + '</button>' +
-          '<button class="icon-btn danger" title="Delete forever" onclick="iRadioMedia.purgeSong(' + s.id + ')">' + IC.del + '</button>';
+          '<button type="button" class="icon-btn" title="Restore" onclick="iRadioMedia.restoreSong(' + s.id + ')">' + IC.restore + '</button>' +
+          '<button type="button" class="icon-btn danger" title="Delete forever" onclick="iRadioMedia.purgeSong(' + s.id + ')">' + IC.del + '</button>';
+      } else if (isInactiveView()) {
+        dateCol   = s.created_at ? formatDate(s.created_at) : '-';
+        dateLabel = 'Added';
+        actions =
+          '<button type="button" class="icon-btn danger" title="Delete permanently" onclick="iRadioMedia.purgeInactiveSong(' + s.id + ')">' + IC.del + '</button>';
       } else {
         dateCol   = s.created_at ? formatDate(s.created_at) : '-';
         dateLabel = 'Added';
         actions =
-          '<button class="icon-btn" title="Edit metadata" onclick="iRadioMedia.editSong(' + s.id + ')">' + IC.edit + '</button>' +
-          '<button class="icon-btn danger" title="Move to trash" onclick="iRadioMedia.trashSong(' + s.id + ')">' + IC.del + '</button>';
+          '<button type="button" class="icon-btn" title="Edit metadata" onclick="iRadioMedia.editSong(' + s.id + ')">' + IC.edit + '</button>' +
+          '<button type="button" class="icon-btn danger" title="Move to trash" onclick="iRadioMedia.trashSong(' + s.id + ')">' + IC.del + '</button>';
       }
 
       html +=
@@ -480,7 +511,7 @@ var iRadioMedia = (function () {
             '<input type="checkbox" class="song-check" data-id="' + s.id + '"' + isChecked + '>' +
           '</td>' +
           '<td style="text-align:center;color:var(--text-dim,rgba(255,255,255,0.35));font-size:0.78rem">' + (startNum + i + 1) + '</td>' +
-          '<td>' + title + (!s.is_active && !isTrash ? '<span class="badge-inactive">(off)</span>' : '') + '</td>' +
+          '<td>' + title + (!s.is_active && !isTrash && !isInactiveView() ? '<span class="badge-inactive">(off)</span>' : '') + '</td>' +
           '<td>' + artist + '</td>' +
           '<td>' + genre  + '</td>' +
           '<td style="white-space:nowrap;font-size:0.82rem">' + dateCol + '</td>' +
@@ -516,7 +547,7 @@ var iRadioMedia = (function () {
     }
 
     var html = '';
-    html += '<button' + (currentPage <= 1 ? ' disabled' : '') +
+    html += '<button type="button"' + (currentPage <= 1 ? ' disabled' : '') +
             ' onclick="iRadioMedia.goToPage(' + (currentPage - 1) + ')">&lsaquo;</button>';
 
     var pages = buildPageNumbers(currentPage, totalPages);
@@ -524,12 +555,12 @@ var iRadioMedia = (function () {
       if (p === '...') {
         html += '<span class="page-ellipsis">...</span>';
       } else {
-        html += '<button class="' + (p === currentPage ? 'active' : '') + '"' +
+        html += '<button type="button" class="' + (p === currentPage ? 'active' : '') + '"' +
                 ' onclick="iRadioMedia.goToPage(' + p + ')">' + p + '</button>';
       }
     });
 
-    html += '<button' + (currentPage >= totalPages ? ' disabled' : '') +
+    html += '<button type="button"' + (currentPage >= totalPages ? ' disabled' : '') +
             ' onclick="iRadioMedia.goToPage(' + (currentPage + 1) + ')">&rsaquo;</button>';
 
     nav.innerHTML = html;
@@ -619,14 +650,18 @@ var iRadioMedia = (function () {
     var count = selectedIds.size;
 
     // Toggle which bulk actions are shown based on view
-    var libActions   = document.getElementById('bulkLibraryActions');
-    var trashActions = document.getElementById('bulkTrashActions');
+    var libActions      = document.getElementById('bulkLibraryActions');
+    var inactiveActions = document.getElementById('bulkInactiveActions');
+    var trashActions    = document.getElementById('bulkTrashActions');
+    libActions.classList.add('hidden');
+    inactiveActions.classList.add('hidden');
+    trashActions.classList.add('hidden');
     if (currentView === 'trash') {
-      libActions.classList.add('hidden');
       trashActions.classList.remove('hidden');
+    } else if (isInactiveView()) {
+      inactiveActions.classList.remove('hidden');
     } else {
       libActions.classList.remove('hidden');
-      trashActions.classList.add('hidden');
     }
 
     if (count > 0) {
@@ -668,18 +703,19 @@ var iRadioMedia = (function () {
 
   function bulkTrash() {
     var count = selectedIds.size;
-    if (!confirm('Move ' + count + ' selected song(s) to trash?')) return;
-
-    iRadioAPI.post('/admin/songs/trash', { ids: Array.from(selectedIds) })
-      .then(function () {
-        selectedIds.clear();
-        showToast(count + ' song(s) moved to trash');
-        loadSongs();
-        loadTrashCount();
-      })
-      .catch(function (err) {
-        showToast((err && err.error) || 'Failed to trash songs', 'error');
-      });
+    iRadioConfirm('Move ' + count + ' selected song(s) to trash?', { title: 'Move to Trash', okLabel: 'Move to Trash' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.post('/admin/songs/trash', { ids: Array.from(selectedIds) })
+        .then(function () {
+          selectedIds.clear();
+          showToast(count + ' song(s) moved to trash');
+          loadSongs();
+          loadTrashCount();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to trash songs', 'error');
+        });
+    });
   }
 
   function restoreSong(id) {
@@ -709,51 +745,105 @@ var iRadioMedia = (function () {
   }
 
   function purgeSong(id) {
-    if (!confirm('Permanently delete this song?\nThis cannot be undone. The file will be removed from disk.')) return;
-
-    iRadioAPI.del('/admin/songs/purge', { ids: [id] })
-      .then(function () {
-        showToast('Song permanently deleted');
-        loadSongs();
-        loadTrashCount();
-        loadArtists();
-      })
-      .catch(function (err) {
-        showToast((err && err.error) || 'Failed to delete song', 'error');
-      });
+    iRadioConfirm('Permanently delete this song? This cannot be undone. The file will be removed from disk.', { title: 'Delete Forever', okLabel: 'Delete Forever' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.del('/admin/songs/purge', { ids: [id] })
+        .then(function () {
+          showToast('Song permanently deleted');
+          loadSongs();
+          loadTrashCount();
+          loadArtists();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to delete song', 'error');
+        });
+    });
   }
 
   function bulkPurge() {
     var count = selectedIds.size;
-    if (!confirm('Permanently delete ' + count + ' selected song(s)?\nThis cannot be undone. Files will be removed from disk.')) return;
-
-    iRadioAPI.del('/admin/songs/purge', { ids: Array.from(selectedIds) })
-      .then(function () {
-        selectedIds.clear();
-        showToast(count + ' song(s) permanently deleted');
-        loadSongs();
-        loadTrashCount();
-        loadArtists();
-      })
-      .catch(function (err) {
-        showToast((err && err.error) || 'Failed to delete songs', 'error');
-      });
+    iRadioConfirm('Permanently delete ' + count + ' selected song(s)? This cannot be undone. Files will be removed from disk.', { title: 'Delete Forever', okLabel: 'Delete Forever' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.del('/admin/songs/purge', { ids: Array.from(selectedIds) })
+        .then(function () {
+          selectedIds.clear();
+          showToast(count + ' song(s) permanently deleted');
+          loadSongs();
+          loadTrashCount();
+          loadArtists();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to delete songs', 'error');
+        });
+    });
   }
 
   function emptyTrash() {
-    if (!confirm('Permanently delete ALL songs in trash?\nThis cannot be undone. All files will be removed from disk.')) return;
+    iRadioConfirm('Permanently delete ALL songs in trash? This cannot be undone. All files will be removed from disk.', { title: 'Empty Trash', okLabel: 'Empty Trash' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.del('/admin/songs/purge-all')
+        .then(function (data) {
+          var n = (data && data.purged) || 0;
+          showToast(n + ' song(s) permanently deleted');
+          loadSongs();
+          loadTrashCount();
+          loadArtists();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to empty trash', 'error');
+        });
+    });
+  }
 
-    iRadioAPI.del('/admin/songs/purge-all')
-      .then(function (data) {
-        var n = (data && data.purged) || 0;
-        showToast(n + ' song(s) permanently deleted');
-        loadSongs();
-        loadTrashCount();
-        loadArtists();
-      })
-      .catch(function (err) {
-        showToast((err && err.error) || 'Failed to empty trash', 'error');
-      });
+  function purgeInactive() {
+    iRadioConfirm('Permanently delete ALL inactive songs? This removes DB records and any remaining files on disk.', { title: 'Purge Inactive', okLabel: 'Purge All' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.del('/admin/songs/purge-inactive')
+        .then(function (data) {
+          var n = (data && data.purged) || 0;
+          showToast(n + ' inactive song(s) permanently deleted');
+          loadSongs();
+          loadArtists();
+          loadCategories();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to purge inactive songs', 'error');
+        });
+    });
+  }
+
+  function purgeInactiveSong(id) {
+    iRadioConfirm('Permanently delete this inactive song?', { title: 'Delete Song', okLabel: 'Delete' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.del('/admin/songs/purge-inactive', { ids: [id] })
+        .then(function () {
+          showToast('Song permanently deleted');
+          loadSongs();
+          loadArtists();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to delete song', 'error');
+        });
+    });
+  }
+
+  function bulkPurgeInactive() {
+    var count = selectedIds.size;
+    iRadioConfirm('Permanently delete ' + count + ' inactive song(s)?', { title: 'Delete Songs', okLabel: 'Delete All' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.del('/admin/songs/purge-inactive', { ids: Array.from(selectedIds) })
+        .then(function (data) {
+          var n = (data && data.purged) || 0;
+          selectedIds.clear();
+          showToast(n + ' song(s) permanently deleted');
+          loadSongs();
+          loadArtists();
+          loadCategories();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to delete songs', 'error');
+        });
+    });
   }
 
   // ── Upload ────────────────────────────────────────────
@@ -767,6 +857,14 @@ var iRadioMedia = (function () {
     hideUploadProgress();
     populateArtistSelects();
     populateGenreSelects();
+    isFolderUpload = false;
+    folderPaths = {};
+    // Hide genre/artist/hint/clear until files are dropped
+    document.getElementById('uploadGenreRow').classList.add('hidden');
+    document.getElementById('uploadHint').classList.add('hidden');
+    document.getElementById('btnClearDrop').classList.add('hidden');
+    document.getElementById('dropZonePrompt').style.display = '';
+    document.getElementById('dropZoneSubtext').style.display = '';
     document.getElementById('uploadModal').classList.remove('hidden');
   }
 
@@ -777,28 +875,45 @@ var iRadioMedia = (function () {
   var AUDIO_EXTS = ['mp3','flac','ogg','wav','aac','m4a'];
 
   function onFilesSelected() {
+    isFolderUpload = false;
+    folderPaths = {};
     var files = document.getElementById('uploadFiles').files;
+    if (files && files.length > 0) {
+      showFilesUI(false);
+    }
     showFileList(files);
   }
 
-  function onFolderSelected() {
-    var allFiles = document.getElementById('uploadFolder').files;
-    if (!allFiles || allFiles.length === 0) return;
-    showToast('Scanning ' + allFiles.length + ' files from folder...');
-    // Filter to audio files only
-    var dt = new DataTransfer();
-    for (var i = 0; i < allFiles.length; i++) {
-      var ext = allFiles[i].name.split('.').pop().toLowerCase();
-      if (AUDIO_EXTS.includes(ext)) dt.items.add(allFiles[i]);
-    }
-    // Move filtered files into the main uploadFiles input
-    document.getElementById('uploadFiles').files = dt.files;
-    showFileList(dt.files);
-    if (dt.files.length === 0) {
-      showToast('No supported audio files found in folder', 'error');
+  // Show genre/hint/clear after files or folder are dropped/selected
+  function showFilesUI(isFolder) {
+    var genreRow = document.getElementById('uploadGenreRow');
+    var hint     = document.getElementById('uploadHint');
+    var clearBtn = document.getElementById('btnClearDrop');
+    // Hide the prompt text since we have files now
+    document.getElementById('dropZonePrompt').style.display = 'none';
+    document.getElementById('dropZoneSubtext').style.display = 'none';
+    // Show clear button
+    clearBtn.classList.remove('hidden');
+    if (isFolder) {
+      genreRow.classList.add('hidden');
+      hint.textContent = 'Folder structure preserved in imports/. Files auto-tagged via MusicBrainz + AudioDB.';
     } else {
-      showToast(dt.files.length + ' audio file(s) ready to upload');
+      genreRow.classList.remove('hidden');
+      hint.textContent = 'Title and artist are auto-read from ID3 tags by the organizer.';
     }
+    hint.classList.remove('hidden');
+  }
+
+  function clearDroppedFiles() {
+    document.getElementById('uploadFiles').value = '';
+    document.getElementById('dropFileList').textContent = '';
+    document.getElementById('uploadGenreRow').classList.add('hidden');
+    document.getElementById('uploadHint').classList.add('hidden');
+    document.getElementById('btnClearDrop').classList.add('hidden');
+    document.getElementById('dropZonePrompt').style.display = '';
+    document.getElementById('dropZoneSubtext').style.display = '';
+    isFolderUpload = false;
+    folderPaths = {};
   }
 
   function showFileList(files) {
@@ -833,7 +948,7 @@ var iRadioMedia = (function () {
   }
 
   function setUploadFormDisabled(disabled) {
-    var ids = ['uploadFiles', 'uploadFolder', 'uploadGenreSel', 'uploadArtist', 'btnBrowseFolder', 'btnNewArtist', 'btnNewGenre', 'btnCancelUpload'];
+    var ids = ['uploadFiles', 'uploadGenreSel', 'uploadArtist', 'btnNewArtist', 'btnNewGenre', 'btnCancelUpload'];
     ids.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.disabled = disabled;
@@ -851,12 +966,40 @@ var iRadioMedia = (function () {
     var artistId = document.getElementById('uploadArtist').value;
 
     if (!files || files.length === 0) { showToast('Please select at least one audio file', 'error'); return; }
-    if (!genreId) { showToast('Please select a genre', 'error'); return; }
+    if (!isFolderUpload && !genreId) { showToast('Please select a genre/category', 'error'); return; }
 
     var btn = document.getElementById('btnSubmitUpload');
     btn.disabled    = true;
-    btn.textContent = files.length > 1 ? 'Uploading ' + files.length + ' files...' : 'Uploading...';
+    btn.textContent = 'Checking disk space...';
     setUploadFormDisabled(true);
+
+    // Sum total upload size
+    var totalSize = 0;
+    for (var si = 0; si < files.length; si++) totalSize += files[si].size;
+
+    // Check server disk space before uploading
+    iRadioAPI.get('/admin/disk-space').then(function (ds) {
+      if (totalSize > ds.usable_bytes) {
+        showToast(
+          'Insufficient disk space. Need ' + formatBytes(totalSize) +
+          ', only ' + formatBytes(ds.usable_bytes) + ' available',
+          'error'
+        );
+        btn.disabled = false;
+        btn.textContent = 'Upload';
+        setUploadFormDisabled(false);
+        return;
+      }
+      doUpload(files, genreId, artistId);
+    }).catch(function () {
+      // If disk-space endpoint fails, proceed anyway (server will still guard)
+      doUpload(files, genreId, artistId);
+    });
+  }
+
+  function doUpload(files, genreId, artistId) {
+    var btn = document.getElementById('btnSubmitUpload');
+    btn.textContent = files.length > 1 ? 'Uploading ' + files.length + ' files...' : 'Uploading...';
 
     hideUploadProgress();
     document.getElementById('uploadResults').classList.add('hidden');
@@ -867,8 +1010,10 @@ var iRadioMedia = (function () {
     if (totalFiles === 1) {
       var formData = new FormData();
       formData.append('file', files[0]);
-      formData.append('category_id', genreId);
+      if (genreId) formData.append('category_id', genreId);
       if (artistId) formData.append('artist_id', artistId);
+      var rp = files[0].webkitRelativePath || folderPaths[0] || '';
+      if (rp) formData.append('relative_path', rp);
 
       iRadioAPI.upload('/admin/songs', formData, function(p) {
         var label = p.pct < 100 ? 'Uploading...' : 'Processing...';
@@ -953,8 +1098,10 @@ var iRadioMedia = (function () {
       var file = fileArr[idx];
       var fd   = new FormData();
       fd.append('file', file);
-      fd.append('category_id', genreId);
+      if (genreId) fd.append('category_id', genreId);
       if (artistId) fd.append('artist_id', artistId);
+      var rp = file.webkitRelativePath || folderPaths[idx] || '';
+      if (rp) fd.append('relative_path', rp);
 
       iRadioAPI.upload('/admin/songs', fd, function() {})
         .then(function () {
@@ -1017,7 +1164,7 @@ var iRadioMedia = (function () {
     var genreId  = parseInt(document.getElementById('editGenre').value);
 
     if (!artistId) { showToast('Please select an artist', 'error'); return; }
-    if (!genreId)  { showToast('Please select a genre', 'error'); return; }
+    if (!genreId)  { showToast('Please select a genre/category', 'error'); return; }
 
     var body = {
       title:           document.getElementById('editTitle').value.trim(),
@@ -1089,7 +1236,7 @@ var iRadioMedia = (function () {
 
     iRadioAPI.post('/admin/categories', { name: name, type: 'music' })
       .then(function (data) {
-        var msg = data.message === 'Category already exists' ? 'Genre already exists: ' + name : 'Genre created: ' + name;
+        var msg = data.message === 'Category already exists' ? 'Genre/category already exists: ' + name : 'Genre/category created: ' + name;
         showToast(msg);
         document.getElementById('genreModal').classList.add('hidden');
         var newId = data.id;
@@ -1106,7 +1253,7 @@ var iRadioMedia = (function () {
         });
       })
       .catch(function (err) {
-        showToast((err && err.error) || 'Failed to create genre', 'error');
+        showToast((err && err.error) || 'Failed to create genre/category', 'error');
       });
   }
 
@@ -1165,7 +1312,7 @@ var iRadioMedia = (function () {
       html += '<div class="dup-group" data-group="' + idx + '">';
       html += '<div class="flex items-center justify-between" style="margin-bottom:10px">';
       html += '<strong style="font-size:.9rem">Group ' + (idx + 1) + ' ' + badge + '</strong>';
-      html += '<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="iRadioMedia.dupResolveGroup(' + idx + ')">Delete Unselected</button>';
+      html += '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="iRadioMedia.dupResolveGroup(' + idx + ')">Delete Unselected</button>';
       html += '</div>';
 
       html += '<table><thead><tr>';
@@ -1221,20 +1368,21 @@ var iRadioMedia = (function () {
     });
 
     if (deleteIds.length === 0) return;
-    if (!confirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.')) return;
-
-    iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
-      .then(function (data) {
-        showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
-        dupGroups.splice(idx, 1);
-        dupRenderGroups();
-        dupUpdateSummary();
-        dupUpdateBadge();
-        loadArtists();
-      })
-      .catch(function (err) {
-        showToast((err && err.error) || 'Delete failed', 'error');
-      });
+    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.', { title: 'Delete Duplicates', okLabel: 'Delete' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
+        .then(function (data) {
+          showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
+          dupGroups.splice(idx, 1);
+          dupRenderGroups();
+          dupUpdateSummary();
+          dupUpdateBadge();
+          loadArtists();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Delete failed', 'error');
+        });
+    });
   }
 
   function dupResolveAll() {
@@ -1256,23 +1404,24 @@ var iRadioMedia = (function () {
     }
 
     if (deleteIds.length === 0) return;
-    if (!confirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.')) return;
-
-    iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
-      .then(function (data) {
-        showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
-        dupGroups = [];
-        dupRenderGroups();
-        dupUpdateSummary();
-        dupUpdateBadge();
-        loadArtists();
-        document.getElementById('btnDupDeleteAll').style.display = 'none';
-        document.getElementById('dupResults').innerHTML =
-          '<p class="text-dim" style="padding:30px 0;text-align:center;opacity:.5">Your library is clean!</p>';
-      })
-      .catch(function (err) {
-        showToast((err && err.error) || 'Delete failed', 'error');
-      });
+    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.', { title: 'Delete All Duplicates', okLabel: 'Delete All' }).then(function (ok) {
+      if (!ok) return;
+      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
+        .then(function (data) {
+          showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
+          dupGroups = [];
+          dupRenderGroups();
+          dupUpdateSummary();
+          dupUpdateBadge();
+          loadArtists();
+          document.getElementById('btnDupDeleteAll').style.display = 'none';
+          document.getElementById('dupResults').innerHTML =
+            '<p class="text-dim" style="padding:30px 0;text-align:center;opacity:.5">Your library is clean!</p>';
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Delete failed', 'error');
+        });
+    });
   }
 
   function dupUpdateSummary() {
@@ -1324,10 +1473,6 @@ var iRadioMedia = (function () {
     return div.innerHTML;
   }
 
-  function escAttr(str) {
-    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  }
-
   function showToast(msg, type) {
     var container = document.getElementById('toasts');
     var toast     = document.createElement('div');
@@ -1340,12 +1485,13 @@ var iRadioMedia = (function () {
   // ── Public API ────────────────────────────────────────
 
   return {
-    init:            init,
-    editSong:        editSong,
-    trashSong:       trashSong,
-    restoreSong:     restoreSong,
-    purgeSong:       purgeSong,
-    goToPage:        goToPage,
-    dupResolveGroup: dupResolveGroup,
+    init:              init,
+    editSong:          editSong,
+    trashSong:         trashSong,
+    restoreSong:       restoreSong,
+    purgeSong:         purgeSong,
+    purgeInactiveSong: purgeInactiveSong,
+    goToPage:          goToPage,
+    dupResolveGroup:   dupResolveGroup,
   };
 })();

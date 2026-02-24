@@ -143,9 +143,11 @@ class RotationEngine
     /**
      * Reorder to enforce minimum gap between songs with the same base title.
      *
-     * Strips parenthetical suffixes and trailing whitespace so that
-     * "25 Minutes (Soul Version)" and "25 Minutes (1960s Remix)" share
-     * the base title "25 Minutes" and are kept apart.
+     * Strips rendition suffixes (parenthesized, bracketed, dash-separated,
+     * and bare keywords like "Remix", "Acoustic", "Live") so that
+     * "25 Minutes (Soul Version)", "25 Minutes - Remix", and
+     * "25 Minutes Acoustic" all share the base title "25 Minutes"
+     * and are kept apart.
      *
      * @param array $songs  Ordered array with 'title' key.
      * @param int   $minGap Minimum positions between same base title (default 2).
@@ -450,16 +452,44 @@ class RotationEngine
     }
 
     /**
-     * Extract base title by stripping parenthetical/bracketed suffixes.
-     * "25 Minutes (Soul Version)" → "25 minutes"
-     * "Hello [Remix]"             → "hello"
+     * Extract base title by stripping rendition/variant suffixes.
+     *
+     * Handles multiple formats:
+     *   "25 Minutes (Soul Version)"         → "25 minutes"
+     *   "Hello [Remix]"                     → "hello"
+     *   "Song (Feat. X) (Remix)"            → "song"
+     *   "Bohemian Rhapsody - Acoustic"      → "bohemian rhapsody"
+     *   "Bohemian Rhapsody Remix"           → "bohemian rhapsody"
+     *   "My Song - Live Version"            → "my song"
+     *   "Track feat. Artist"                → "track"
+     *   "Track ft. Artist"                  → "track"
      */
     private static function baseTitle(string $title): string
     {
-        // Remove anything in parentheses or brackets at the end
-        $base = preg_replace('/\s*[\(\[][^\)\]]*[\)\]]\s*$/', '', $title);
-        // Repeat to handle nested: "Song (Feat. X) (Remix)"
-        $base = preg_replace('/\s*[\(\[][^\)\]]*[\)\]]\s*$/', '', $base);
+        // 1. Remove anything in parentheses or brackets (repeat for nested)
+        $base = preg_replace('/\s*[\(\[][^\)\]]*[\)\]]\s*/', ' ', $title);
+
+        // 2. Remove dash-separated suffixes containing rendition keywords
+        $base = preg_replace(
+            '/\s+[-–—]\s+(?:(?:.*\b(?:remix|acoustic|live|radio|club|extended|instrumental|'
+            . 'unplugged|remaster(?:ed)?|version|ver\.|mix|edit|dub|demo|karaoke|stripped|'
+            . 'deluxe|bonus|original|alternate|alt\.|cover|reprise|interlude|orchestral|'
+            . 'symphony|piano|guitar|vocal).*))$/i',
+            '',
+            $base
+        );
+
+        // 3. Remove trailing bare rendition keywords (no dash needed)
+        $base = preg_replace(
+            '/\s+(?:remix|acoustic|live|radio\s+edit|club\s+mix|extended\s+(?:mix|version)|'
+            . 'instrumental|unplugged|remaster(?:ed)?|karaoke|stripped|orchestral)$/i',
+            '',
+            $base
+        );
+
+        // 4. Remove trailing "feat./ft." and everything after
+        $base = preg_replace('/\s+(?:feat\.?|ft\.?)\s+.+$/i', '', $base);
+
         return mb_strtolower(trim($base));
     }
 

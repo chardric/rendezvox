@@ -1072,14 +1072,15 @@ var iRadioSchedules = (function() {
   }
 
   function deleteSchedule(id) {
-    if (!confirm('Delete this schedule?')) return;
-
-    iRadioAPI.del('/admin/schedules/' + id).then(function() {
-      showToast('Schedule deleted');
-      loadSchedules();
-      notifyStreamReload();
-    }).catch(function(err) {
-      showToast((err && err.error) || 'Delete failed', 'error');
+    iRadioConfirm('Delete this schedule?', { title: 'Delete Schedule', okLabel: 'Delete' }).then(function(ok) {
+      if (!ok) return;
+      iRadioAPI.del('/admin/schedules/' + id).then(function() {
+        showToast('Schedule deleted');
+        loadSchedules();
+        notifyStreamReload();
+      }).catch(function(err) {
+        showToast((err && err.error) || 'Delete failed', 'error');
+      });
     });
   }
 
@@ -1146,34 +1147,218 @@ var iRadioSchedules = (function() {
     document.getElementById('surpriseScheduleModal').classList.add('hidden');
     bulkBusy = true;
 
-    var totalMin = (endHour - startHour) * 60;
+    // Fetch reserved keywords setting, then generate schedule
+    iRadioAPI.get('/admin/settings').then(function(result) {
+      var keywordsRaw = '';
+      (result.settings || []).forEach(function(s) {
+        if (s.key === 'schedule_reserved_keywords') keywordsRaw = s.value || '';
+      });
+      generateSurpriseSchedule(startHour, endHour, blockMin, active, keywordsRaw);
+    }).catch(function() {
+      // If settings fetch fails, proceed without reserved keywords
+      generateSurpriseSchedule(startHour, endHour, blockMin, active, '');
+    });
+  }
 
-    // Build time blocks
-    var blocks = [];
-    var cursor = startHour * 60;
-    var endMin = endHour * 60;
-    while (cursor < endMin) {
-      var blockEnd = Math.min(cursor + blockMin, endMin);
-      blocks.push({ start: cursor, end: blockEnd });
-      cursor = blockEnd;
+  function generateSurpriseSchedule(startHour, endHour, blockMin, active, keywordsRaw) {
+    // Parse keywords
+    var keywords = keywordsRaw.split(',')
+      .map(function(k) { return k.trim().toLowerCase(); })
+      .filter(function(k) { return k.length > 0; });
+
+    // Split playlists into reserved and regular
+    var reserved = [];
+    var regular = [];
+    if (keywords.length > 0) {
+      active.forEach(function(p) {
+        var nameLower = p.name.toLowerCase();
+        var isReserved = keywords.some(function(kw) { return nameLower.indexOf(kw) !== -1; });
+        if (isReserved) reserved.push(p);
+        else regular.push(p);
+      });
     }
 
-    // Assign random playlists per day (no consecutive repeats within each day)
+    // If no reserved playlists found, treat all as regular
+    var hasReserved = reserved.length > 0 && keywords.length > 0;
+    if (!hasReserved) {
+      regular = active;
+    }
+
+    var schedStart = startHour * 60;
+    var schedEnd = endHour * 60;
     var bulkSchedules = [];
-    for (var day = 0; day < 7; day++) {
-      var lastId = null;
-      blocks.forEach(function(block) {
-        var candidates = active.filter(function(p) { return p.id !== lastId || active.length === 1; });
+
+    // ── Reserved slots: own full-duration entries, independent of blockMin ──
+    // reservedSlots[d] = array of {start, end} for that day
+    var reservedSlots = [];
+    for (var d = 0; d < 7; d++) reservedSlots[d] = [];
+
+    if (hasReserved) {
+      // 4 AM – 6 AM daily (all 7 days), clipped to user's range
+      var earlyStart = Math.max(4 * 60, schedStart);
+      var earlyEnd = Math.min(6 * 60, schedEnd);
+      if (earlyStart < earlyEnd) {
+        for (var d = 0; d < 7; d++) {
+          reservedSlots[d].push({ start: earlyStart, end: earlyEnd });
+        }
+      }
+
+      // 11 AM – 1 PM on 2-3 random weekdays (Mon–Fri = days 0-4)
+      var weekdays = [0, 1, 2, 3, 4];
+      for (var i = weekdays.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = weekdays[i]; weekdays[i] = weekdays[j]; weekdays[j] = tmp;
+      }
+      var midDayCount = 2 + Math.floor(Math.random() * 2); // 2 or 3
+      var midDayDays = weekdays.slice(0, midDayCount);
+
+      var midStart = Math.max(11 * 60, schedStart);
+      var midEnd = Math.min(13 * 60, schedEnd);
+      if (midStart < midEnd) {
+        for (var i = 0; i < midDayDays.length; i++) {
+          reservedSlots[midDayDays[i]].push({ start: midStart, end: midEnd });
+        }
+      }
+
+      // Create one schedule entry per reserved slot, rotating playlists
+      var lastPicked = null;
+      for (var d = 0; d < 7; d++) {
+        for (var si = 0; si < reservedSlots[d].length; si++) {
+          var slot = reservedSlots[d][si];
+          var candidates = reserved.filter(function(p) { return p.id !== lastPicked; });
+          if (candidates.length === 0) candidates = reserved;
+          var pick = candidates[Math.floor(Math.random() * candidates.length)];
+          lastPicked = pick.id;
+          bulkSchedules.push({
+            playlist_id: pick.id,
+            days_of_week: [d],
+            start_time: formatTimeHHMM(slot.start),
+            end_time: formatTimeHHMM(slot.end),
+            priority: 0
+          });
+        }
+      }
+    }
+
+    // ── Regular blocks: split around reserved slots per day ──
+    // Compute free (non-reserved) time ranges for each day
+    var fillPool = hasReserved ? regular : active;
+    // allBlocks[d] = [{start, end, playlist}] — includes BOTH reserved and regular
+    // for accurate cross-day adjacency checks
+    var allBlocks = [];
+
+    for (var d = 0; d < 7; d++) {
+      // Sort reserved slots for this day by start time
+      var sorted = reservedSlots[d].slice().sort(function(a, b) { return a.start - b.start; });
+
+      // Build free ranges by subtracting reserved slots
+      var freeRanges = [];
+      var cursor = schedStart;
+      for (var si = 0; si < sorted.length; si++) {
+        if (cursor < sorted[si].start) {
+          freeRanges.push({ start: cursor, end: sorted[si].start });
+        }
+        cursor = Math.max(cursor, sorted[si].end);
+      }
+      if (cursor < schedEnd) {
+        freeRanges.push({ start: cursor, end: schedEnd });
+      }
+
+      // Divide each free range into blocks of blockMin
+      var blocks = [];
+      for (var ri = 0; ri < freeRanges.length; ri++) {
+        var range = freeRanges[ri];
+        var c = range.start;
+        while (c < range.end) {
+          var blockEnd = Math.min(c + blockMin, range.end);
+          blocks.push({ start: c, end: blockEnd });
+          c = blockEnd;
+        }
+      }
+
+      // Build lookup of reserved entries for this day (from bulkSchedules)
+      var reservedEntries = [];
+      for (var si = 0; si < reservedSlots[d].length; si++) {
+        // Find the matching bulkSchedule entry for this reserved slot + day
+        var slot = reservedSlots[d][si];
+        for (var bsi = 0; bsi < bulkSchedules.length; bsi++) {
+          var bs = bulkSchedules[bsi];
+          if (bs.days_of_week[0] === d &&
+              bs.start_time === formatTimeHHMM(slot.start) &&
+              bs.end_time === formatTimeHHMM(slot.end)) {
+            var rp = null;
+            for (var ri2 = 0; ri2 < reserved.length; ri2++) {
+              if (reserved[ri2].id === bs.playlist_id) { rp = reserved[ri2]; break; }
+            }
+            if (rp) reservedEntries.push({ start: slot.start, end: slot.end, playlist: rp });
+            break;
+          }
+        }
+      }
+
+      // Assign playlists — no same playlist adjacent on same day,
+      // and avoid matching the overlapping block on previous day
+      var prevId = null;
+      // If the first regular block starts right after a reserved slot,
+      // seed prevId with that reserved playlist
+      if (blocks.length > 0 && reservedEntries.length > 0) {
+        for (var ri3 = 0; ri3 < reservedEntries.length; ri3++) {
+          if (reservedEntries[ri3].end === blocks[0].start) {
+            prevId = reservedEntries[ri3].playlist.id;
+            break;
+          }
+        }
+      }
+
+      for (var bi = 0; bi < blocks.length; bi++) {
+        var exclude = {};
+        if (prevId) exclude[prevId] = true;
+
+        // Check if a reserved slot follows this block — exclude its playlist too
+        for (var ri4 = 0; ri4 < reservedEntries.length; ri4++) {
+          if (reservedEntries[ri4].start === blocks[bi].end) {
+            exclude[reservedEntries[ri4].playlist.id] = true;
+          }
+        }
+
+        // Cross-day: find previous day's block (regular OR reserved) that overlaps
+        if (d > 0 && allBlocks[d - 1]) {
+          for (var pi = 0; pi < allBlocks[d - 1].length; pi++) {
+            var prev = allBlocks[d - 1][pi];
+            if (prev.start < blocks[bi].end && prev.end > blocks[bi].start) {
+              exclude[prev.playlist.id] = true;
+              break;
+            }
+          }
+        }
+
+        var candidates = fillPool.filter(function(p) { return !exclude[p.id]; });
+        if (candidates.length === 0) candidates = fillPool;
+        if (candidates.length === 0) candidates = active;
         var pick = candidates[Math.floor(Math.random() * candidates.length)];
-        lastId = pick.id;
+
+        blocks[bi].playlist = pick;
+        prevId = pick.id;
+
+        // If a reserved slot follows, update prevId to the reserved playlist
+        for (var ri5 = 0; ri5 < reservedEntries.length; ri5++) {
+          if (reservedEntries[ri5].start === blocks[bi].end) {
+            prevId = reservedEntries[ri5].playlist.id;
+          }
+        }
+
         bulkSchedules.push({
           playlist_id: pick.id,
-          days_of_week: [day],
-          start_time: formatTimeHHMM(block.start),
-          end_time: formatTimeHHMM(block.end),
+          days_of_week: [d],
+          start_time: formatTimeHHMM(blocks[bi].start),
+          end_time: formatTimeHHMM(blocks[bi].end),
           priority: 0
         });
-      });
+      }
+
+      // Merge regular + reserved into allBlocks for cross-day checks
+      allBlocks[d] = blocks.concat(reservedEntries);
+      allBlocks[d].sort(function(a, b) { return a.start - b.start; });
     }
 
     // Single bulk request: clears existing + creates all new schedules
@@ -1197,18 +1382,19 @@ var iRadioSchedules = (function() {
       showToast('No schedules to clear');
       return;
     }
-    if (!confirm('Delete all ' + schedules.length + ' schedules?')) return;
-
-    iRadioAPI.post('/admin/schedules/bulk', {
-      clear_existing: true,
-      schedules: []
-    }).then(function() {
-      showToast('All schedules cleared');
-      loadSchedules();
-      iRadioAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
-    }).catch(function(err) {
-      showToast((err && err.error) || 'Clear failed', 'error');
-      loadSchedules();
+    iRadioConfirm('Delete all ' + schedules.length + ' schedules?', { title: 'Clear All Schedules', okLabel: 'Clear All' }).then(function(ok) {
+      if (!ok) return;
+      iRadioAPI.post('/admin/schedules/bulk', {
+        clear_existing: true,
+        schedules: []
+      }).then(function() {
+        showToast('All schedules cleared');
+        loadSchedules();
+        iRadioAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
+      }).catch(function(err) {
+        showToast((err && err.error) || 'Clear failed', 'error');
+        loadSchedules();
+      });
     });
   }
 

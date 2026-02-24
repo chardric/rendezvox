@@ -16,7 +16,7 @@ class StationConfigHandler
 
         $stmt = $db->query("
             SELECT key, value FROM settings
-            WHERE key IN ('crossfade_ms', 'station_name', 'station_timezone')
+            WHERE key IN ('crossfade_ms', 'station_name', 'station_timezone', 'station_logo_path')
         ");
 
         $config = [];
@@ -31,6 +31,7 @@ class StationConfigHandler
             'crossfade_ms'     => (int) ($config['crossfade_ms'] ?? 3000),
             'station_name'     => $config['station_name'] ?? 'iRadio',
             'station_timezone' => $serverTz,
+            'has_logo'         => !empty($config['station_logo_path'] ?? ''),
         ]);
     }
 }

@@ -33,6 +33,8 @@ require __DIR__ . '/../src/core/SmtpMailer.php';
 require __DIR__ . '/../src/core/SongResolver.php';
 require __DIR__ . '/../src/core/ContentFilter.php';
 require __DIR__ . '/../src/core/MetadataExtractor.php';
+require __DIR__ . '/../src/core/MetadataLookup.php';
+require __DIR__ . '/../src/core/DiskSpace.php';
 require __DIR__ . '/../src/core/ArtistNormalizer.php';
 
 // -- Routes --
