@@ -1,5 +1,7 @@
 import Foundation
 
+let BASE_URL = "https://radio.chadlinuxtech.net"
+
 // MARK: - API Response Models
 
 struct StationConfig: Codable {
@@ -12,6 +14,7 @@ struct SongInfo: Codable {
     let title: String
     let artist: String
     let duration_ms: Int?
+    let has_cover_art: Bool?
 }
 
 struct RequestInfo: Codable {
@@ -58,6 +61,8 @@ struct PlayerState {
     var tagline: String = "Online Radio"
     var songTitle: String = "\u{2014}"
     var songArtist: String = ""
+    var songId: Int = 0
+    var hasCoverArt: Bool = false
     var durationMs: Int = 0
     var startedAtMs: TimeInterval = 0
     var nextTitle: String = "\u{2014}"
@@ -66,8 +71,10 @@ struct PlayerState {
     var isEmergency: Bool = false
     var dedicationName: String?
     var dedicationMessage: String?
-    var isPlaying: Bool = false
-    var isBuffering: Bool = false
-    var serverUrl: String = ""
     var volume: Float = 0.8
+
+    var coverArtUrl: String {
+        guard hasCoverArt, songId > 0 else { return "" }
+        return "\(BASE_URL)/api/cover?id=\(songId)"
+    }
 }

@@ -59,6 +59,32 @@ register_shutdown_function(function () use ($lockFile) {
     @unlink($lockFile);
 });
 
+// ── Recover stale .tmp_rename_* items from a previous crashed run ──
+// Must run before the directory scan so orphans don't appear as rename candidates.
+(function () use ($MUSIC_DIR) {
+    $iter = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($MUSIC_DIR, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iter as $item) {
+        $path = $item->getPathname();
+        if (!preg_match('/\.tmp_rename_\d+$/', $path)) continue;
+        $orig = preg_replace('/\.tmp_rename_\d+$/', '', $path);
+        if (!file_exists($orig)) {
+            // Original gone — the first rename completed but second did not; restore it
+            rename($path, $orig);
+            log_msg("Recovered stale tmp: " . basename($orig));
+        } elseif (is_dir($path)) {
+            // Both exist as directories — merge files from tmp into original, then remove tmp
+            $moved = mergeDirFiles($path, $orig);
+            log_msg("Merged stale tmp into original: " . basename($orig) . " ({$moved} file(s))");
+        } else {
+            @unlink($path);
+            log_msg("Removed stale tmp file: " . basename($path));
+        }
+    }
+})();
+
 function shouldStop(string $stopFile): bool
 {
     if (file_exists($stopFile)) {
@@ -297,6 +323,27 @@ function mb_ucfirst(string $str): string
     return mb_strtoupper(mb_substr($str, 0, 1)) . mb_substr($str, 1);
 }
 
+/**
+ * Merge files (not subdirs) from $src into $dst, then remove $src if empty.
+ * Used when two directories with the same case-insensitive name both exist
+ * on a case-sensitive filesystem and need to be consolidated.
+ * Returns the number of files moved.
+ */
+function mergeDirFiles(string $src, string $dst): int
+{
+    $moved = 0;
+    foreach (scandir($src) ?: [] as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $srcPath = $src . '/' . $item;
+        $dstPath = $dst . '/' . $item;
+        if (!is_file($srcPath)) continue; // subdirs handled by dirRenames pass
+        if (file_exists($dstPath)) continue; // skip conflicts
+        if (rename($srcPath, $dstPath)) $moved++;
+    }
+    @rmdir($src); // remove only if now empty
+    return $moved;
+}
+
 // ── Main ──────────────────────────────────────────────────
 
 $db = Database::get();
@@ -338,7 +385,8 @@ $diskDirIterator = new RecursiveIteratorIterator(
     new RecursiveCallbackFilterIterator(
         new RecursiveDirectoryIterator($MUSIC_DIR, FilesystemIterator::SKIP_DOTS),
         function ($current) {
-            return !str_starts_with($current->getFilename(), '.');
+            $name = $current->getFilename();
+            return !str_starts_with($name, '.') && !preg_match('/\.tmp_rename_\d+$/', $name);
         }
     ),
     RecursiveIteratorIterator::SELF_FIRST
@@ -416,13 +464,25 @@ foreach ($dirRenames as $oldFull => $info) {
         // Step 1: Rename on disk
         if (is_dir($oldFull)) {
             if (is_dir($newFull) && strtolower($oldFull) === strtolower($newFull)) {
-                $tmpDir = $oldFull . '.tmp_rename_' . getmypid();
-                rename($oldFull, $tmpDir);
-                rename($tmpDir, $newFull);
+                if (realpath($oldFull) === realpath($newFull)) {
+                    // Case-insensitive FS: same physical dir, just changing case
+                    $tmpDir = $oldFull . '.tmp_rename_' . getmypid();
+                    if (rename($oldFull, $tmpDir) && !rename($tmpDir, $newFull)) {
+                        rename($tmpDir, $oldFull); // rollback
+                        log_msg("    WARN: case-rename failed, rolled back");
+                        $stats['processed']++;
+                        writeProgress($progressFile, $stats);
+                        continue;
+                    }
+                } else {
+                    // Case-sensitive FS: two separate dirs with same lowercased name — merge files
+                    $merged = mergeDirFiles($oldFull, $newFull);
+                    log_msg("    MERGE: {$merged} file(s) moved into target dir, removed old");
+                }
             } elseif (!is_dir($newFull)) {
                 rename($oldFull, $newFull);
             } else {
-                log_msg("    SKIP (target exists)");
+                log_msg("    SKIP (target exists, different name)");
                 $stats['processed']++;
                 writeProgress($progressFile, $stats);
                 continue;
@@ -520,8 +580,13 @@ foreach ($fileRenames as $r) {
                 rename($r['old_abs'], $r['new_abs']);
             } elseif (strtolower($r['old_abs']) === strtolower($r['new_abs'])) {
                 $tmp = $r['old_abs'] . '.tmp_rename_' . getmypid();
-                rename($r['old_abs'], $tmp);
-                rename($tmp, $r['new_abs']);
+                if (rename($r['old_abs'], $tmp) && !rename($tmp, $r['new_abs'])) {
+                    rename($tmp, $r['old_abs']); // rollback
+                    log_msg("    WARN: case-rename failed, rolled back");
+                    $stats['processed']++;
+                    writeProgress($progressFile, $stats);
+                    continue;
+                }
             } else {
                 log_msg("    SKIP (target exists)");
                 $stats['processed']++;

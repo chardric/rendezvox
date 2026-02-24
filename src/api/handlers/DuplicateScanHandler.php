@@ -48,13 +48,19 @@ class DuplicateScanHandler
             foreach ($rows as $row) {
                 $absPath = $this->resolveFilePath($row['file_path'] ?? '');
                 $fileSize = 0;
-                if ($absPath !== '' && file_exists($absPath)) {
+                $fileExists = ($absPath !== '' && file_exists($absPath));
+                if ($fileExists) {
                     $fileSize = (int) filesize($absPath);
                 }
 
-                $song = $this->formatSong($row, $fileSize);
+                $song = $this->formatSong($row, $fileSize, $fileExists);
                 $songs[] = $song;
                 $exactSongIds[(int) $row['id']] = true;
+
+                // Never recommend keeping a zero-byte or missing file
+                if ($fileSize === 0) {
+                    continue;
+                }
 
                 $plays = (int) $row['play_count'];
                 if ($plays > $bestPlays || ($plays === $bestPlays && $fileSize > $bestSize)) {
@@ -128,12 +134,18 @@ class DuplicateScanHandler
                         $row = $songMap[$id];
                         $absPath = $this->resolveFilePath($row['file_path'] ?? '');
                         $fileSize = 0;
-                        if ($absPath !== '' && file_exists($absPath)) {
+                        $fileExists = ($absPath !== '' && file_exists($absPath));
+                        if ($fileExists) {
                             $fileSize = (int) filesize($absPath);
                         }
 
-                        $song = $this->formatSong($row, $fileSize);
+                        $song = $this->formatSong($row, $fileSize, $fileExists);
                         $songs[] = $song;
+
+                        // Never recommend keeping a zero-byte or missing file
+                        if ($fileSize === 0) {
+                            continue;
+                        }
 
                         $plays = (int) $row['play_count'];
                         if ($plays > $bestPlays || ($plays === $bestPlays && $fileSize > $bestSize)) {
@@ -166,7 +178,7 @@ class DuplicateScanHandler
         ]);
     }
 
-    private function formatSong(array $row, int $fileSize): array
+    private function formatSong(array $row, int $fileSize, bool $fileExists): array
     {
         return [
             'id'           => (int) $row['id'],
@@ -176,6 +188,7 @@ class DuplicateScanHandler
             'file_path'    => $row['file_path'],
             'file_hash'    => $row['file_hash'],
             'file_size'    => $fileSize,
+            'file_missing' => !$fileExists,
             'duration_ms'  => (int) $row['duration_ms'],
             'play_count'   => (int) $row['play_count'],
             'is_active'    => (bool) $row['is_active'],

@@ -36,3 +36,8 @@ mobile/ios/*.xcodeproj/
 mobile/ios/*.xcworkspace/
 mobile/ios/build/
 mobile/ios/DerivedData/
+
+# Desktop (Electron) build artifacts
+desktop/node_modules/
+desktop/dist/
+desktop/out/
