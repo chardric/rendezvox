@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Duplicate Detection & Removal
+   RendezVox Admin — Duplicate Detection & Removal
    ============================================================ */
-var iRadioDuplicates = (function() {
+var RendezVoxDuplicates = (function() {
 
   var groups = [];
 
@@ -20,7 +20,7 @@ var iRadioDuplicates = (function() {
     document.getElementById('summary').textContent = '';
     document.getElementById('results').innerHTML = '<p class="text-dim">Scanning library for duplicates\u2026</p>';
 
-    iRadioAPI.get('/admin/duplicates/scan')
+    RendezVoxAPI.get('/admin/duplicates/scan')
       .then(function(data) {
         groups = data.groups || [];
         renderGroups();
@@ -63,7 +63,7 @@ var iRadioDuplicates = (function() {
       html += '<div class="card" style="margin-bottom:16px;padding:16px" data-group="' + idx + '">';
       html += '<div class="flex items-center justify-between" style="margin-bottom:12px">';
       html += '<strong>Group ' + (idx + 1) + badge + '</strong>';
-      html += '<button type="button" class="btn btn-danger btn-sm" onclick="iRadioDuplicates.resolveGroup(' + idx + ')">Delete Duplicates</button>';
+      html += '<button type="button" class="btn btn-danger btn-sm" onclick="RendezVoxDuplicates.resolveGroup(' + idx + ')">Delete Duplicates</button>';
       html += '</div>';
 
       html += '<table style="width:100%"><thead><tr>';
@@ -121,13 +121,13 @@ var iRadioDuplicates = (function() {
       return;
     }
 
-    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.', {
+    RendezVoxConfirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.', {
       title: 'Delete Duplicates',
       okLabel: 'Delete'
     }).then(function(ok) {
       if (!ok) return;
 
-      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
+      RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
         .then(function(data) {
           showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
           groups.splice(idx, 1);
@@ -166,13 +166,13 @@ var iRadioDuplicates = (function() {
       return;
     }
 
-    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.', {
+    RendezVoxConfirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.', {
       title: 'Delete All Duplicates',
       okLabel: 'Delete All'
     }).then(function(ok) {
       if (!ok) return;
 
-      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
+      RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
         .then(function(data) {
           showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
           groups = [];

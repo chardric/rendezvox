@@ -50,7 +50,7 @@ class AvatarUploadHandler
             return;
         }
 
-        $dir = '/var/lib/iradio/avatars';
+        $dir = '/var/lib/rendezvox/avatars';
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }

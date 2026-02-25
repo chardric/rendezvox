@@ -28,7 +28,7 @@ INSERT INTO settings (key, value, type, description) VALUES
     ('smtp_password',     '',       'string',  'SMTP authentication password'),
     ('smtp_encryption',   'tls',    'string',  'SMTP encryption (tls, ssl, none)'),
     ('smtp_from_address', '',       'string',  'Sender email address'),
-    ('smtp_from_name',    'iRadio', 'string',  'Sender display name')
+    ('smtp_from_name',    'RendezVox', 'string',  'Sender display name')
 ON CONFLICT (key) DO NOTHING;
 
 COMMIT;

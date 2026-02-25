@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Analytics
+   RendezVox Admin — Analytics
    ============================================================ */
-var iRadioAnalytics = (function() {
+var RendezVoxAnalytics = (function() {
 
   // ── Color palette ──────────────────────────────────────
   var COLORS = [
@@ -15,7 +15,7 @@ var iRadioAnalytics = (function() {
   function colorAt(i) { return COLORS[i % COLORS.length]; }
 
   function init() {
-    iRadioAPI.getTimezone(); // pre-load station timezone
+    RendezVoxAPI.getTimezone(); // pre-load station timezone
     initTabs();
     loadListenerChart('24h');
     loadPopularSongs();
@@ -65,7 +65,7 @@ var iRadioAnalytics = (function() {
   // ── Listener line chart ──────────────────────────────
 
   function loadListenerChart(range) {
-    iRadioAPI.get('/admin/stats/listeners?range=' + range).then(function(data) {
+    RendezVoxAPI.get('/admin/stats/listeners?range=' + range).then(function(data) {
       var canvas = document.getElementById('listenerChart');
       var emptyEl = document.getElementById('listenerEmpty');
 
@@ -125,7 +125,7 @@ var iRadioAnalytics = (function() {
     for (var i = 0; i < points.length; i += xStep) {
       var x = pad.left + (i / (points.length - 1 || 1)) * cw;
       var d = new Date(points[i].timestamp);
-      var label = d.toLocaleTimeString([], Object.assign({ hour: '2-digit', minute: '2-digit' }, iRadioAPI.tzOpts()));
+      var label = d.toLocaleTimeString([], Object.assign({ hour: '2-digit', minute: '2-digit' }, RendezVoxAPI.tzOpts()));
       ctx.fillStyle = TEXT;
       ctx.fillText(label, x, h - 6);
     }
@@ -187,7 +187,7 @@ var iRadioAnalytics = (function() {
   // ── Popular songs bar chart ──────────────────────────
 
   function loadPopularSongs() {
-    iRadioAPI.get('/admin/stats/popular-songs?limit=15').then(function(data) {
+    RendezVoxAPI.get('/admin/stats/popular-songs?limit=15').then(function(data) {
       renderPopularTable(data.songs);
       drawBarChart(document.getElementById('popularChart'), data.songs, 'play_count');
     });
@@ -307,7 +307,7 @@ var iRadioAnalytics = (function() {
   // ── Popular requests ─────────────────────────────────
 
   function loadPopularRequests() {
-    iRadioAPI.get('/admin/stats/popular-requests?limit=15').then(function(data) {
+    RendezVoxAPI.get('/admin/stats/popular-requests?limit=15').then(function(data) {
       renderRequestedTable(data.songs);
       drawHorizontalBarChart(document.getElementById('requestChart'), data.songs);
     });
@@ -401,7 +401,7 @@ var iRadioAnalytics = (function() {
   // ── Library stats ──────────────────────────────────────
 
   function loadLibraryStats() {
-    iRadioAPI.get('/admin/library-stats').then(function(data) {
+    RendezVoxAPI.get('/admin/library-stats').then(function(data) {
       renderLibraryStats(data);
     }).catch(function() {
       var el = document.getElementById('libraryStatsGrid');

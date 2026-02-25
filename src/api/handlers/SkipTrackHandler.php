@@ -6,11 +6,11 @@ declare(strict_types=1);
  * POST /api/admin/skip-track
  *
  * Tells Liquidsoap to skip the current track immediately.
- * Connects to the Liquidsoap telnet server and sends iRadio.skip.
+ * Connects to the Liquidsoap telnet server and sends RendezVox.skip.
  */
 class SkipTrackHandler
 {
-    private const LIQ_HOST    = 'iradio-liquidsoap';
+    private const LIQ_HOST    = 'rendezvox-liquidsoap';
     private const LIQ_PORT    = 1234;
     private const LIQ_TIMEOUT = 3;
 

@@ -26,7 +26,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function fetch(url) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : require('http');
-    mod.get(url, { headers: { 'User-Agent': 'iRadio-geo-builder/1.0' } }, (res) => {
+    mod.get(url, { headers: { 'User-Agent': 'RendezVox-geo-builder/1.0' } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetch(res.headers.location).then(resolve, reject);
       }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 class MediaPendingCountHandler
 {
-    private const UPLOAD_DIR = '/var/lib/iradio/music/upload';
+    private const UPLOAD_DIR = '/var/lib/rendezvox/music/upload';
     private const EXTENSIONS = ['mp3', 'flac', 'ogg', 'wav', 'aac', 'm4a'];
 
     public function handle(): void

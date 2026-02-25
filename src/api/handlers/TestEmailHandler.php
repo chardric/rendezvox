@@ -24,7 +24,7 @@ class TestEmailHandler
             // Get station name for branding
             $nameStmt = $db->prepare("SELECT value FROM settings WHERE key = 'station_name'");
             $nameStmt->execute();
-            $stationName = $nameStmt->fetchColumn() ?: 'iRadio';
+            $stationName = $nameStmt->fetchColumn() ?: 'RendezVox';
 
             $html = <<<HTML
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px">

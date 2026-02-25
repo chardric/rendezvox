@@ -151,7 +151,7 @@ class GeoHandler
 
         $ctx = stream_context_create([
             'http' => [
-                'header'  => "User-Agent: iRadio/1.0\r\n",
+                'header'  => "User-Agent: RendezVox/1.0\r\n",
                 'timeout' => 5,
             ],
         ]);

@@ -9,11 +9,11 @@ class Database
     public static function get(): PDO
     {
         if (self::$instance === null) {
-            $host = getenv('IRADIO_DB_HOST') ?: 'postgres';
-            $port = getenv('IRADIO_DB_PORT') ?: '5432';
-            $name = getenv('IRADIO_DB_NAME') ?: 'iradio';
-            $user = getenv('IRADIO_DB_USER') ?: 'iradio';
-            $pass = getenv('IRADIO_DB_PASSWORD') ?: '';
+            $host = getenv('RENDEZVOX_DB_HOST') ?: 'postgres';
+            $port = getenv('RENDEZVOX_DB_PORT') ?: '5432';
+            $name = getenv('RENDEZVOX_DB_NAME') ?: 'rendezvox';
+            $user = getenv('RENDEZVOX_DB_USER') ?: 'rendezvox';
+            $pass = getenv('RENDEZVOX_DB_PASSWORD') ?: '';
 
             $dsn = "pgsql:host={$host};port={$port};dbname={$name}";
 

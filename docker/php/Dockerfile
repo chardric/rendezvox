@@ -1,5 +1,5 @@
 # ==========================================================
-# iRadio — PHP-FPM 8.3
+# RendezVox — PHP-FPM 8.3
 # ==========================================================
 FROM php:8.3-fpm-alpine
 
@@ -17,8 +17,8 @@ RUN apk add --no-cache \
     > /usr/local/bin/php-fpm-healthcheck && \
     chmod +x /usr/local/bin/php-fpm-healthcheck
 
-COPY php.ini /usr/local/etc/php/conf.d/iradio.ini
-COPY fpm-pool.conf /usr/local/etc/php-fpm.d/zzz-iradio.conf
+COPY php.ini /usr/local/etc/php/conf.d/rendezvox.ini
+COPY fpm-pool.conf /usr/local/etc/php-fpm.d/zzz-rendezvox.conf
 COPY crontab /etc/crontabs/www-data
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

@@ -93,7 +93,7 @@ class UserCreateHandler
 
                 $nameStmt = $db->prepare("SELECT value FROM settings WHERE key = 'station_name'");
                 $nameStmt->execute();
-                $stationName = $nameStmt->fetchColumn() ?: 'iRadio';
+                $stationName = $nameStmt->fetchColumn() ?: 'RendezVox';
 
                 $html = $this->buildInviteEmail($stationName, $activateUrl, $displayName ?: $username);
                 $mailer->send($email, "{$stationName} — You're Invited", $html);

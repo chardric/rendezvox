@@ -85,7 +85,7 @@ class ForgotPasswordHandler
             // Get station name
             $nameStmt = $db->prepare("SELECT value FROM settings WHERE key = 'station_name'");
             $nameStmt->execute();
-            $stationName = $nameStmt->fetchColumn() ?: 'iRadio';
+            $stationName = $nameStmt->fetchColumn() ?: 'RendezVox';
 
             $html = $this->buildEmail($stationName, $resetUrl);
             $mailer->send($user['email'], "{$stationName} — Password Reset", $html);

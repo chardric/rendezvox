@@ -1,8 +1,8 @@
-# iRadio
+# RendezVox
 
 **Online FM Radio Automation System**
 
-iRadio is a self-hosted, fully automated internet radio station built with PHP, Liquidsoap, Icecast, and PostgreSQL. It provides a complete solution for managing music libraries, scheduling playlists, streaming live audio, and accepting listener song requests — all from a modern dark-themed admin panel. Includes native Android and iOS mobile apps for listeners.
+RendezVox is a self-hosted, fully automated internet radio station built with PHP, Liquidsoap, Icecast, and PostgreSQL. It provides a complete solution for managing music libraries, scheduling playlists, streaming live audio, and accepting listener song requests — all from a modern dark-themed admin panel. Includes a native Android mobile app for listeners.
 
 ---
 
@@ -16,9 +16,8 @@ iRadio is a self-hosted, fully automated internet radio station built with PHP, 
 - [Deployment](#deployment)
   - [Standard Server (Docker)](#standard-server-docker)
   - [Raspberry Pi (Docker)](#raspberry-pi-docker)
-- [Mobile Apps](#mobile-apps)
+- [Mobile App](#mobile-app)
   - [Android](#android-app)
-  - [iOS](#ios-app)
 - [Project Structure](#project-structure)
 - [API Overview](#api-overview)
 - [Database Schema](#database-schema)
@@ -91,8 +90,8 @@ iRadio is a self-hosted, fully automated internet radio station built with PHP, 
 - Auto-reconnect on stream interruption
 - PWA support (installable, service worker)
 
-### Mobile Apps (Android & iOS)
-- Native apps matching the web listener experience
+### Mobile App (Android)
+- Native app matching the web listener experience
 - Background audio playback with media notification controls
 - Real-time now-playing via SSE with polling fallback
 - Animated vinyl disc player visualization
@@ -122,7 +121,6 @@ iRadio is a self-hosted, fully automated internet radio station built with PHP, 
   ┌────▼─────────────────────────────────────────┐
   │  Browser (Admin Panel / Listener Page)       │
   │  Android App (Kotlin/Compose + Media3)       │
-  │  iOS App (SwiftUI + AVPlayer)                │
   └──────────────────────────────────────────────┘
 
 All traffic flows through Nginx on port 80 — including the audio
@@ -156,13 +154,6 @@ stream at /stream/live. No need to expose Icecast port 8000.
 - **Networking:** OkHttp 4 + Gson
 - **Min SDK:** Android 8.0 (API 26)
 
-### iOS App
-- **Language:** Swift 5.9
-- **UI:** SwiftUI
-- **Audio:** AVPlayer with MPNowPlayingInfoCenter
-- **Networking:** URLSession (native)
-- **Min OS:** iOS 16.0
-
 ---
 
 ## System Requirements
@@ -187,22 +178,12 @@ stream at /stream/live. No need to expose Icecast port 8000.
 | **Gradle** | 8.10+ (included via wrapper) |
 | **Disk** | ~2 GB for SDK + Gradle cache |
 
-### iOS App Build
-
-| Requirement | Version |
-|-------------|---------|
-| **macOS** | macOS 14 Sonoma or later |
-| **Xcode** | 15.0 or later |
-| **XcodeGen** | 2.38+ (optional, for project generation) |
-| **CocoaPods/SPM** | Not required (no external dependencies) |
-
 ### Mobile Device Requirements
 
 | Platform | Minimum |
 |----------|---------|
 | **Android** | Android 8.0 (Oreo, API 26) — ~95% of active devices |
-| **iOS** | iOS 16.0 — iPhone 8 and later |
-| **Network** | WiFi or cellular access to the iRadio server |
+| **Network** | WiFi or cellular access to the RendezVox server |
 
 ---
 
@@ -216,8 +197,8 @@ stream at /stream/live. No need to expose Icecast port 8000.
 
 ```bash
 # Clone the repository
-git clone https://github.com/chardric/iRadio.git
-cd iRadio
+git clone https://github.com/chardric/RendezVox.git
+cd RendezVox
 
 # Auto-generate secure passwords and create .env
 cd docker
@@ -263,8 +244,8 @@ For VPS, dedicated servers, or cloud instances running Ubuntu/Debian.
 #### Automated Installation
 
 ```bash
-git clone https://github.com/chardric/iRadio.git
-cd iRadio
+git clone https://github.com/chardric/RendezVox.git
+cd RendezVox
 chmod +x deploy/server/install.sh
 sudo ./deploy/server/install.sh
 ```
@@ -281,13 +262,13 @@ The installer will:
 
 Credentials are saved to `.credentials` in the project root. View them with:
 ```bash
-sudo cat /path/to/iRadio/.credentials
+sudo cat /path/to/RendezVox/.credentials
 ```
 
 #### Management Commands
 
 ```bash
-cd /path/to/iRadio/docker
+cd /path/to/RendezVox/docker
 
 # Start all services
 docker compose up -d
@@ -329,8 +310,8 @@ For Raspberry Pi 3B and later running Raspberry Pi OS 64-bit (Bookworm or later)
 #### Automated Installation
 
 ```bash
-git clone https://github.com/chardric/iRadio.git
-cd iRadio
+git clone https://github.com/chardric/RendezVox.git
+cd RendezVox
 chmod +x deploy/rpi/install.sh
 sudo ./deploy/rpi/install.sh
 ```
@@ -355,7 +336,7 @@ The RPi deployment uses a Docker Compose override (`deploy/rpi/docker-compose.ov
 #### Management Commands
 
 ```bash
-cd /path/to/iRadio/docker
+cd /path/to/RendezVox/docker
 
 # Start (with RPi override)
 docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.yml up -d
@@ -377,7 +358,7 @@ docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.ym
 
 ---
 
-## Mobile Apps
+## Mobile App
 
 ### Android App
 
@@ -403,15 +384,15 @@ A signing keystore is included in the build config. To build:
 
 ```bash
 ./gradlew assembleRelease
-# Output: app/build/outputs/apk/release/iRadio-1.0.0.apk
+# Output: app/build/outputs/apk/release/RendezVox-1.0.0.apk
 ```
 
 #### Usage
 
 1. Open the app — you'll see the **Connect to Station** screen
-2. Enter your iRadio server address:
+2. Enter your RendezVox server address:
    - **Internet:** `radio.example.com` (auto-prepends `https://`)
-   - **LAN:** `http://192.168.1.100` (type `http://` prefix for local servers)
+   - **LAN:** `http://192.168.1.100` (type the `http://` prefix for local servers)
 3. Tap **Connect** — the player loads station info and starts streaming
 4. Audio plays in the background with notification controls
 5. Use the **Request a Song** button to submit listener requests
@@ -427,50 +408,10 @@ A signing keystore is included in the build config. To build:
 
 ---
 
-### iOS App
-
-The iOS app is a native SwiftUI application using AVPlayer, located in `mobile/ios/`.
-
-#### Prerequisites
-- macOS 14+ with Xcode 15+
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) (recommended for project generation)
-
-#### Building with XcodeGen
-
-```bash
-cd mobile/ios
-
-# Install XcodeGen (if not installed)
-brew install xcodegen
-
-# Generate Xcode project
-xcodegen generate
-
-# Open in Xcode
-open iRadio.xcodeproj
-```
-
-Then build and run in Xcode (Cmd+R) targeting a simulator or physical device.
-
-#### Building without XcodeGen
-
-1. Open Xcode and create a new iOS App project named **iRadio**
-2. Set bundle identifier to `net.downstreamtech.iradio`
-3. Replace the generated source files with the files from `mobile/ios/iRadio/`
-4. Enable **Audio, AirPlay, and Picture in Picture** in Background Modes
-5. Set **App Transport Security** to allow arbitrary loads (for HTTP/LAN)
-6. Build and run
-
-#### Usage
-
-Same flow as Android — enter server URL on first launch, then enjoy the player with background audio and lock screen controls.
-
----
-
 ## Project Structure
 
 ```
-iRadio/
+RendezVox/
 ├── docker/                      # Docker configuration
 │   ├── docker-compose.yml       # Service orchestration (5 services)
 │   ├── .env.example             # Environment template
@@ -521,7 +462,7 @@ iRadio/
 │   │       ├── build.gradle.kts # App module config
 │   │       └── src/main/
 │   │           ├── AndroidManifest.xml
-│   │           ├── java/net/downstreamtech/iradio/
+│   │           ├── java/net/downstreamtech/rendezvox/
 │   │           │   ├── RadioApp.kt
 │   │           │   ├── MainActivity.kt
 │   │           │   ├── data/Models.kt
@@ -535,21 +476,6 @@ iRadio/
 │   │           │       ├── SetupScreen.kt
 │   │           │       └── SettingsScreen.kt
 │   │           └── res/
-│   └── ios/                     # iOS app (SwiftUI)
-│       ├── project.yml          # XcodeGen project definition
-│       └── iRadio/
-│           ├── iRadioApp.swift
-│           ├── ContentView.swift
-│           ├── PlayerView.swift
-│           ├── PlayerViewModel.swift
-│           ├── RequestView.swift
-│           ├── SetupView.swift
-│           ├── SettingsView.swift
-│           ├── Models.swift
-│           ├── RadioAPI.swift
-│           ├── AudioManager.swift
-│           ├── Info.plist
-│           └── Assets.xcassets/
 ├── music/                       # Music library (not tracked)
 ├── jingles/                     # Jingle files
 └── README.md                    # This file
@@ -601,7 +527,7 @@ PostgreSQL 16 with 15 tables:
 
 ## Cloudflare Zero Trust Support
 
-iRadio is designed to run behind Cloudflare Zero Trust tunnels. Key integrations:
+RendezVox is designed to run behind Cloudflare Zero Trust tunnels. Key integrations:
 
 - **Real client IP:** Nginx uses a `map` directive on `CF-Connecting-IP` to resolve the true client IP into `REMOTE_ADDR`. PHP reads `REMOTE_ADDR` only — `X-Forwarded-For` and `X-Real-IP` are never trusted (prevents IP spoofing).
 - **Stream proxy:** The audio stream is proxied through Nginx at `/stream/live` (port 80), so it works through Cloudflare tunnels without exposing Icecast port 8000. No extra ports needed.
@@ -617,7 +543,7 @@ When not behind Cloudflare (local/LAN), everything works the same — `REMOTE_AD
 PHP `Request::clientIp()` reads only `REMOTE_ADDR` (set by Nginx from the resolved real IP). Attacker-controllable headers (`X-Forwarded-For`, `X-Real-IP`) are ignored.
 
 ### Internal Endpoint Protection
-Liquidsoap-facing API endpoints (`/next-track`, `/track-started`, `/track-played`) are protected by a shared secret (`IRADIO_INTERNAL_SECRET`). Liquidsoap sends it as `X-Internal-Secret` header; the Router validates it. Without a valid secret, these endpoints return 403. In dev mode (no secret configured), access is unrestricted.
+Liquidsoap-facing API endpoints (`/next-track`, `/track-started`, `/track-played`) are protected by a shared secret (`RENDEZVOX_INTERNAL_SECRET`). Liquidsoap sends it as `X-Internal-Secret` header; the Router validates it. Without a valid secret, these endpoints return 403. In dev mode (no secret configured), access is unrestricted.
 
 ### Path Traversal Protection
 Avatar file serving validates the path with `basename()` check, null byte rejection, and `realpath()` verification against the avatars directory.
@@ -647,20 +573,20 @@ Nginx rate limits on sensitive endpoints:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `POSTGRES_DB` | `iradio` | Database name |
-| `POSTGRES_USER` | `iradio` | Database user |
+| `POSTGRES_DB` | `rendezvox` | Database name |
+| `POSTGRES_USER` | `rendezvox` | Database user |
 | `POSTGRES_PASSWORD` | *(required)* | Database password |
 | `ICECAST_SOURCE_PASSWORD` | *(required)* | Liquidsoap → Icecast auth |
 | `ICECAST_ADMIN_PASSWORD` | *(required)* | Icecast admin panel |
 | `ICECAST_HOSTNAME` | `localhost` | Icecast public hostname |
 | `ICECAST_MAX_CLIENTS` | `100` | Max concurrent listeners |
-| `IRADIO_APP_ENV` | `production` | App environment |
-| `IRADIO_APP_DEBUG` | `false` | Show PHP errors |
-| `IRADIO_JWT_SECRET` | *(auto-derived)* | JWT signing key (auto-derived from DB password if empty) |
-| `IRADIO_INTERNAL_SECRET` | *(auto-generated)* | Shared secret for Liquidsoap → API internal endpoints |
+| `RENDEZVOX_APP_ENV` | `production` | App environment |
+| `RENDEZVOX_APP_DEBUG` | `false` | Show PHP errors |
+| `RENDEZVOX_JWT_SECRET` | *(auto-derived)* | JWT signing key (auto-derived from DB password if empty) |
+| `RENDEZVOX_INTERNAL_SECRET` | *(auto-generated)* | Shared secret for Liquidsoap → API internal endpoints |
 | `TZ` | `UTC` | Station timezone |
-| `IRADIO_HTTP_PORT` | `80` | Host HTTP port |
-| `IRADIO_ICECAST_PUBLIC_PORT` | `8000` | Host Icecast port (internal, proxied via Nginx at `/stream/live`) |
+| `RENDEZVOX_HTTP_PORT` | `80` | Host HTTP port |
+| `RENDEZVOX_ICECAST_PUBLIC_PORT` | `8000` | Host Icecast port (internal, proxied via Nginx at `/stream/live`) |
 
 ---
 
@@ -707,9 +633,8 @@ Nginx rate limits on sensitive endpoints:
 - Listener count, dedication display, auto-reconnect
 - PWA support (installable, service worker)
 
-**Mobile Apps**
+**Mobile App**
 - Native Android app (Kotlin + Jetpack Compose + Media3 ExoPlayer)
-- Native iOS app (SwiftUI + AVPlayer)
 - Background audio with notification / lock screen controls
 - Real-time SSE now-playing with polling fallback
 - Song request with autocomplete search
@@ -717,7 +642,7 @@ Nginx rate limits on sensitive endpoints:
 
 **Security**
 - IP spoofing prevention: `REMOTE_ADDR` only (attacker headers ignored)
-- Internal endpoint protection via shared secret (`IRADIO_INTERNAL_SECRET`)
+- Internal endpoint protection via shared secret (`RENDEZVOX_INTERNAL_SECRET`)
 - Path traversal protection on avatar serving and folder uploads
 - Input length limits on all public-facing endpoints
 - Rate limiting on login, setup, search, and public API endpoints

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 class PlaylistSongRemoveHandler
 {
-    private const LIQ_HOST    = 'iradio-liquidsoap';
+    private const LIQ_HOST    = 'rendezvox-liquidsoap';
     private const LIQ_PORT    = 1234;
     private const LIQ_TIMEOUT = 3;
 

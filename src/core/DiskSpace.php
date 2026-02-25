@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 class DiskSpace
 {
-    private const MUSIC_DIR = '/var/lib/iradio/music';
+    private const MUSIC_DIR = '/var/lib/rendezvox/music';
     private const DEFAULT_RESERVED_GB = 2;
 
     /**

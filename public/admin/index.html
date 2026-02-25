@@ -26,14 +26,14 @@
   </div>
   <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
 </div>
-<script src="/admin/js/theme.js"></script>
-<script src="/admin/js/api.js"></script>
-<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/theme.js?v=20260225"></script>
+<script src="/admin/js/api.js?v=20260225"></script>
+<script src="/admin/js/auth.js?v=20260225"></script>
 <script>
 (function() {
   // Load station branding + logo
-  iRadioAPI.get('/config').then(function(cfg) {
-    var name = cfg.station_name || 'iRadio';
+  RendezVoxAPI.get('/config').then(function(cfg) {
+    var name = cfg.station_name || 'RendezVox';
     document.getElementById('brandTitle').textContent = name;
     document.title = name + ' Admin — Login';
     if (cfg.has_logo) {
@@ -46,13 +46,13 @@
     }
   }).catch(function() {});
 
-  if (iRadioAuth.isLoggedIn()) {
+  if (RendezVoxAuth.isLoggedIn()) {
     window.location.href = '/admin/dashboard';
     return;
   }
 
   // Check if first-time setup is needed (no users in DB)
-  iRadioAPI.get('/setup/status').then(function(data) {
+  RendezVoxAPI.get('/setup/status').then(function(data) {
     if (data.needs_setup) {
       window.location.href = '/admin/setup';
     }
@@ -66,9 +66,9 @@
     var username = document.getElementById('username').value.trim();
     var password = document.getElementById('password').value;
 
-    iRadioAPI.post('/admin/login', { username: username, password: password })
+    RendezVoxAPI.post('/admin/login', { username: username, password: password })
       .then(function(data) {
-        iRadioAuth.login(data.token, data.user);
+        RendezVoxAuth.login(data.token, data.user);
         window.location.href = '/admin/dashboard';
       })
       .catch(function(err) {

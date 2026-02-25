@@ -200,6 +200,6 @@ class TrackStartedHandler
             'request'      => $requestInfo,
         ];
 
-        @file_put_contents('/tmp/iradio_now.json', json_encode($snapshot), LOCK_EX);
+        @file_put_contents('/tmp/rendezvox_now.json', json_encode($snapshot), LOCK_EX);
     }
 }

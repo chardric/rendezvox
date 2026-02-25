@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================================
-# iRadio — One-Command Server Setup
+# RendezVox — One-Command Server Setup
 # ==========================================================
 # Generates .env with secure random credentials.
 # Run once before first `docker compose up -d`.
@@ -19,14 +19,14 @@ EXAMPLE_FILE="${SCRIPT_DIR}/.env.example"
 
 # ── Check if .env already exists ──────────────────────────
 if [ -f "$ENV_FILE" ]; then
-    echo "[iRadio] .env already exists — skipping credential generation."
+    echo "[RendezVox] .env already exists — skipping credential generation."
     echo "         Delete .env and re-run this script to regenerate."
     exit 0
 fi
 
 # ── Verify .env.example exists ────────────────────────────
 if [ ! -f "$EXAMPLE_FILE" ]; then
-    echo "[iRadio] ERROR: .env.example not found in ${SCRIPT_DIR}"
+    echo "[RendezVox] ERROR: .env.example not found in ${SCRIPT_DIR}"
     exit 1
 fi
 
@@ -39,8 +39,8 @@ POSTGRES_PASSWORD=$(gen_password)
 ICECAST_SOURCE_PASSWORD=$(gen_password)
 ICECAST_ADMIN_PASSWORD=$(gen_password)
 ICECAST_RELAY_PASSWORD=$(gen_password)
-IRADIO_JWT_SECRET=$(openssl rand -hex 32)
-IRADIO_INTERNAL_SECRET=$(openssl rand -hex 32)
+RENDEZVOX_JWT_SECRET=$(openssl rand -hex 32)
+RENDEZVOX_INTERNAL_SECRET=$(openssl rand -hex 32)
 
 # ── Create .env from template ─────────────────────────────
 cp "$EXAMPLE_FILE" "$ENV_FILE"
@@ -50,13 +50,13 @@ sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${POSTGRES_PASSWORD}|" "$ENV_F
 sed -i "s|^ICECAST_SOURCE_PASSWORD=.*|ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD}|" "$ENV_FILE"
 sed -i "s|^ICECAST_ADMIN_PASSWORD=.*|ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD}|" "$ENV_FILE"
 sed -i "s|^ICECAST_RELAY_PASSWORD=.*|ICECAST_RELAY_PASSWORD=${ICECAST_RELAY_PASSWORD}|" "$ENV_FILE"
-sed -i "s|^IRADIO_JWT_SECRET=.*|IRADIO_JWT_SECRET=${IRADIO_JWT_SECRET}|" "$ENV_FILE"
-sed -i "s|^IRADIO_INTERNAL_SECRET=.*|IRADIO_INTERNAL_SECRET=${IRADIO_INTERNAL_SECRET}|" "$ENV_FILE"
+sed -i "s|^RENDEZVOX_JWT_SECRET=.*|RENDEZVOX_JWT_SECRET=${RENDEZVOX_JWT_SECRET}|" "$ENV_FILE"
+sed -i "s|^RENDEZVOX_INTERNAL_SECRET=.*|RENDEZVOX_INTERNAL_SECRET=${RENDEZVOX_INTERNAL_SECRET}|" "$ENV_FILE"
 
 # ── Done ──────────────────────────────────────────────────
 echo ""
 echo "  ╔══════════════════════════════════════════════════╗"
-echo "  ║         iRadio — Credentials Generated!          ║"
+echo "  ║         RendezVox — Credentials Generated!          ║"
 echo "  ╠══════════════════════════════════════════════════╣"
 echo "  ║  All passwords saved to docker/.env              ║"
 echo "  ║                                                  ║"

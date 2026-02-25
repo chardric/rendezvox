@@ -1,5 +1,5 @@
 -- 005_trash.sql — Add trash mechanism to songs table
--- Usage: docker exec iradio-postgres psql -U iradio -d iradio -f /migrations/005_trash.sql
+-- Usage: docker exec rendezvox-postgres psql -U rendezvox -d rendezvox -f /migrations/005_trash.sql
 
 BEGIN;
 

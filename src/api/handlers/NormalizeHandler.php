@@ -10,8 +10,8 @@ declare(strict_types=1);
  */
 class NormalizeHandler
 {
-    private const PROGRESS_FILE = '/tmp/iradio_normalize.json';
-    private const LOCK_FILE     = '/tmp/iradio_normalize.lock';
+    private const PROGRESS_FILE = '/tmp/rendezvox_normalize.json';
+    private const LOCK_FILE     = '/tmp/rendezvox_normalize.lock';
     private const SCRIPT        = '/var/www/html/src/scripts/normalize_audio.php';
 
     public function start(): void
@@ -53,7 +53,7 @@ class NormalizeHandler
         }
 
         // Launch background process
-        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/iradio_normalize.log 2>&1 &';
+        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/rendezvox_normalize.log 2>&1 &';
         exec($cmd);
 
         // Brief pause to let the script start and write initial progress
@@ -131,7 +131,7 @@ class NormalizeHandler
     {
         Auth::requireAuth();
 
-        $file = '/tmp/iradio_auto_norm_last.json';
+        $file = '/tmp/rendezvox_auto_norm_last.json';
         if (!file_exists($file)) {
             Response::json([
                 'has_run' => false,

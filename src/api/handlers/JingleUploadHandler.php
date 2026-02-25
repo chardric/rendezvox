@@ -46,7 +46,7 @@ class JingleUploadHandler
             return;
         }
 
-        $dir = '/var/lib/iradio/jingles';
+        $dir = '/var/lib/rendezvox/jingles';
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }

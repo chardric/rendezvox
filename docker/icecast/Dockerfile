@@ -1,16 +1,16 @@
 # ==========================================================
-# iRadio — Icecast2 Streaming Server
+# RendezVox — Icecast2 Streaming Server
 # ==========================================================
 # Build context: docker/icecast/
 # Compose mounts:
 #   icecast.xml  → /etc/icecast2/icecast.xml.tpl  (template, ro)
-#   iradio_logs  → /var/log/iradio                (logs, rw)
+#   rendezvox_logs  → /var/log/rendezvox                (logs, rw)
 # ==========================================================
 
 FROM debian:bookworm-slim
 
-LABEL maintainer="iRadio Project"
-LABEL description="Icecast2 streaming server for iRadio"
+LABEL maintainer="RendezVox Project"
+LABEL description="Icecast2 streaming server for RendezVox"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -20,8 +20,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # ── Directory setup ─────────────────────────────────────
-RUN mkdir -p /var/log/iradio && \
-    chown -R icecast2:icecast /var/log/iradio && \
+RUN mkdir -p /var/log/rendezvox && \
+    chown -R icecast2:icecast /var/log/rendezvox && \
     chown -R icecast2:icecast /etc/icecast2
 
 EXPOSE 8000

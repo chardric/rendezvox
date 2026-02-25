@@ -2,9 +2,9 @@
 /**
  * Batch Playlist Import — runs in background, processes folders one by one.
  *
- * Reads job parameters from /tmp/iradio_batch_import_params.json
- * Writes progress to /tmp/iradio_batch_import.json
- * Supports stop signal via /tmp/iradio_batch_import.lock.stop
+ * Reads job parameters from /tmp/rendezvox_batch_import_params.json
+ * Writes progress to /tmp/rendezvox_batch_import.json
+ * Supports stop signal via /tmp/rendezvox_batch_import.lock.stop
  *
  * Each folder: find unscanned files → parallel ffprobe → insert songs → create playlist
  */
@@ -18,12 +18,12 @@ require __DIR__ . '/../core/ArtistNormalizer.php';
 require __DIR__ . '/../core/RotationEngine.php';
 
 // ── Constants ────────────────────────────────────────────
-$MUSIC_DIR    = '/var/lib/iradio/music';
+$MUSIC_DIR    = '/var/lib/rendezvox/music';
 $AUDIO_EXTS   = ['mp3', 'flac', 'ogg', 'wav', 'aac', 'm4a', 'wma', 'opus', 'aiff'];
-$PROGRESS_FILE = '/tmp/iradio_batch_import.json';
-$LOCK_FILE     = '/tmp/iradio_batch_import.lock';
-$STOP_FILE     = '/tmp/iradio_batch_import.lock.stop';
-$PARAMS_FILE   = '/tmp/iradio_batch_import_params.json';
+$PROGRESS_FILE = '/tmp/rendezvox_batch_import.json';
+$LOCK_FILE     = '/tmp/rendezvox_batch_import.lock';
+$STOP_FILE     = '/tmp/rendezvox_batch_import.lock.stop';
+$PARAMS_FILE   = '/tmp/rendezvox_batch_import_params.json';
 
 $PALETTE = [
     '#00c8a0', '#f87171', '#34d399', '#fbbf24', '#60a5fa',
@@ -105,7 +105,7 @@ $catStmt = $db->query('SELECT id, LOWER(name) AS lname FROM categories');
 while ($row = $catStmt->fetch()) {
     $categoryCache[$row['lname']] = (int) $row['id'];
 }
-$defaultCatId = (int) (getenv('IRADIO_DEFAULT_CATEGORY_ID') ?: 1);
+$defaultCatId = (int) (getenv('RENDEZVOX_DEFAULT_CATEGORY_ID') ?: 1);
 
 $basePrefix = rtrim($MUSIC_DIR, '/') . '/';
 $colorIndex = 0;

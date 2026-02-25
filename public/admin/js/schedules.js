@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Schedule Manager (Drag-and-Drop Calendar)
+   RendezVox Admin — Schedule Manager (Drag-and-Drop Calendar)
    ============================================================ */
-var iRadioSchedules = (function() {
+var RendezVoxSchedules = (function() {
 
   var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   var HOUR_H   = 60;  // pixels per hour
@@ -28,7 +28,7 @@ var iRadioSchedules = (function() {
   // ── Timezone helpers ────────────────────────────────
   function getCurrentDay() {
     var now = new Date();
-    var opts = iRadioAPI.tzOpts();
+    var opts = RendezVoxAPI.tzOpts();
     var dayName = now.toLocaleDateString('en-US', Object.assign({ weekday: 'short' }, opts));
     var map = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
     return map[dayName] !== undefined ? map[dayName] : (now.getDay() === 0 ? 6 : now.getDay() - 1);
@@ -36,7 +36,7 @@ var iRadioSchedules = (function() {
 
   function getStationTime() {
     var now = new Date();
-    var opts = iRadioAPI.tzOpts();
+    var opts = RendezVoxAPI.tzOpts();
     var h = parseInt(now.toLocaleString('en-US', Object.assign({ hour: '2-digit', hour12: false }, opts)), 10);
     var m = parseInt(now.toLocaleString('en-US', Object.assign({ minute: '2-digit' }, opts)), 10);
     return { h: h, m: m };
@@ -44,7 +44,7 @@ var iRadioSchedules = (function() {
 
   function getStationDateStr() {
     var now = new Date();
-    var opts = iRadioAPI.tzOpts();
+    var opts = RendezVoxAPI.tzOpts();
     var y = now.toLocaleString('en-US', Object.assign({ year: 'numeric' }, opts));
     var m = now.toLocaleString('en-US', Object.assign({ month: '2-digit' }, opts));
     var d = now.toLocaleString('en-US', Object.assign({ day: '2-digit' }, opts));
@@ -92,7 +92,7 @@ var iRadioSchedules = (function() {
 
   // ── Init ────────────────────────────────────────────
   function init() {
-    iRadioAPI.getTimezone();
+    RendezVoxAPI.getTimezone();
     loadPlaylists();
     loadSchedules();
 
@@ -137,11 +137,11 @@ var iRadioSchedules = (function() {
    * Only skips the current track if a different playlist should be playing.
    */
   function notifyStreamReload() {
-    iRadioAPI.post('/admin/schedules/reload', {}).catch(function() {});
+    RendezVoxAPI.post('/admin/schedules/reload', {}).catch(function() {});
   }
 
   function loadPlaylists() {
-    iRadioAPI.get('/admin/playlists').then(function(data) {
+    RendezVoxAPI.get('/admin/playlists').then(function(data) {
       playlists = (data.playlists || []).filter(function(p) { return p.type !== 'emergency'; });
       playlistMap = {};
       playlists.forEach(function(p) { playlistMap[p.id] = p; });
@@ -150,7 +150,7 @@ var iRadioSchedules = (function() {
   }
 
   function loadSchedules() {
-    iRadioAPI.get('/admin/schedules').then(function(data) {
+    RendezVoxAPI.get('/admin/schedules').then(function(data) {
       schedules = data.schedules;
       renderCalendar();
     });
@@ -296,7 +296,7 @@ var iRadioSchedules = (function() {
     paletteDragging = false;
     paletteDragData = null;
 
-    iRadioAPI.post('/admin/schedules', body)
+    RendezVoxAPI.post('/admin/schedules', body)
       .then(function() {
         showToast('Schedule created');
         loadSchedules();
@@ -312,7 +312,7 @@ var iRadioSchedules = (function() {
   /** Get array of Date objects for Mon–Sun of the current week (station tz). */
   function getWeekDates() {
     var now = new Date();
-    var opts = iRadioAPI.tzOpts();
+    var opts = RendezVoxAPI.tzOpts();
     // Get current date parts in station timezone
     var y = parseInt(now.toLocaleString('en-US', Object.assign({ year: 'numeric' }, opts)));
     var m = parseInt(now.toLocaleString('en-US', Object.assign({ month: 'numeric' }, opts))) - 1;
@@ -678,7 +678,7 @@ var iRadioSchedules = (function() {
         if (state.day !== state.origDay) {
           body.days_of_week = [state.day];
         }
-        iRadioAPI.put('/admin/schedules/' + state.schedule.id, body)
+        RendezVoxAPI.put('/admin/schedules/' + state.schedule.id, body)
           .then(function() {
             showToast('Schedule moved');
             loadSchedules();
@@ -699,7 +699,7 @@ var iRadioSchedules = (function() {
         var endStr = state.schedule.end_time.substring(0, 5);
         splitDaySchedule(state.schedule, state.day, state.day, newStartStr, endStr);
       } else {
-        iRadioAPI.put('/admin/schedules/' + state.schedule.id, { start_time: newStartStr })
+        RendezVoxAPI.put('/admin/schedules/' + state.schedule.id, { start_time: newStartStr })
           .then(function() { showToast('Schedule updated'); loadSchedules(); notifyStreamReload(); })
           .catch(function(err) { showToast((err && err.error) || 'Resize failed', 'error'); loadSchedules(); });
       }
@@ -713,7 +713,7 @@ var iRadioSchedules = (function() {
         var startStr = state.schedule.start_time.substring(0, 5);
         splitDaySchedule(state.schedule, state.day, state.day, startStr, newEndStr);
       } else {
-        iRadioAPI.put('/admin/schedules/' + state.schedule.id, { end_time: newEndStr })
+        RendezVoxAPI.put('/admin/schedules/' + state.schedule.id, { end_time: newEndStr })
           .then(function() { showToast('Schedule updated'); loadSchedules(); notifyStreamReload(); })
           .catch(function(err) { showToast((err && err.error) || 'Resize failed', 'error'); loadSchedules(); });
       }
@@ -824,7 +824,7 @@ var iRadioSchedules = (function() {
         priority: clipboard.priority,
         is_active: true
       };
-      iRadioAPI.post('/admin/schedules', body)
+      RendezVoxAPI.post('/admin/schedules', body)
         .then(function() {
           showToast('Schedule pasted');
           loadSchedules();
@@ -891,7 +891,7 @@ var iRadioSchedules = (function() {
 
     if (fullDay) {
       // 24 hours: only change time to 00:00–24:00, keep existing days unchanged
-      iRadioAPI.put('/admin/schedules/' + id, { start_time: '00:00', end_time: '24:00' })
+      RendezVoxAPI.put('/admin/schedules/' + id, { start_time: '00:00', end_time: '24:00' })
         .then(function() {
           showToast('Set to 24 hours');
           loadSchedules();
@@ -947,7 +947,7 @@ var iRadioSchedules = (function() {
 
     // Create a new schedule for each free day
     var createPromises = freeDays.map(function(d) {
-      return iRadioAPI.post('/admin/schedules', {
+      return RendezVoxAPI.post('/admin/schedules', {
         playlist_id: s.playlist_id,
         days_of_week: [d],
         start_time: startTime,
@@ -994,7 +994,7 @@ var iRadioSchedules = (function() {
       updateBody.start_time = newStart;
       updateBody.end_time = newEnd;
       if (targetDay !== origDay) updateBody.days_of_week = [targetDay];
-      iRadioAPI.put('/admin/schedules/' + schedule.id, updateBody)
+      RendezVoxAPI.put('/admin/schedules/' + schedule.id, updateBody)
         .then(function() { showToast('Schedule moved'); loadSchedules(); notifyStreamReload(); })
         .catch(function(err) { showToast((err && err.error) || 'Move failed', 'error'); loadSchedules(); });
       return;
@@ -1002,7 +1002,7 @@ var iRadioSchedules = (function() {
 
     updateBody.days_of_week = remaining;
 
-    iRadioAPI.put('/admin/schedules/' + schedule.id, updateBody)
+    RendezVoxAPI.put('/admin/schedules/' + schedule.id, updateBody)
       .then(function() {
         // Step 2: Create new schedule for just the dragged day
         var createBody = {
@@ -1015,7 +1015,7 @@ var iRadioSchedules = (function() {
           priority: schedule.priority,
           is_active: schedule.is_active
         };
-        return iRadioAPI.post('/admin/schedules', createBody);
+        return RendezVoxAPI.post('/admin/schedules', createBody);
       })
       .then(function() {
         showToast('Schedule split — ' + DAYS[targetDay] + ' moved independently');
@@ -1061,7 +1061,7 @@ var iRadioSchedules = (function() {
       }
     }
 
-    iRadioAPI.put('/admin/schedules/' + id, body).then(function() {
+    RendezVoxAPI.put('/admin/schedules/' + id, body).then(function() {
       showToast(active ? 'Schedule enabled for today' : 'Schedule disabled for today');
       loadSchedules();
       notifyStreamReload();
@@ -1072,9 +1072,9 @@ var iRadioSchedules = (function() {
   }
 
   function deleteSchedule(id) {
-    iRadioConfirm('Delete this schedule?', { title: 'Delete Schedule', okLabel: 'Delete' }).then(function(ok) {
+    RendezVoxConfirm('Delete this schedule?', { title: 'Delete Schedule', okLabel: 'Delete' }).then(function(ok) {
       if (!ok) return;
-      iRadioAPI.del('/admin/schedules/' + id).then(function() {
+      RendezVoxAPI.del('/admin/schedules/' + id).then(function() {
         showToast('Schedule deleted');
         loadSchedules();
         notifyStreamReload();
@@ -1148,7 +1148,7 @@ var iRadioSchedules = (function() {
     bulkBusy = true;
 
     // Fetch reserved keywords setting, then generate schedule
-    iRadioAPI.get('/admin/settings').then(function(result) {
+    RendezVoxAPI.get('/admin/settings').then(function(result) {
       var keywordsRaw = '';
       (result.settings || []).forEach(function(s) {
         if (s.key === 'schedule_reserved_keywords') keywordsRaw = s.value || '';
@@ -1362,14 +1362,14 @@ var iRadioSchedules = (function() {
     }
 
     // Single bulk request: clears existing + creates all new schedules
-    iRadioAPI.post('/admin/schedules/bulk', {
+    RendezVoxAPI.post('/admin/schedules/bulk', {
       clear_existing: true,
       schedules: bulkSchedules
     }).then(function(data) {
       bulkBusy = false;
       showToast(data.created + ' schedules created');
       loadSchedules();
-      iRadioAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
+      RendezVoxAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
     }).catch(function(err) {
       bulkBusy = false;
       showToast((err && err.error) || 'Surprise Me failed', 'error');
@@ -1382,15 +1382,15 @@ var iRadioSchedules = (function() {
       showToast('No schedules to clear');
       return;
     }
-    iRadioConfirm('Delete all ' + schedules.length + ' schedules?', { title: 'Clear All Schedules', okLabel: 'Clear All' }).then(function(ok) {
+    RendezVoxConfirm('Delete all ' + schedules.length + ' schedules?', { title: 'Clear All Schedules', okLabel: 'Clear All' }).then(function(ok) {
       if (!ok) return;
-      iRadioAPI.post('/admin/schedules/bulk', {
+      RendezVoxAPI.post('/admin/schedules/bulk', {
         clear_existing: true,
         schedules: []
       }).then(function() {
         showToast('All schedules cleared');
         loadSchedules();
-        iRadioAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
+        RendezVoxAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
       }).catch(function(err) {
         showToast((err && err.error) || 'Clear failed', 'error');
         loadSchedules();

@@ -101,13 +101,13 @@ class Auth
 
     public static function getSecret(): string
     {
-        $secret = getenv('IRADIO_JWT_SECRET');
+        $secret = getenv('RENDEZVOX_JWT_SECRET');
         if (!$secret || $secret === 'changeme') {
             // Auto-derive a secret from the database password so JWT works
-            // even without explicitly setting IRADIO_JWT_SECRET.
+            // even without explicitly setting RENDEZVOX_JWT_SECRET.
             // This is deterministic per deployment (same DB password = same JWT secret).
-            $dbPass = getenv('IRADIO_DB_PASSWORD') ?: '';
-            $secret = hash('sha256', 'iradio-jwt-' . $dbPass . '-' . (__DIR__));
+            $dbPass = getenv('RENDEZVOX_DB_PASSWORD') ?: '';
+            $secret = hash('sha256', 'rendezvox-jwt-' . $dbPass . '-' . (__DIR__));
         }
         return $secret;
     }

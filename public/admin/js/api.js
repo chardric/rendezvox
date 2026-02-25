@@ -1,11 +1,11 @@
 /* ============================================================
-   iRadio Admin — API Helper
+   RendezVox Admin — API Helper
    ============================================================ */
-var iRadioAPI = (function() {
+var RendezVoxAPI = (function() {
   var BASE = '/api';
 
   function getToken() {
-    return localStorage.getItem('iradio_token');
+    return localStorage.getItem('rendezvox_token');
   }
 
   function headers(extra) {
@@ -20,8 +20,8 @@ var iRadioAPI = (function() {
 
   function handleResponse(res) {
     if (res.status === 401) {
-      localStorage.removeItem('iradio_token');
-      localStorage.removeItem('iradio_user');
+      localStorage.removeItem('rendezvox_token');
+      localStorage.removeItem('rendezvox_user');
       window.location.href = '/admin/';
       return Promise.reject(new Error('Unauthorized'));
     }
@@ -97,8 +97,8 @@ var iRadioAPI = (function() {
 
       xhr.addEventListener('load', function() {
         if (xhr.status === 401) {
-          localStorage.removeItem('iradio_token');
-          localStorage.removeItem('iradio_user');
+          localStorage.removeItem('rendezvox_token');
+          localStorage.removeItem('rendezvox_user');
           window.location.href = '/admin/';
           return reject(new Error('Unauthorized'));
         }

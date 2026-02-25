@@ -1,13 +1,13 @@
 /* ============================================================
-   iRadio Admin — Request Management
+   RendezVox Admin — Request Management
    ============================================================ */
-var iRadioRequests = (function() {
+var RendezVoxRequests = (function() {
 
   var currentStatus = 'pending';
   var pollTimer = null;
 
   function init() {
-    iRadioAPI.getTimezone(); // pre-load station timezone
+    RendezVoxAPI.getTimezone(); // pre-load station timezone
     loadRequests();
     pollTimer = setInterval(loadRequests, 15000);
 
@@ -24,7 +24,7 @@ var iRadioRequests = (function() {
   }
 
   function loadRequests() {
-    iRadioAPI.get('/admin/requests?status=' + currentStatus)
+    RendezVoxAPI.get('/admin/requests?status=' + currentStatus)
       .then(function(data) {
         renderTable(data.requests);
       })
@@ -49,11 +49,11 @@ var iRadioRequests = (function() {
 
       if (r.status === 'pending') {
         actions =
-          '<button type="button" class="icon-btn success" title="Approve" onclick="iRadioRequests.approve(' + r.id + ')">' + iRadioIcons.approve + '</button> ' +
-          '<button type="button" class="icon-btn danger" title="Reject" onclick="iRadioRequests.reject(' + r.id + ')">' + iRadioIcons.reject + '</button>';
+          '<button type="button" class="icon-btn success" title="Approve" onclick="RendezVoxRequests.approve(' + r.id + ')">' + RendezVoxIcons.approve + '</button> ' +
+          '<button type="button" class="icon-btn danger" title="Reject" onclick="RendezVoxRequests.reject(' + r.id + ')">' + RendezVoxIcons.reject + '</button>';
       } else if (r.status === 'approved') {
         actions =
-          '<button type="button" class="icon-btn danger" title="Reject" onclick="iRadioRequests.reject(' + r.id + ')">' + iRadioIcons.reject + '</button>';
+          '<button type="button" class="icon-btn danger" title="Reject" onclick="RendezVoxRequests.reject(' + r.id + ')">' + RendezVoxIcons.reject + '</button>';
       }
 
       html += '<tr>' +
@@ -73,7 +73,7 @@ var iRadioRequests = (function() {
   }
 
   function approve(id) {
-    iRadioAPI.post('/admin/approve-request', { request_id: id })
+    RendezVoxAPI.post('/admin/approve-request', { request_id: id })
       .then(function(data) {
         showToast('Request #' + id + ' approved (queue position: ' + data.queue_position + ')');
         loadRequests();
@@ -84,7 +84,7 @@ var iRadioRequests = (function() {
   }
 
   function reject(id) {
-    iRadioAPI.post('/admin/reject-request', { request_id: id })
+    RendezVoxAPI.post('/admin/reject-request', { request_id: id })
       .then(function() {
         showToast('Request #' + id + ' rejected');
         loadRequests();
@@ -99,7 +99,7 @@ var iRadioRequests = (function() {
   function formatTime(isoStr) {
     if (!isoStr) return '—';
     var d = new Date(isoStr);
-    var opts = iRadioAPI.tzOpts();
+    var opts = RendezVoxAPI.tzOpts();
     return d.toLocaleDateString([], Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
            d.toLocaleTimeString([], Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
   }

@@ -138,7 +138,7 @@ class EmergencyToggleHandler
      */
     private function skipLiquidsoap(): void
     {
-        $host = getenv('LIQUIDSOAP_HOST') ?: 'iradio-liquidsoap';
+        $host = getenv('LIQUIDSOAP_HOST') ?: 'rendezvox-liquidsoap';
         $port = (int) (getenv('LIQUIDSOAP_PORT') ?: 1234);
 
         $fp = @fsockopen($host, $port, $errno, $errstr, 2);

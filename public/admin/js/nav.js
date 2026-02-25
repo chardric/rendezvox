@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Navigation
+   RendezVox Admin — Navigation
    ============================================================ */
-var iRadioNav = (function() {
+var RendezVoxNav = (function() {
 
   var pages = [
     { href: '/admin/dashboard', label: 'Dashboard',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
@@ -20,7 +20,7 @@ var iRadioNav = (function() {
   var avatarInput;
 
   function init() {
-    var user = iRadioAuth.getUser();
+    var user = RendezVoxAuth.getUser();
     var userRole = user ? user.role : '';
     var current = window.location.pathname;
 
@@ -50,7 +50,7 @@ var iRadioNav = (function() {
 
     sidebar.innerHTML =
       '<div class="sidebar-brand">' +
-        '<span id="brandName">Admin</span>' +
+        '<div class="sidebar-logo-wrap"><img class="sidebar-logo" src="/api/logo?v=' + Date.now() + '" alt="RendezVox"></div>' +
       '</div>' +
       '<button type="button" class="sidebar-collapse-btn" id="btnCollapseSidebar" title="Collapse sidebar">' + collapseIcon + '</button>' +
       '<nav class="sidebar-nav">' + navHtml + '</nav>' +
@@ -63,11 +63,11 @@ var iRadioNav = (function() {
       '</div>';
 
     // Restore collapsed state from localStorage
-    if (localStorage.getItem('iradio_sidebar_collapsed') === 'true') {
+    if (localStorage.getItem('rendezvox_sidebar_collapsed') === 'true') {
       sidebar.classList.add('collapsed');
     }
 
-    document.getElementById('btnLogout').addEventListener('click', iRadioAuth.logout);
+    document.getElementById('btnLogout').addEventListener('click', RendezVoxAuth.logout);
     document.getElementById('btnOpenProfile').addEventListener('click', function(e) {
       e.preventDefault();
       openProfileModal();
@@ -76,7 +76,7 @@ var iRadioNav = (function() {
     // Sidebar collapse toggle
     document.getElementById('btnCollapseSidebar').addEventListener('click', function() {
       var isCollapsed = sidebar.classList.toggle('collapsed');
-      localStorage.setItem('iradio_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+      localStorage.setItem('rendezvox_sidebar_collapsed', isCollapsed ? 'true' : 'false');
     });
 
     // Avatar upload (shared input)
@@ -90,12 +90,12 @@ var iRadioNav = (function() {
       if (!avatarInput.files || !avatarInput.files[0]) return;
       var formData = new FormData();
       formData.append('file', avatarInput.files[0]);
-      iRadioAPI.upload('/admin/avatar', formData)
+      RendezVoxAPI.upload('/admin/avatar', formData)
         .then(function(res) {
-          var u = iRadioAuth.getUser();
+          var u = RendezVoxAuth.getUser();
           if (u) {
             u.avatar_path = res.avatar_path;
-            localStorage.setItem('iradio_user', JSON.stringify(u));
+            localStorage.setItem('rendezvox_user', JSON.stringify(u));
           }
           // Update sidebar avatar
           var sidebarAv = document.getElementById('sidebarAvatar');
@@ -122,27 +122,26 @@ var iRadioNav = (function() {
       });
     }
 
-    // Load station name + logo for branding
-    iRadioAPI.get('/config').then(function(cfg) {
-      var name = cfg.station_name || 'iRadio';
-      window.iRadioStationName = name;
-      document.getElementById('brandName').textContent = name + ' Admin';
-      // Update page title
-      var pageLabel = '';
-      pages.forEach(function(p) {
-        if (current === p.href) pageLabel = p.label;
-      });
-      document.title = name + ' Admin' + (pageLabel ? ' — ' + pageLabel : '');
-      // Show station logo in sidebar
-      if (cfg.has_logo) {
-        renderSidebarLogo();
-      }
-    }).catch(function() {});
+    // Set page title
+    var pageLabel = '';
+    pages.forEach(function(p) {
+      if (current === p.href) pageLabel = p.label;
+    });
+    document.title = 'RendezVox Admin' + (pageLabel ? ' — ' + pageLabel : '');
 
-    // Hamburger toggle
+    // Mobile top bar — hamburger + page title inline
     var hamburger = document.getElementById('hamburger');
     var overlay = document.getElementById('overlay');
     if (hamburger) {
+      var topbar = document.createElement('div');
+      topbar.className = 'mobile-topbar';
+      hamburger.parentNode.insertBefore(topbar, hamburger);
+      topbar.appendChild(hamburger);
+      var mobileTitle = document.createElement('span');
+      mobileTitle.className = 'mobile-page-title';
+      mobileTitle.textContent = pageLabel || 'Admin';
+      topbar.appendChild(mobileTitle);
+
       hamburger.addEventListener('click', function() {
         sidebar.classList.toggle('open');
         overlay.classList.toggle('open');
@@ -305,16 +304,16 @@ var iRadioNav = (function() {
       var newName = nameInput.value.trim() || null;
       nameSaveBtn.disabled = true;
       nameSaveBtn.textContent = 'Saving...';
-      iRadioAPI.put('/admin/profile', { display_name: newName })
+      RendezVoxAPI.put('/admin/profile', { display_name: newName })
         .then(function(res) {
           savedName = res.display_name || '';
           nameInput.value = savedName;
           nameSaveBtn.style.display = 'none';
           // Update localStorage, sidebar, and modal header
-          var u = iRadioAuth.getUser();
+          var u = RendezVoxAuth.getUser();
           if (u) {
             u.display_name = res.display_name;
-            localStorage.setItem('iradio_user', JSON.stringify(u));
+            localStorage.setItem('rendezvox_user', JSON.stringify(u));
             var sidebarName = document.getElementById('btnOpenProfile');
             if (sidebarName) sidebarName.textContent = res.display_name || u.username;
             var dnLabel = document.getElementById('profileDisplayNameLabel');
@@ -356,16 +355,16 @@ var iRadioNav = (function() {
       }
       emailSaveBtn.disabled = true;
       emailSaveBtn.textContent = 'Saving...';
-      iRadioAPI.put('/admin/profile', { email: newEmail })
+      RendezVoxAPI.put('/admin/profile', { email: newEmail })
         .then(function(res) {
           savedEmail = res.email || '';
           emailInput.value = savedEmail;
           emailSaveBtn.style.display = 'none';
           // Update localStorage, modal header
-          var u = iRadioAuth.getUser();
+          var u = RendezVoxAuth.getUser();
           if (u) {
             u.email = res.email;
-            localStorage.setItem('iradio_user', JSON.stringify(u));
+            localStorage.setItem('rendezvox_user', JSON.stringify(u));
             var emailLabel = document.getElementById('profileEmail');
             if (emailLabel) emailLabel.textContent = res.email || '';
           }
@@ -399,12 +398,12 @@ var iRadioNav = (function() {
     document.getElementById('profileEmailSave').style.display = 'none';
 
     // Show modal with loading state
-    var user = iRadioAuth.getUser();
+    var user = RendezVoxAuth.getUser();
     populateProfile(user, null);
     modal.style.display = 'flex';
 
     // Fetch fresh data from /me
-    iRadioAPI.get('/admin/me').then(function(res) {
+    RendezVoxAPI.get('/admin/me').then(function(res) {
       populateProfile(res.user, res.user);
     }).catch(function() {});
   }
@@ -525,7 +524,7 @@ var iRadioNav = (function() {
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
-    iRadioAPI.put('/admin/password', { current_password: current, new_password: newPw })
+    RendezVoxAPI.put('/admin/password', { current_password: current, new_password: newPw })
       .then(function() {
         closeProfileModal();
         showToast('Password changed successfully', 'success');
@@ -550,41 +549,13 @@ var iRadioNav = (function() {
     setTimeout(function() { t.remove(); }, 3000);
   }
 
-  /* ── Sidebar station logo ─────────────────────────────── */
-  function renderSidebarLogo() {
-    var brand = document.querySelector('.sidebar-brand');
-    if (!brand) return;
-    // Remove existing logo wrapper if any
-    var existing = brand.querySelector('.sidebar-logo-wrap');
-    if (existing) existing.remove();
-    var wrap = document.createElement('div');
-    wrap.className = 'sidebar-logo-wrap';
-    wrap.innerHTML = '<img class="sidebar-logo" src="/api/logo?v=' + Date.now() + '" alt="Station Logo">';
-    brand.insertBefore(wrap, brand.firstChild);
-  }
-
-  function removeSidebarLogo() {
-    var wrap = document.querySelector('.sidebar-logo-wrap');
-    if (wrap) wrap.remove();
-  }
-
-  function refreshLogo() {
-    iRadioAPI.get('/config').then(function(cfg) {
-      if (cfg.has_logo) {
-        renderSidebarLogo();
-      } else {
-        removeSidebarLogo();
-      }
-    }).catch(function() {});
-  }
-
   /* ── Quick theme switcher (sidebar footer) ──────────── */
   function initThemeSwitcher() {
     var footer = document.querySelector('.sidebar-footer');
-    if (!footer || !window.iRadioTheme) return;
+    if (!footer || !window.RendezVoxTheme) return;
 
-    var themes = iRadioTheme.list();
-    var current = iRadioTheme.current();
+    var themes = RendezVoxTheme.list();
+    var current = RendezVoxTheme.current();
 
     var row = document.createElement('div');
     row.className = 'sidebar-theme-row';
@@ -615,10 +586,10 @@ var iRadioNav = (function() {
     footer.appendChild(row);
 
     sel.addEventListener('change', function() {
-      iRadioTheme.apply(sel.value);
+      RendezVoxTheme.apply(sel.value);
       showToast('Theme: ' + (themes[sel.value] || {}).label);
     });
   }
 
-  return { init: init, refreshLogo: refreshLogo };
+  return { init: init };
 })();

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 class SongListHandler
 {
-    private const MUSIC_DIR = '/var/lib/iradio/music';
+    private const MUSIC_DIR = '/var/lib/rendezvox/music';
 
     public function handle(): void
     {

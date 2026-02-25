@@ -6,7 +6,7 @@
  * extract the primary artist and either merge into an existing canonical artist
  * or rename the record.
  *
- * Progress is written to /tmp/iradio_artist_dedup.json so the admin UI
+ * Progress is written to /tmp/rendezvox_artist_dedup.json so the admin UI
  * can poll for status.
  */
 
@@ -20,7 +20,7 @@ $autoMode = in_array('--auto', $argv ?? []);
 $db = Database::get();
 
 // ── Lock file — prevent concurrent runs ─────────────────
-$lockFile = '/tmp/iradio_artist_dedup.lock';
+$lockFile = '/tmp/rendezvox_artist_dedup.lock';
 if (file_exists($lockFile)) {
     $pid = (int) @file_get_contents($lockFile);
     if ($pid > 0 && file_exists("/proc/{$pid}")) {
@@ -65,7 +65,7 @@ $progress = [
 
 function writeProgress(array &$progress): void
 {
-    $file = '/tmp/iradio_artist_dedup.json';
+    $file = '/tmp/rendezvox_artist_dedup.json';
     @file_put_contents($file, json_encode($progress), LOCK_EX);
     @chmod($file, 0666);
 }
@@ -84,20 +84,20 @@ if (count($allArtists) === 0) {
     $progress['finished_at'] = date('c');
     writeProgress($progress);
     if ($autoMode) {
-        @file_put_contents('/tmp/iradio_auto_dedup_last.json', json_encode([
+        @file_put_contents('/tmp/rendezvox_auto_dedup_last.json', json_encode([
             'ran_at'  => date('c'),
             'total'   => 0,
             'merged'  => 0,
             'renamed' => 0,
             'message' => 'No artists found',
         ]), LOCK_EX);
-        @chmod('/tmp/iradio_auto_dedup_last.json', 0666);
+        @chmod('/tmp/rendezvox_auto_dedup_last.json', 0666);
     }
     @unlink($lockFile);
     exit(0);
 }
 
-$stopFile = '/tmp/iradio_artist_dedup.lock.stop';
+$stopFile = '/tmp/rendezvox_artist_dedup.lock.stop';
 
 foreach ($allArtists as $artist) {
     // Check for stop signal
@@ -108,14 +108,14 @@ foreach ($allArtists as $artist) {
         writeProgress($progress);
         logMsg('Dedup stopped — ' . $progress['processed'] . '/' . $progress['total'] . ' processed, ' . $progress['merged'] . ' merged', $autoMode);
         if ($autoMode) {
-            @file_put_contents('/tmp/iradio_auto_dedup_last.json', json_encode([
+            @file_put_contents('/tmp/rendezvox_auto_dedup_last.json', json_encode([
                 'ran_at'  => date('c'),
                 'total'   => $progress['total'],
                 'merged'  => $progress['merged'],
                 'renamed' => $progress['renamed'],
                 'message' => 'Stopped — ' . $progress['merged'] . ' merged so far',
             ]), LOCK_EX);
-            @chmod('/tmp/iradio_auto_dedup_last.json', 0666);
+            @chmod('/tmp/rendezvox_auto_dedup_last.json', 0666);
         }
         @unlink($lockFile);
         exit(0);
@@ -166,14 +166,14 @@ logMsg('Dedup complete — ' . $progress['merged'] . ' merged, ' . $progress['re
 
 // Write auto-dedup summary for the Settings UI
 if ($autoMode) {
-    @file_put_contents('/tmp/iradio_auto_dedup_last.json', json_encode([
+    @file_put_contents('/tmp/rendezvox_auto_dedup_last.json', json_encode([
         'ran_at'  => date('c'),
         'total'   => $progress['total'],
         'merged'  => $progress['merged'],
         'renamed' => $progress['renamed'],
         'message' => $progress['merged'] . ' merged, ' . $progress['renamed'] . ' renamed',
     ]), LOCK_EX);
-    @chmod('/tmp/iradio_auto_dedup_last.json', 0666);
+    @chmod('/tmp/rendezvox_auto_dedup_last.json', 0666);
 }
 
 @unlink($lockFile);

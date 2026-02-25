@@ -1,6 +1,6 @@
 <!--
   ==========================================================
-  iRadio — Icecast2 Configuration
+  RendezVox — Icecast2 Configuration
   ==========================================================
   Passwords are injected via environment-variable substitution
   at container startup (entrypoint.sh or envsubst).
@@ -12,9 +12,9 @@
 <icecast>
 
     <!-- ── Network ──────────────────────────────────────── -->
-    <location>iRadio Server</location>
+    <location>RendezVox Server</location>
     <hostname>${ICECAST_HOSTNAME}</hostname>
-    <server-id>iRadio Icecast</server-id>
+    <server-id>RendezVox Icecast</server-id>
 
     <listen-socket>
         <port>8000</port>
@@ -69,7 +69,7 @@
     <!-- Serve only the built-in status XSL, nothing else -->
     <paths>
         <basedir>/usr/share/icecast2</basedir>
-        <logdir>/var/log/iradio</logdir>
+        <logdir>/var/log/rendezvox</logdir>
         <webroot>/usr/share/icecast2/web</webroot>
         <adminroot>/usr/share/icecast2/admin</adminroot>
         <alias source="/" destination="/status.xsl"/>

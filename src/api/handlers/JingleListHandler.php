@@ -6,7 +6,7 @@ class JingleListHandler
 {
     public function handle(): void
     {
-        $dir = '/var/lib/iradio/jingles';
+        $dir = '/var/lib/rendezvox/jingles';
         $allowed = ['mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a'];
         $jingles = [];
 

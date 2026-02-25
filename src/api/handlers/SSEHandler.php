@@ -15,7 +15,7 @@ declare(strict_types=1);
  */
 class SSEHandler
 {
-    private const SNAPSHOT   = '/tmp/iradio_now.json';
+    private const SNAPSHOT   = '/tmp/rendezvox_now.json';
     private const MAX_TIME   = 60;   // seconds before closing (client reconnects)
     private const CHECK_MS   = 1500; // poll file every 1.5 s
     private const HEARTBEAT  = 15;   // seconds between keep-alive comments

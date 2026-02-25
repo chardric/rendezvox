@@ -43,7 +43,7 @@
           <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Playlists whose names contain these keywords are reserved for 4–6 AM daily and 11 AM–1 PM on 2–3 random weekdays.</div>
           <div style="display:flex;gap:8px;align-items:flex-start">
             <input type="text" id="reservedKeywords" placeholder="e.g. Christian, Gospel, Worship" style="margin-bottom:0;flex:1">
-            <button id="btnSaveReservedKeywords" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="iRadioSettings.saveReservedKeywords()">Save Keywords</button>
+            <button id="btnSaveReservedKeywords" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveReservedKeywords()">Save Keywords</button>
           </div>
         </div>
       </div>
@@ -60,7 +60,7 @@
           <label>Custom blocked words <span style="color:var(--text-dim);font-weight:400">(comma-separated)</span></label>
           <textarea id="blockedWords" rows="3" placeholder="e.g. spam, promo, inappropriate-term" style="margin-bottom:0;width:100%;resize:vertical;font-family:inherit;font-size:.9rem"></textarea>
         </div>
-        <button id="btnSaveBlockedWords" class="btn btn-primary btn-sm" style="margin-top:12px" onclick="iRadioSettings.saveBlockedWords()">Save Blocked Words</button>
+        <button id="btnSaveBlockedWords" class="btn btn-primary btn-sm" style="margin-top:12px" onclick="RendezVoxSettings.saveBlockedWords()">Save Blocked Words</button>
       </div>
     </div>
 
@@ -91,20 +91,6 @@
         </div>
       </div>
 
-      <!-- Station Logo -->
-      <div class="card" style="padding:24px;margin-top:24px" id="logoSection">
-        <h3 class="settings-section-title">Station Logo</h3>
-        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-          Upload a logo to display in the sidebar, login page, and public player.
-          Recommended: square image, 256&times;256px or larger. Supports PNG, JPG, WebP, GIF, SVG.
-        </p>
-        <div id="logoPreview" style="margin-bottom:16px"></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" id="btnUploadLogo">Upload Logo</button>
-          <button class="btn btn-ghost btn-sm hidden" style="color:var(--danger)" id="btnRemoveLogo">Remove Logo</button>
-        </div>
-        <input type="file" id="logoFileInput" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" style="display:none">
-      </div>
     </div>
 
     <!-- ── Library Tools tab ────────────────────────── -->
@@ -134,11 +120,11 @@
           <div style="display:flex;gap:8px;align-items:flex-start">
             <div style="position:relative;flex:1">
               <input type="password" id="acoustidApiKey" placeholder="Paste your API key here" style="margin-bottom:0;padding-right:36px;width:100%">
-              <button type="button" class="eye-toggle" onclick="iRadioSettings.toggleVis('acoustidApiKey',this)" title="Show/hide API key" aria-label="Toggle API key visibility">
+              <button type="button" class="eye-toggle" onclick="RendezVoxSettings.toggleVis('acoustidApiKey',this)" title="Show/hide API key" aria-label="Toggle API key visibility">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
-            <button id="btnSaveApiKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="iRadioSettings.saveApiKey()">Save Key</button>
+            <button id="btnSaveApiKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveApiKey()">Save Key</button>
           </div>
         </div>
         <div class="settings-field">
@@ -147,11 +133,11 @@
           <div style="display:flex;gap:8px;align-items:flex-start">
             <div style="position:relative;flex:1">
               <input type="password" id="theAudioDbApiKey" placeholder="Default &quot;2&quot; is free tier" style="margin-bottom:0;padding-right:36px;width:100%">
-              <button type="button" class="eye-toggle" onclick="iRadioSettings.toggleVis('theAudioDbApiKey',this)" title="Show/hide API key" aria-label="Toggle API key visibility">
+              <button type="button" class="eye-toggle" onclick="RendezVoxSettings.toggleVis('theAudioDbApiKey',this)" title="Show/hide API key" aria-label="Toggle API key visibility">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
-            <button id="btnSaveTheAudioDbKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="iRadioSettings.saveTheAudioDbKey()">Save Key</button>
+            <button id="btnSaveTheAudioDbKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveTheAudioDbKey()">Save Key</button>
           </div>
         </div>
         <div id="genreScanStatus" style="display:none;margin-bottom:12px">
@@ -166,8 +152,8 @@
             <span id="genreScanDetails"></span>
           </div>
         </div>
-        <button id="btnGenreScan" class="btn btn-primary btn-sm" onclick="iRadioSettings.startGenreScan()">Scan and Tag</button>
-        <button id="btnStopScan" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopGenreScan()">Stop</button>
+        <button id="btnGenreScan" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startGenreScan()">Scan and Tag</button>
+        <button id="btnStopScan" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopGenreScan()">Stop</button>
       </div>
 
       <!-- Library Sync -->
@@ -200,8 +186,8 @@
             <span id="librarySyncDetails"></span>
           </div>
         </div>
-        <button id="btnLibrarySync" class="btn btn-primary btn-sm" onclick="iRadioSettings.startLibrarySync()">Sync Library</button>
-        <button id="btnStopSync" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopLibrarySync()">Stop</button>
+        <button id="btnLibrarySync" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startLibrarySync()">Sync Library</button>
+        <button id="btnStopSync" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopLibrarySync()">Stop</button>
       </div>
 
       <!-- Artist Cleanup -->
@@ -234,8 +220,8 @@
             <span id="artistDedupDetails"></span>
           </div>
         </div>
-        <button id="btnArtistDedup" class="btn btn-primary btn-sm" onclick="iRadioSettings.startArtistDedup()">Deduplicate Artists</button>
-        <button id="btnStopDedup" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopArtistDedup()">Stop</button>
+        <button id="btnArtistDedup" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startArtistDedup()">Deduplicate Artists</button>
+        <button id="btnStopDedup" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopArtistDedup()">Stop</button>
       </div>
 
       <!-- Audio Normalization -->
@@ -277,8 +263,8 @@
             <span id="normDetails"></span>
           </div>
         </div>
-        <button id="btnNormalize" class="btn btn-primary btn-sm" onclick="iRadioSettings.startNormalize()">Normalize</button>
-        <button id="btnStopNorm" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopNormalize()">Stop</button>
+        <button id="btnNormalize" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startNormalize()">Normalize</button>
+        <button id="btnStopNorm" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopNormalize()">Stop</button>
       </div>
 
       <!-- Path Rename -->
@@ -311,8 +297,8 @@
             <span id="renameDetails"></span>
           </div>
         </div>
-        <button id="btnRenamePaths" class="btn btn-primary btn-sm" onclick="iRadioSettings.startRenamePaths()">Rename Paths</button>
-        <button id="btnStopRename" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="iRadioSettings.stopRenamePaths()">Stop</button>
+        <button id="btnRenamePaths" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startRenamePaths()">Rename Paths</button>
+        <button id="btnStopRename" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopRenamePaths()">Stop</button>
       </div>
 
     </div>
@@ -355,7 +341,7 @@
             <label>Password</label>
             <div style="position:relative">
               <input type="password" id="smtpPassword" placeholder="SMTP password" style="margin-bottom:0;padding-right:36px;width:100%" autocomplete="off">
-              <button type="button" class="eye-toggle" onclick="iRadioSettings.toggleVis('smtpPassword',this)" title="Show/hide password" aria-label="Toggle password visibility">
+              <button type="button" class="eye-toggle" onclick="RendezVoxSettings.toggleVis('smtpPassword',this)" title="Show/hide password" aria-label="Toggle password visibility">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
@@ -368,12 +354,12 @@
           </div>
           <div class="settings-field" style="flex:1">
             <label>From Name</label>
-            <input type="text" id="smtpFromName" placeholder="iRadio" style="margin-bottom:0">
+            <input type="text" id="smtpFromName" placeholder="RendezVox" style="margin-bottom:0">
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
-          <button class="btn btn-primary btn-sm" onclick="iRadioSettings.saveSmtp()">Save SMTP Settings</button>
-          <button class="btn btn-ghost btn-sm" onclick="iRadioSettings.sendTestEmail()">Send Test Email</button>
+          <button class="btn btn-primary btn-sm" onclick="RendezVoxSettings.saveSmtp()">Save SMTP Settings</button>
+          <button class="btn btn-ghost btn-sm" onclick="RendezVoxSettings.sendTestEmail()">Send Test Email</button>
         </div>
         <div id="smtpTestStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
       </div>
@@ -384,7 +370,7 @@
       <div class="card" style="padding:24px">
         <h3 class="settings-section-title">About</h3>
         <p style="color:var(--text-dim);font-size:.9rem;line-height:1.7;margin-bottom:16px">
-          <strong id="aboutStationName" style="font-size:1.1rem;color:var(--text)">iRadio</strong><br>
+          <strong id="aboutStationName" style="font-size:1.1rem;color:var(--text)">RendezVox</strong><br>
           A hybrid online streaming platform that works like an FM radio station &mdash;
           fully self-hosted, with automated playlists, live scheduling, song requests,
           and real-time playback powered by Liquidsoap and Icecast.
@@ -417,8 +403,8 @@
     <div id="saveBar" class="save-bar hidden">
       <span>You have unsaved changes</span>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="iRadioSettings.cancelChanges()">Cancel</button>
-        <button id="btnSaveAll" class="btn btn-primary btn-sm" onclick="iRadioSettings.saveAll()">Save Changes</button>
+        <button class="btn btn-ghost btn-sm" onclick="RendezVoxSettings.cancelChanges()">Cancel</button>
+        <button id="btnSaveAll" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.saveAll()">Save Changes</button>
       </div>
     </div>
   </main>
@@ -426,16 +412,16 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js"></script>
-<script src="/admin/js/api.js"></script>
-<script src="/admin/js/auth.js"></script>
-<script src="/admin/js/theme.js"></script>
-<script src="/admin/js/nav.js"></script>
-<script src="/admin/js/settings.js?v=theme1"></script>
+<script src="/assets/scroll-controls.js?v=20260225"></script>
+<script src="/admin/js/api.js?v=20260225"></script>
+<script src="/admin/js/auth.js?v=20260225"></script>
+<script src="/admin/js/theme.js?v=20260225"></script>
+<script src="/admin/js/nav.js?v=20260225e"></script>
+<script src="/admin/js/settings.js?v=20260225e"></script>
 <script>
-  if (iRadioAuth.requireRole('super_admin')) {
-    iRadioNav.init();
-    iRadioSettings.init();
+  if (RendezVoxAuth.requireRole('super_admin')) {
+    RendezVoxNav.init();
+    RendezVoxSettings.init();
   }
 </script>
 </body>

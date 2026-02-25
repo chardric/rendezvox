@@ -23,7 +23,7 @@
 <body>
 <div class="login-wrap">
   <div class="login-box setup-box">
-    <h1 id="brandTitle">iRadio</h1>
+    <h1 id="brandTitle">RendezVox</h1>
     <div class="sub">First-Time Setup</div>
     <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:24px;line-height:1.5">
       Welcome! Create your administrator account to get started.
@@ -56,20 +56,20 @@
   </div>
   <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
 </div>
-<script src="/admin/js/theme.js"></script>
-<script src="/admin/js/api.js"></script>
-<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/theme.js?v=20260225"></script>
+<script src="/admin/js/api.js?v=20260225"></script>
+<script src="/admin/js/auth.js?v=20260225"></script>
 <script>
 (function() {
   // Load station branding
-  iRadioAPI.get('/config').then(function(cfg) {
-    var name = cfg.station_name || 'iRadio';
+  RendezVoxAPI.get('/config').then(function(cfg) {
+    var name = cfg.station_name || 'RendezVox';
     document.getElementById('brandTitle').textContent = name;
     document.title = name + ' — Setup';
   }).catch(function() {});
 
   // If already set up, redirect to login
-  iRadioAPI.get('/setup/status').then(function(data) {
+  RendezVoxAPI.get('/setup/status').then(function(data) {
     if (!data.needs_setup) {
       window.location.href = '/admin/';
       return;
@@ -77,7 +77,7 @@
   }).catch(function() {});
 
   // If already logged in, redirect to dashboard
-  if (iRadioAuth.isLoggedIn()) {
+  if (RendezVoxAuth.isLoggedIn()) {
     window.location.href = '/admin/dashboard';
     return;
   }
@@ -125,9 +125,9 @@
     btn.disabled = true;
     btn.textContent = 'Setting up...';
 
-    iRadioAPI.post('/setup', { full_name: fullName, email: email, password: password })
+    RendezVoxAPI.post('/setup', { full_name: fullName, email: email, password: password })
       .then(function(data) {
-        iRadioAuth.login(data.token, data.user);
+        RendezVoxAuth.login(data.token, data.user);
         window.location.href = '/admin/dashboard';
       })
       .catch(function(err) {

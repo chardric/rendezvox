@@ -1,5 +1,5 @@
 -- ============================================================
--- iRadio — Online FM Radio Automation System
+-- RendezVox — Online FM Radio Automation System
 -- PostgreSQL Schema
 -- ============================================================
 
@@ -299,7 +299,7 @@ CREATE TABLE settings (
 
 -- Seed defaults
 INSERT INTO settings (key, value, type, description) VALUES
-    ('station_name',          'iRadio',  'string',  'Station display name'),
+    ('station_name',          'RendezVox',  'string',  'Station display name'),
     ('station_logo_path',     '',        'string',  'Station logo filename'),
     ('station_timezone',      'UTC',     'string',  'Station timezone for schedules and clock'),
     ('jingle_interval',       '4',       'integer', 'Play a jingle every N songs'),
@@ -332,7 +332,7 @@ INSERT INTO settings (key, value, type, description) VALUES
     ('smtp_password',              '',       'string',  'SMTP authentication password'),
     ('smtp_encryption',            'tls',    'string',  'SMTP encryption (tls, ssl, none)'),
     ('smtp_from_address',          '',       'string',  'Sender email address'),
-    ('smtp_from_name',             'iRadio', 'string',  'Sender display name'),
+    ('smtp_from_name',             'RendezVox', 'string',  'Sender display name'),
     ('profanity_filter_enabled',   'true',   'boolean', 'Filter profanity in request names and messages'),
     ('profanity_custom_words',     '',       'string',  'Additional blocked words (comma-separated)'),
     ('organizer_enabled',          'true',   'boolean', 'Enable real-time media organizer'),

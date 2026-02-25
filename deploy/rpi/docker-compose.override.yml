@@ -1,5 +1,5 @@
 # ==========================================================
-# iRadio — Raspberry Pi Docker Compose Override
+# RendezVox — Raspberry Pi Docker Compose Override
 # ==========================================================
 #
 # Usage (from docker/ directory):
@@ -44,14 +44,14 @@ services:
   # ── PHP-FPM — fewer workers ─────────────────────────
   php:
     volumes:
-      - ../deploy/rpi/fpm-pool.conf:/usr/local/etc/php-fpm.d/zzz-iradio.conf:ro
+      - ../deploy/rpi/fpm-pool.conf:/usr/local/etc/php-fpm.d/zzz-rendezvox.conf:ro
       - ../src:/var/www/html/src
       - ../public:/var/www/html/public
-      - ../music:/var/lib/iradio/music
-      - ../jingles:/var/lib/iradio/jingles
-      - ../data/avatars:/var/lib/iradio/avatars
-      - ../data/logos:/var/lib/iradio/logos
-      - ../data/logs:/var/log/iradio
+      - ../music:/var/lib/rendezvox/music
+      - ../jingles:/var/lib/rendezvox/jingles
+      - ../data/avatars:/var/lib/rendezvox/avatars
+      - ../data/logos:/var/lib/rendezvox/logos
+      - ../data/logs:/var/log/rendezvox
     deploy:
       resources:
         limits:

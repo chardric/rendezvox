@@ -1,9 +1,9 @@
 /* ============================================================
-   iRadio Admin — Shared Confirm Modal
+   RendezVox Admin — Shared Confirm Modal
    Replaces native confirm()/prompt() which can be blocked
    by browsers ("Prevent this page from creating dialogs").
    ============================================================ */
-var iRadioConfirm = (function() {
+var RendezVoxConfirm = (function() {
 
   var modal, msgEl, btnCancel, btnOk, resolveFn;
 

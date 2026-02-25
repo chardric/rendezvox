@@ -27,20 +27,17 @@ jingles/*.ogg
 jingles/*.flac
 
 # Android build artifacts
-mobile/android/.gradle/
-mobile/android/build/
-mobile/android/app/build/
-mobile/android/local.properties
-mobile/android/keystore.properties
-mobile/android/*.jks
-
-# iOS build artifacts
-mobile/ios/*.xcodeproj/
-mobile/ios/*.xcworkspace/
-mobile/ios/build/
-mobile/ios/DerivedData/
+builds/android/.gradle/
+builds/android/build/
+builds/android/app/build/
+builds/android/local.properties
+builds/android/keystore.properties
+builds/android/*.jks
 
 # Desktop (Electron) build artifacts
-desktop/node_modules/
-desktop/dist/
-desktop/out/
+builds/desktop/node_modules/
+builds/desktop/dist/
+builds/desktop/out/
+
+# Built installers (distributed via GitHub Releases)
+installers/

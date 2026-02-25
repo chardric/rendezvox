@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 /**
- * iRadio — Media Library Auto-Organizer
+ * RendezVox — Media Library Auto-Organizer
  *
- * Long-running CLI process that watches /var/lib/iradio/music/upload/ for new
+ * Long-running CLI process that watches /var/lib/rendezvox/music/upload/ for new
  * audio files, validates metadata, detects duplicates, organizes files into
  * tagged/Genre/Artist/Title.ext structure, and imports them into the database.
  *
@@ -16,7 +16,7 @@ declare(strict_types=1);
  *   php media-organizer.php [--dry-run] [--once]
  *
  * Run inside the PHP container:
- *   docker exec -d iradio-php php /var/www/html/src/cli/media-organizer.php
+ *   docker exec -d rendezvox-php php /var/www/html/src/cli/media-organizer.php
  */
 
 // -- Bootstrap (outside web context) --
@@ -26,11 +26,11 @@ require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
 // -- Configuration --
-$musicDir       = '/var/lib/iradio/music';
+$musicDir       = '/var/lib/rendezvox/music';
 $uploadDir      = $musicDir . '/upload';
 $lockFile       = '/tmp/media-organizer.lock';
 $stopFile       = '/tmp/media-organizer.lock.stop';
-$progressFile   = '/tmp/iradio_media_organizer.json';
+$progressFile   = '/tmp/rendezvox_media_organizer.json';
 $extensions     = ['mp3', 'flac', 'm4a', 'ogg', 'wav'];
 $untaggedDir    = '_untagged';
 $duplicatesDir  = '_duplicates';
@@ -197,7 +197,7 @@ function resolveConflict(string $destPath): string
 // -- Set ownership on new directories so www-data (PHP-FPM) can manage files --
 function chownRecursive(string $dir): void
 {
-    $musicDir = '/var/lib/iradio/music';
+    $musicDir = '/var/lib/rendezvox/music';
     $path = $dir;
     // Walk up and chown each new directory up to (but not including) music root
     while ($path !== $musicDir && $path !== dirname($musicDir)) {

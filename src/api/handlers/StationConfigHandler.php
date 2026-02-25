@@ -29,7 +29,7 @@ class StationConfigHandler
 
         Response::json([
             'crossfade_ms'     => (int) ($config['crossfade_ms'] ?? 3000),
-            'station_name'     => $config['station_name'] ?? 'iRadio',
+            'station_name'     => $config['station_name'] ?? 'RendezVox',
             'station_timezone' => $serverTz,
             'has_logo'         => !empty($config['station_logo_path'] ?? ''),
         ]);

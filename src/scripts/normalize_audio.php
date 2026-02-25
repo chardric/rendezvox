@@ -10,7 +10,7 @@
  * per-track gain for consistent volume. Non-destructive — no audio files
  * are modified. Gain is applied in real-time via Liquidsoap's amplify().
  *
- * Progress is written to /tmp/iradio_normalize.json so the admin UI
+ * Progress is written to /tmp/rendezvox_normalize.json so the admin UI
  * can poll for status.
  */
 
@@ -23,7 +23,7 @@ $autoMode = in_array('--auto', $argv ?? []);
 $db = Database::get();
 
 // ── Lock file — prevent concurrent runs ─────────────────
-$lockFile = '/tmp/iradio_normalize.lock';
+$lockFile = '/tmp/rendezvox_normalize.lock';
 if (file_exists($lockFile)) {
     $pid = (int) @file_get_contents($lockFile);
     if ($pid > 0 && file_exists("/proc/{$pid}")) {
@@ -68,7 +68,7 @@ $progress = [
 
 function writeProgress(array &$progress): void
 {
-    $file = '/tmp/iradio_normalize.json';
+    $file = '/tmp/rendezvox_normalize.json';
     @file_put_contents($file, json_encode($progress), LOCK_EX);
     @chmod($file, 0666);
 }
@@ -102,7 +102,7 @@ if (count($allSongs) === 0) {
     $progress['finished_at'] = date('c');
     writeProgress($progress);
     if ($autoMode) {
-        @file_put_contents('/tmp/iradio_auto_norm_last.json', json_encode([
+        @file_put_contents('/tmp/rendezvox_auto_norm_last.json', json_encode([
             'ran_at'     => date('c'),
             'total'      => 0,
             'normalized' => 0,
@@ -110,14 +110,14 @@ if (count($allSongs) === 0) {
             'failed'     => 0,
             'message'    => 'No unanalyzed songs found',
         ]), LOCK_EX);
-        @chmod('/tmp/iradio_auto_norm_last.json', 0666);
+        @chmod('/tmp/rendezvox_auto_norm_last.json', 0666);
     }
     @unlink($lockFile);
     exit(0);
 }
 
-$musicDir = '/var/lib/iradio/music';
-$stopFile = '/tmp/iradio_normalize.lock.stop';
+$musicDir = '/var/lib/rendezvox/music';
+$stopFile = '/tmp/rendezvox_normalize.lock.stop';
 
 // ── Parallel workers — safe parallelism based on CPU cores & load ──
 $cpuCores   = (int) @shell_exec('nproc') ?: 2;
@@ -168,7 +168,7 @@ while ($songIdx < $totalSongs || count($workers) > 0) {
         writeProgress($progress);
         logMsg('Normalize stopped — ' . $progress['processed'] . '/' . $progress['total'] . ' processed, ' . $progress['normalized'] . ' normalized', $autoMode);
         if ($autoMode) {
-            @file_put_contents('/tmp/iradio_auto_norm_last.json', json_encode([
+            @file_put_contents('/tmp/rendezvox_auto_norm_last.json', json_encode([
                 'ran_at'     => date('c'),
                 'total'      => $progress['total'],
                 'normalized' => $progress['normalized'],
@@ -176,7 +176,7 @@ while ($songIdx < $totalSongs || count($workers) > 0) {
                 'failed'     => $progress['failed'],
                 'message'    => 'Stopped — ' . $progress['normalized'] . ' normalized so far',
             ]), LOCK_EX);
-            @chmod('/tmp/iradio_auto_norm_last.json', 0666);
+            @chmod('/tmp/rendezvox_auto_norm_last.json', 0666);
         }
         @unlink($lockFile);
         exit(0);
@@ -277,7 +277,7 @@ logMsg('Normalize complete — ' . $progress['normalized'] . ' normalized, ' . $
 
 // Write auto-normalize summary for the Settings UI
 if ($autoMode) {
-    @file_put_contents('/tmp/iradio_auto_norm_last.json', json_encode([
+    @file_put_contents('/tmp/rendezvox_auto_norm_last.json', json_encode([
         'ran_at'     => date('c'),
         'total'      => $progress['total'],
         'normalized' => $progress['normalized'],
@@ -285,5 +285,5 @@ if ($autoMode) {
         'failed'     => $progress['failed'],
         'message'    => $progress['normalized'] . ' normalized, ' . $progress['skipped'] . ' skipped, ' . $progress['failed'] . ' failed',
     ]), LOCK_EX);
-    @chmod('/tmp/iradio_auto_norm_last.json', 0666);
+    @chmod('/tmp/rendezvox_auto_norm_last.json', 0666);
 }

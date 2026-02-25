@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 class SongCreateHandler
 {
-    private const BASE_DIR = '/var/lib/iradio/music';
-    private const UPLOAD_DIR = '/var/lib/iradio/music/upload';
-    private const IMPORTS_DIR = '/var/lib/iradio/music/imports';
+    private const BASE_DIR = '/var/lib/rendezvox/music';
+    private const UPLOAD_DIR = '/var/lib/rendezvox/music/upload';
+    private const IMPORTS_DIR = '/var/lib/rendezvox/music/imports';
 
     public function handle(): void
     {

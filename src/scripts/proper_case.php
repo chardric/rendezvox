@@ -30,7 +30,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../core/Database.php';
 
-$MUSIC_DIR = '/var/lib/iradio/music';
+$MUSIC_DIR = '/var/lib/rendezvox/music';
 
 // System directories that must never be renamed by title-casing
 $SYSTEM_DIRS = ['imports', 'tagged', 'upload', '_untagged', '_duplicates'];

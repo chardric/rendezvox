@@ -1,7 +1,7 @@
 {
-  "name": "iRadio — Online Radio",
-  "short_name": "iRadio",
-  "description": "Listen to iRadio live, request songs, and see what's playing now.",
+  "name": "RendezVox — Online Radio",
+  "short_name": "RendezVox",
+  "description": "Listen to RendezVox live, request songs, and see what's playing now.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

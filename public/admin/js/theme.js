@@ -1,9 +1,9 @@
 /* ============================================================
-   iRadio Admin — Theme Engine
+   RendezVox Admin — Theme Engine
    Applies CSS custom-property overrides on <html>.
    Loads synchronously before page paint to prevent FOUC.
    ============================================================ */
-var iRadioTheme = (function () {
+var RendezVoxTheme = (function () {
 
   var THEMES = {
     dark:        { label: 'Dark',            group: 'Dark',  vars: { '--bg':'#0a0a0c','--bg-card':'#141416','--bg-input':'#0e0e10','--bg-sidebar':'#101012','--border':'#232326','--text':'#d4d4d8','--text-dim':'#71717a','--text-heading':'#fafafa','--accent':'#00c8a0','--accent-hover':'#00e6b8','--hover-overlay':'rgba(255,255,255,0.08)' }},
@@ -48,10 +48,10 @@ var iRadioTheme = (function () {
     }
 
     // Re-apply custom accent if set
-    var accent = localStorage.getItem('iradio_accent');
+    var accent = localStorage.getItem('rendezvox_accent');
     if (accent) applyAccent(accent, theme);
 
-    localStorage.setItem('iradio_theme', name);
+    localStorage.setItem('rendezvox_theme', name);
   }
 
   function applyAccent(hex, theme) {
@@ -59,28 +59,28 @@ var iRadioTheme = (function () {
     root.style.setProperty('--accent', hex);
     root.style.setProperty('--accent-hover', lighten(hex, 18));
     if (!theme) {
-      var name = localStorage.getItem('iradio_theme') || 'dark';
+      var name = localStorage.getItem('rendezvox_theme') || 'dark';
       theme = THEMES[name] || THEMES.dark;
     }
   }
 
   function setAccent(hex) {
     if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
-    localStorage.setItem('iradio_accent', hex);
+    localStorage.setItem('rendezvox_accent', hex);
     applyAccent(hex);
   }
 
   function clearAccent() {
-    localStorage.removeItem('iradio_accent');
-    apply(localStorage.getItem('iradio_theme') || 'dark');
+    localStorage.removeItem('rendezvox_accent');
+    apply(localStorage.getItem('rendezvox_theme') || 'dark');
   }
 
   function current() {
-    return localStorage.getItem('iradio_theme') || 'dark';
+    return localStorage.getItem('rendezvox_theme') || 'dark';
   }
 
   function accent() {
-    return localStorage.getItem('iradio_accent') || null;
+    return localStorage.getItem('rendezvox_accent') || null;
   }
 
   function list() {
@@ -99,7 +99,7 @@ var iRadioTheme = (function () {
   }
 
   // Auto-apply on load (synchronous, before paint)
-  apply(localStorage.getItem('iradio_theme') || 'dark');
+  apply(localStorage.getItem('rendezvox_theme') || 'dark');
 
   return {
     apply:       apply,

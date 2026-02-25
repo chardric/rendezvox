@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Songs Management
+   RendezVox Admin — Songs Management
    ============================================================ */
-var iRadioSongs = (function() {
+var RendezVoxSongs = (function() {
 
   var currentPage = 1;
   var totalPages  = 1;
@@ -89,7 +89,7 @@ var iRadioSongs = (function() {
       btnDeact.style.display = 'none';
     }
 
-    iRadioAPI.get('/admin/songs' + q)
+    RendezVoxAPI.get('/admin/songs' + q)
       .then(function(data) {
         totalPages = data.pages || 1;
         renderTable(data.songs);
@@ -101,14 +101,14 @@ var iRadioSongs = (function() {
   }
 
   function loadArtists() {
-    iRadioAPI.get('/admin/artists').then(function(data) {
+    RendezVoxAPI.get('/admin/artists').then(function(data) {
       artists = data.artists;
       populateArtistSelects();
     });
   }
 
   function loadCategories() {
-    iRadioAPI.get('/admin/categories').then(function(data) {
+    RendezVoxAPI.get('/admin/categories').then(function(data) {
       categories = data.categories;
       populateCategorySelects();
       populateFilterCategory();
@@ -135,10 +135,10 @@ var iRadioSongs = (function() {
         '<td>' + formatDuration(s.duration_ms) + '</td>' +
         '<td>' + s.rotation_weight + '</td>' +
         '<td>' + s.play_count + '</td>' +
-        '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="iRadioSongs.toggleSong(' + s.id + ')"' + (s.is_active ? ' checked' : '') + '><span class="slider"></span></label></td>' +
+        '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="RendezVoxSongs.toggleSong(' + s.id + ')"' + (s.is_active ? ' checked' : '') + '><span class="slider"></span></label></td>' +
         '<td>' + (s.is_requestable ? 'Yes' : 'No') + '</td>' +
         '<td>' +
-          '<button type="button" class="icon-btn" title="Edit" onclick="iRadioSongs.editSong(' + s.id + ')">' + iRadioIcons.edit + '</button>' +
+          '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxSongs.editSong(' + s.id + ')">' + RendezVoxIcons.edit + '</button>' +
         '</td>' +
         '</tr>';
     });
@@ -214,7 +214,7 @@ var iRadioSongs = (function() {
     btn.disabled = true;
     btn.textContent = 'Uploading…';
 
-    iRadioAPI.upload('/admin/songs', formData)
+    RendezVoxAPI.upload('/admin/songs', formData)
       .then(function(data) {
         showToast('Song uploaded: #' + data.id);
         document.getElementById('uploadModal').classList.add('hidden');
@@ -230,7 +230,7 @@ var iRadioSongs = (function() {
   }
 
   function editSong(id) {
-    iRadioAPI.get('/admin/songs/' + id).then(function(data) {
+    RendezVoxAPI.get('/admin/songs/' + id).then(function(data) {
       var s = data.song;
       document.getElementById('editId').value           = s.id;
       document.getElementById('editTitle').value         = s.title;
@@ -258,7 +258,7 @@ var iRadioSongs = (function() {
       is_requestable:  document.getElementById('editRequestable').checked,
     };
 
-    iRadioAPI.put('/admin/songs/' + id, body)
+    RendezVoxAPI.put('/admin/songs/' + id, body)
       .then(function() {
         showToast('Song updated');
         document.getElementById('editModal').classList.add('hidden');
@@ -270,7 +270,7 @@ var iRadioSongs = (function() {
   }
 
   function toggleSong(id) {
-    iRadioAPI.patch('/admin/songs/' + id + '/toggle', {})
+    RendezVoxAPI.patch('/admin/songs/' + id + '/toggle', {})
       .then(function(data) {
         showToast(data.message);
         loadSongs();
@@ -285,7 +285,7 @@ var iRadioSongs = (function() {
     var name = document.getElementById('newArtistName').value.trim();
     if (!name) return;
 
-    iRadioAPI.post('/admin/artists', { name: name })
+    RendezVoxAPI.post('/admin/artists', { name: name })
       .then(function(data) {
         showToast('Artist created: #' + data.id);
         document.getElementById('artistModal').classList.add('hidden');
@@ -321,7 +321,7 @@ var iRadioSongs = (function() {
     btn.textContent = 'Working...';
 
     // Fetch ALL missing songs (up to 10000) to get their IDs
-    iRadioAPI.get('/admin/songs?missing=true&per_page=10000')
+    RendezVoxAPI.get('/admin/songs?missing=true&per_page=10000')
       .then(function(data) {
         if (!data.songs || data.songs.length === 0) {
           showToast('No missing files found');
@@ -330,7 +330,7 @@ var iRadioSongs = (function() {
           return;
         }
         var ids = data.songs.map(function(s) { return s.id; });
-        return iRadioAPI.post('/admin/songs/deactivate-missing', { ids: ids });
+        return RendezVoxAPI.post('/admin/songs/deactivate-missing', { ids: ids });
       })
       .then(function(result) {
         if (!result) return;

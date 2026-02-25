@@ -55,7 +55,7 @@ class SmtpMailer
             $rows['smtp_password'] ?? '',
             $rows['smtp_encryption'] ?? 'tls',
             $rows['smtp_from_address'] ?? '',
-            $rows['smtp_from_name'] ?? 'iRadio',
+            $rows['smtp_from_name'] ?? 'RendezVox',
         );
     }
 
@@ -253,7 +253,7 @@ class SmtpMailer
 
     private function buildMessage(string $to, string $subject, string $htmlBody): string
     {
-        $boundary = '----=_iRadio_' . bin2hex(random_bytes(16));
+        $boundary = '----=_RendezVox_' . bin2hex(random_bytes(16));
         $date     = date('r');
         $msgId    = '<' . bin2hex(random_bytes(16)) . '@' . ($this->host ?: 'localhost') . '>';
 

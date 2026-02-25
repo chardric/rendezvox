@@ -20,7 +20,7 @@ class HealthHandler
 
         Response::json([
             'status'    => $dbStatus === 'ok' ? 'ok' : 'degraded',
-            'service'   => 'iradio-api',
+            'service'   => 'rendezvox-api',
             'database'  => $dbStatus,
             'timestamp' => gmdate('c'),
         ], $status);

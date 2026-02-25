@@ -1,5 +1,5 @@
 /* ============================================================
-   iRadio Admin — File Manager
+   RendezVox Admin — File Manager
    ============================================================ */
 (function () {
   'use strict';
@@ -25,8 +25,8 @@
 
   // ── Bootstrap ───────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
-    if (!iRadioAuth.requireLogin()) return;
-    iRadioNav.init();
+    if (!RendezVoxAuth.requireLogin()) return;
+    RendezVoxNav.init();
 
     elContent      = document.getElementById('fm-content');
     elBreadcrumb   = document.getElementById('fm-breadcrumb');
@@ -94,7 +94,7 @@
     lastClickIdx = -1;
     elContent.style.opacity = '0.5';
 
-    iRadioAPI.get('/admin/files/browse?path=' + encodeURIComponent(currentPath))
+    RendezVoxAPI.get('/admin/files/browse?path=' + encodeURIComponent(currentPath))
       .then(function (data) {
         currentItems = [];
         (data.folders || []).forEach(function (f) {
@@ -368,7 +368,7 @@
 
     var endpoint = mode === 'copy' ? '/admin/media/copy' : '/admin/files/move';
     var promises = toPaste.map(function (it) {
-      return iRadioAPI.post(endpoint, { path: it.path, destination: dest });
+      return RendezVoxAPI.post(endpoint, { path: it.path, destination: dest });
     });
 
     Promise.allSettled(promises).then(function (results) {
@@ -402,7 +402,7 @@
 
     var endpoint = mode === 'copy' ? '/admin/media/copy' : '/admin/files/move';
     var promises = toPaste.map(function (it) {
-      return iRadioAPI.post(endpoint, { path: it.path, destination: destPath });
+      return RendezVoxAPI.post(endpoint, { path: it.path, destination: destPath });
     });
 
     Promise.allSettled(promises).then(function (results) {
@@ -429,7 +429,7 @@
     if (!toPaste.length) { showToast('Already in this folder', 'error'); return; }
 
     var promises = toPaste.map(function (it) {
-      return iRadioAPI.post('/admin/files/move', { path: it.path, destination: destPath });
+      return RendezVoxAPI.post('/admin/files/move', { path: it.path, destination: destPath });
     });
     Promise.allSettled(promises).then(function (results) {
       var ok = 0, fail = 0, errMsg = '';
@@ -452,7 +452,7 @@
   }
 
   function cmdDeletePath(path, name) {
-    iRadioAPI.get('/admin/files/delete-check?path=' + encodeURIComponent(path))
+    RendezVoxAPI.get('/admin/files/delete-check?path=' + encodeURIComponent(path))
       .then(function (data) {
         var affected = data.playlists || [];
         var msg = 'Delete "' + name + '"?\nThis cannot be undone.';
@@ -461,11 +461,11 @@
             affected.join('\n\u2022 ') +
             '\n\nDeleting it will remove all songs from those playlists and may affect the stream.';
         }
-        return iRadioConfirm(msg, { title: 'Delete', okLabel: 'Delete', okClass: 'btn-danger' });
+        return RendezVoxConfirm(msg, { title: 'Delete', okLabel: 'Delete', okClass: 'btn-danger' });
       })
       .then(function (ok) {
         if (!ok) return;
-        iRadioAPI.del('/admin/files/delete?path=' + encodeURIComponent(path))
+        RendezVoxAPI.del('/admin/files/delete?path=' + encodeURIComponent(path))
           .then(function () {
             showToast('Deleted successfully', 'success');
             if (clipboard) {
@@ -485,10 +485,10 @@
       })
       .catch(function () {
         // Check failed — proceed with standard confirm
-        iRadioConfirm('Delete "' + name + '"?\nThis cannot be undone.', { title: 'Delete', okLabel: 'Delete', okClass: 'btn-danger' })
+        RendezVoxConfirm('Delete "' + name + '"?\nThis cannot be undone.', { title: 'Delete', okLabel: 'Delete', okClass: 'btn-danger' })
           .then(function (ok) {
             if (!ok) return;
-            iRadioAPI.del('/admin/files/delete?path=' + encodeURIComponent(path))
+            RendezVoxAPI.del('/admin/files/delete?path=' + encodeURIComponent(path))
               .then(function () {
                 showToast('Deleted successfully', 'success');
                 var navTo = (currentPath === path || currentPath.startsWith(path + '/')) ? parentPath(path) : currentPath;
@@ -535,10 +535,10 @@
         : 'Delete ' + names.length + ' items?\nThis cannot be undone.';
       if (playlistWarning) msg += '\n\n' + playlistWarning;
 
-      iRadioConfirm(msg, { title: 'Delete', okLabel: 'Delete', okClass: 'btn-danger' }).then(function (ok) {
+      RendezVoxConfirm(msg, { title: 'Delete', okLabel: 'Delete', okClass: 'btn-danger' }).then(function (ok) {
         if (!ok) return;
         var promises = paths.map(function (p) {
-          return iRadioAPI.del('/admin/files/delete?path=' + encodeURIComponent(p));
+          return RendezVoxAPI.del('/admin/files/delete?path=' + encodeURIComponent(p));
         });
         Promise.allSettled(promises).then(function (results) {
           var done = 0, fail = 0;
@@ -561,7 +561,7 @@
     }
 
     Promise.all(folderPaths.map(function (p) {
-      return iRadioAPI.get('/admin/files/delete-check?path=' + encodeURIComponent(p));
+      return RendezVoxAPI.get('/admin/files/delete-check?path=' + encodeURIComponent(p));
     })).then(function (results) {
       var affected = [];
       results.forEach(function (r) {
@@ -611,7 +611,7 @@
       committed = true;
       var newName = input.value.trim();
       if (!newName || newName === oldName) { renderList(); return; }
-      iRadioAPI.post('/admin/files/rename', { path: path, new_name: newName })
+      RendezVoxAPI.post('/admin/files/rename', { path: path, new_name: newName })
         .then(function () {
           showToast('Renamed successfully', 'success');
           loadTree();
@@ -648,7 +648,7 @@
       committed = true;
       var newName = input.value.trim();
       if (!newName || newName === oldName) { labelEl.textContent = oldName; return; }
-      iRadioAPI.post('/admin/files/rename', { path: path, new_name: newName })
+      RendezVoxAPI.post('/admin/files/rename', { path: path, new_name: newName })
         .then(function () {
           showToast('Renamed successfully', 'success');
           var parent  = parentPath(path);
@@ -824,7 +824,7 @@
 
   // ── Folder tree ─────────────────────────────────────────────
   function loadTree() {
-    iRadioAPI.get('/admin/files/tree')
+    RendezVoxAPI.get('/admin/files/tree')
       .then(function (data) {
         treeData = data.folders || [];
         renderTree();
@@ -974,7 +974,7 @@
       var path   = (target === '/' ? '' : target) + '/' + name;
       btnOk.disabled = true;
       btnOk.textContent = 'Creating…';
-      iRadioAPI.post('/admin/media/mkdir', { path: path })
+      RendezVoxAPI.post('/admin/media/mkdir', { path: path })
         .then(function () {
           modal.style.display = 'none';
           newFolderTarget = null;
