@@ -1,11 +1,11 @@
 # ==========================================================
-# iRadio — Liquidsoap Audio Processing Engine
+# RendezVox — Liquidsoap Audio Processing Engine
 # ==========================================================
 # Build context: docker/liquidsoap/
 # Compose mounts:
 #   ../liquidsoap  → /etc/liquidsoap        (radio.liq, ro)
-#   iradio_music   → /var/lib/iradio/music  (audio files, ro)
-#   iradio_logs    → /var/log/iradio        (logs, rw)
+#   rendezvox_music   → /var/lib/rendezvox/music  (audio files, ro)
+#   rendezvox_logs    → /var/log/rendezvox        (logs, rw)
 # ==========================================================
 
 # ── Stage 1: Generate silence file ───────────────────────
@@ -21,8 +21,8 @@ RUN apt-get update && \
 # ── Stage 2: Liquidsoap runtime ──────────────────────────
 FROM savonet/liquidsoap:v2.3.1
 
-LABEL maintainer="iRadio Project"
-LABEL description="Liquidsoap audio engine for iRadio automation"
+LABEL maintainer="RendezVox Project"
+LABEL description="Liquidsoap audio engine for RendezVox automation"
 
 # ── System packages ─────────────────────────────────────
 # curl   — HTTP API requests from .liq scripts
@@ -39,22 +39,22 @@ RUN apt-get update && \
 # ── Directory structure ─────────────────────────────────
 # Match the paths declared in docker-compose.yml volumes
 RUN mkdir -p \
-        /var/lib/iradio/music \
-        /var/lib/iradio/jingles \
-        /var/log/iradio \
+        /var/lib/rendezvox/music \
+        /var/lib/rendezvox/jingles \
+        /var/log/rendezvox \
         /run/liquidsoap \
         /etc/liquidsoap && \
     chown -R liquidsoap:liquidsoap \
-        /var/lib/iradio \
-        /var/log/iradio \
+        /var/lib/rendezvox \
+        /var/log/rendezvox \
         /run/liquidsoap \
         /etc/liquidsoap
 
 # ── Copy silence file from build stage ───────────────────
 # 10s silent MP3 used for idle polling (keeps source alive
 # so Liquidsoap detects schedule changes automatically).
-# Placed in /opt/iradio/ (not /etc/liquidsoap/ which is a bind mount).
-COPY --from=silence-gen /silence.mp3 /opt/iradio/silence.mp3
+# Placed in /opt/rendezvox/ (not /etc/liquidsoap/ which is a bind mount).
+COPY --from=silence-gen /silence.mp3 /opt/rendezvox/silence.mp3
 
 # ── Runtime configuration ──────────────────────────────
 # Expose the telnet control port for admin commands

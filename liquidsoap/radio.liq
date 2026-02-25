@@ -1,12 +1,12 @@
 # ==========================================================
-# iRadio — Liquidsoap Radio Script
+# RendezVox — Liquidsoap Radio Script
 # ==========================================================
 # API-driven automation:
 #   GET  /api/next-track    → returns JSON with song file_path
 #   POST /api/track-started → stamps current_song_id/started_at
 #   POST /api/track-played  → stamps ended_at on play_history
 #
-# Music files at: /var/lib/iradio/music/
+# Music files at: /var/lib/rendezvox/music/
 # ==========================================================
 
 # ── Settings ────────────────────────────────────────────
@@ -20,20 +20,20 @@ settings.server.telnet.bind_addr  := "0.0.0.0"
 # ── Logging ─────────────────────────────────────────────
 
 settings.log.file      := true
-settings.log.file.path := "/var/log/iradio/liquidsoap.log"
+settings.log.file.path := "/var/log/rendezvox/liquidsoap.log"
 settings.log.stdout    := true
 settings.log.level     := 3
 
 # ── Environment ─────────────────────────────────────────
 
-icecast_host     = environment.get("IRADIO_ICECAST_HOST",            default="icecast")
-icecast_port     = int_of_string(environment.get("IRADIO_ICECAST_PORT", default="8000"))
-icecast_mount    = environment.get("IRADIO_ICECAST_MOUNT",           default="/live")
-icecast_password = environment.get("IRADIO_ICECAST_SOURCE_PASSWORD", default="changeme_source")
-api_base         = environment.get("IRADIO_API_URL",                 default="http://iradio-nginx/api")
-music_dir        = "/var/lib/iradio/music"
-silence_file     = "/opt/iradio/silence.mp3"
-internal_secret  = environment.get("IRADIO_INTERNAL_SECRET", default="")
+icecast_host     = environment.get("RENDEZVOX_ICECAST_HOST",            default="icecast")
+icecast_port     = int_of_string(environment.get("RENDEZVOX_ICECAST_PORT", default="8000"))
+icecast_mount    = environment.get("RENDEZVOX_ICECAST_MOUNT",           default="/live")
+icecast_password = environment.get("RENDEZVOX_ICECAST_SOURCE_PASSWORD", default="changeme_source")
+api_base         = environment.get("RENDEZVOX_API_URL",                 default="http://rendezvox-nginx/api")
+music_dir        = "/var/lib/rendezvox/music"
+silence_file     = "/opt/rendezvox/silence.mp3"
+internal_secret  = environment.get("RENDEZVOX_INTERNAL_SECRET", default="")
 
 # ── Station config (fetched from API at startup) ──────────
 
@@ -78,7 +78,7 @@ def get_next_track() =
         # file_path may be absolute (starts with /) or relative — handle both
         let full_path = if string.sub(file_path, start=0, length=1) == "/" then file_path else "#{music_dir}/#{file_path}" end
         log.important("Queued: #{full_path} (song_id=#{song_id}, gain=#{gain_db}dB, source=#{source})")
-        [request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",iradio_source=\"#{source}\",iradio_request_id=\"#{request_id}\":#{full_path}")]
+        [request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\":#{full_path}")]
     end
 end
 
@@ -101,8 +101,8 @@ radio = crossfade(duration=crossfade_sec, radio)
 radio = source.on_metadata(radio, fun (m) -> begin
     let prev = playing_id()
     let sid = m["song_id"]
-    let src = m["iradio_source"]
-    let rid = m["iradio_request_id"]
+    let src = m["rendezvox_source"]
+    let rid = m["rendezvox_request_id"]
 
     if sid != "" then
         playing_id := sid
@@ -140,8 +140,8 @@ end)
 radio = mksafe(radio)
 
 # ── Jingle overlay (exactly one per hour at minute 0) ───
-jingles_dir = "/var/lib/iradio/jingles"
-jingle_state = "/var/lib/iradio/jingles/.last_index"
+jingles_dir = "/var/lib/rendezvox/jingles"
+jingle_state = "/var/lib/rendezvox/jingles/.last_index"
 
 # Fires true exactly once when the clock enters minute 0 each hour
 hourly_activate = predicate.activates({0m})
@@ -203,8 +203,8 @@ output.icecast(
     port                = icecast_port,
     password            = icecast_password,
     mount               = icecast_mount,
-    name                = "iRadio",
-    description         = "iRadio Automation Stream",
+    name                = "RendezVox",
+    description         = "RendezVox Automation Stream",
     genre               = "Various",
     url                 = "http://localhost",
     public              = false,

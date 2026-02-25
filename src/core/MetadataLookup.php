@@ -46,7 +46,7 @@ class MetadataLookup
 
     public function __construct()
     {
-        $ua = 'iRadio/1.0 (metadata-lookup)';
+        $ua = 'RendezVox/1.0 (metadata-lookup)';
         $this->httpContext = stream_context_create(['http' => [
             'header'  => "User-Agent: {$ua}\r\nAccept: application/json\r\n",
             'timeout' => 10,
@@ -398,7 +398,7 @@ class MetadataLookup
 
         $url = "https://coverartarchive.org/release/{$releaseId}/front-500";
         $ctx = stream_context_create(['http' => [
-            'header'          => "User-Agent: iRadio/1.0 (cover-art)\r\n",
+            'header'          => "User-Agent: RendezVox/1.0 (cover-art)\r\n",
             'timeout'         => 15,
             'follow_location' => true,
             'max_redirects'   => 3,
@@ -442,7 +442,7 @@ class MetadataLookup
         }
 
         $ctx = stream_context_create(['http' => [
-            'header'          => "User-Agent: iRadio/1.0 (cover-art)\r\n",
+            'header'          => "User-Agent: RendezVox/1.0 (cover-art)\r\n",
             'timeout'         => 15,
             'follow_location' => true,
             'max_redirects'   => 3,
@@ -480,8 +480,8 @@ class MetadataLookup
             $imgExt = 'png';
         }
 
-        $tmpImage = '/tmp/iradio_cover_' . md5($filePath) . '.' . $imgExt;
-        $tmpAudio = '/tmp/iradio_coverembed_' . md5($filePath) . '.' . $ext;
+        $tmpImage = '/tmp/rendezvox_cover_' . md5($filePath) . '.' . $imgExt;
+        $tmpAudio = '/tmp/rendezvox_coverembed_' . md5($filePath) . '.' . $ext;
 
         file_put_contents($tmpImage, $imageData);
 
@@ -592,7 +592,7 @@ class MetadataLookup
             return null;
         }
 
-        $tmpFile = '/tmp/iradio_extract_cover_' . md5($filePath . microtime()) . '.jpg';
+        $tmpFile = '/tmp/rendezvox_extract_cover_' . md5($filePath . microtime()) . '.jpg';
         $cmd = 'ffmpeg -y -i ' . escapeshellarg($filePath)
              . ' -an -vcodec mjpeg -frames:v 1 ' . escapeshellarg($tmpFile)
              . ' 2>/dev/null';
@@ -630,7 +630,7 @@ class MetadataLookup
             return false;
         }
 
-        $tmpFile = '/tmp/iradio_cleantag_' . md5($filePath . microtime()) . '.' . $ext;
+        $tmpFile = '/tmp/rendezvox_cleantag_' . md5($filePath . microtime()) . '.' . $ext;
 
         // Build ffmpeg command: strip all metadata, copy audio only, write fresh tags
         $cmd = 'ffmpeg -y -i ' . escapeshellarg($filePath)

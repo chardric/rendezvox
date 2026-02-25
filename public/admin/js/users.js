@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Users Management
+   RendezVox Admin — Users Management
    ============================================================ */
-var iRadioUsers = (function() {
+var RendezVoxUsers = (function() {
 
   var users = [];
   var editingId = null;
@@ -33,12 +33,12 @@ var iRadioUsers = (function() {
 
   function formatDate(dt) {
     if (!dt) return '<span style="color:var(--text-dim)">Never</span>';
-    return new Date(dt).toLocaleString(undefined, iRadioAPI.tzOpts());
+    return new Date(dt).toLocaleString(undefined, RendezVoxAPI.tzOpts());
   }
 
   function checkSmtpConfigured() {
     if (smtpConfigured !== null) return Promise.resolve(smtpConfigured);
-    return iRadioAPI.get('/admin/settings').then(function(data) {
+    return RendezVoxAPI.get('/admin/settings').then(function(data) {
       var settings = data.settings || [];
       for (var i = 0; i < settings.length; i++) {
         if (settings[i].key === 'smtp_host') {
@@ -55,7 +55,7 @@ var iRadioUsers = (function() {
   }
 
   function init() {
-    var me = iRadioAuth.getUser();
+    var me = RendezVoxAuth.getUser();
     currentUserId = me ? me.id : null;
 
     document.getElementById('btnNewUser').addEventListener('click', openCreateModal);
@@ -74,7 +74,7 @@ var iRadioUsers = (function() {
     // Pre-fetch SMTP status
     checkSmtpConfigured();
 
-    iRadioAPI.getTimezone().then(function() { loadUsers(); });
+    RendezVoxAPI.getTimezone().then(function() { loadUsers(); });
   }
 
   // ── Validation helpers ──────────────────────────────────
@@ -160,7 +160,7 @@ var iRadioUsers = (function() {
   }
 
   function loadUsers() {
-    iRadioAPI.get('/admin/users').then(function(data) {
+    RendezVoxAPI.get('/admin/users').then(function(data) {
       users = data.users || [];
       renderTable();
     }).catch(function(err) {
@@ -239,7 +239,7 @@ var iRadioUsers = (function() {
   }
 
   function toggleActive(id, active) {
-    iRadioAPI.put('/admin/users/' + id, { is_active: active }).then(function() {
+    RendezVoxAPI.put('/admin/users/' + id, { is_active: active }).then(function() {
       showToast(active ? 'User activated' : 'User deactivated', 'success');
       loadUsers();
     }).catch(function(err) {
@@ -356,8 +356,8 @@ var iRadioUsers = (function() {
     if (editingId) body.is_active = document.getElementById('userActive').checked;
 
     var promise = editingId
-      ? iRadioAPI.put('/admin/users/' + editingId, body)
-      : iRadioAPI.post('/admin/users', body);
+      ? RendezVoxAPI.put('/admin/users/' + editingId, body)
+      : RendezVoxAPI.post('/admin/users', body);
 
     promise.then(function(data) {
       closeModal();
@@ -406,10 +406,10 @@ var iRadioUsers = (function() {
   function deleteUser(id) {
     var u = users.find(function(x) { return x.id === id; });
     if (!u) return;
-    iRadioConfirm('Delete user "' + u.username + '"? This cannot be undone.', { title: 'Delete User', okLabel: 'Delete' }).then(function(ok) {
+    RendezVoxConfirm('Delete user "' + u.username + '"? This cannot be undone.', { title: 'Delete User', okLabel: 'Delete' }).then(function(ok) {
       if (!ok) return;
 
-      iRadioAPI.del('/admin/users/' + id).then(function() {
+      RendezVoxAPI.del('/admin/users/' + id).then(function() {
         showToast('User deleted', 'success');
         loadUsers();
       }).catch(function(err) {

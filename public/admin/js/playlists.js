@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Playlists Management
+   RendezVox Admin — Playlists Management
    ============================================================ */
-var iRadioPlaylists = (function() {
+var RendezVoxPlaylists = (function() {
 
   var activePlaylistId   = null;
   var activePlaylistName = null;
@@ -149,7 +149,7 @@ var iRadioPlaylists = (function() {
 
     if (!ep) {
       desc.textContent = 'No emergency playlist configured. Create one to enable emergency mode.';
-      actions.innerHTML = '<button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="iRadioPlaylists.createEmergency()">Create Emergency Playlist</button>';
+      actions.innerHTML = '<button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="RendezVoxPlaylists.createEmergency()">Create Emergency Playlist</button>';
     } else {
       var songLabel = ep.song_count !== null ? ep.song_count + ' songs' : '—';
       var statusBadge = ep.is_active
@@ -160,9 +160,9 @@ var iRadioPlaylists = (function() {
         : '';
       desc.innerHTML = '<strong>' + escHtml(ep.name) + '</strong> — ' + songLabel + ' ' + statusBadge + epStreamBadge;
       actions.innerHTML =
-        '<button type="button" class="icon-btn" title="View" onclick="iRadioPlaylists.viewDetail(' + ep.id + ')">' + iRadioIcons.view + '</button> ' +
-        '<button type="button" class="icon-btn" title="Edit" onclick="iRadioPlaylists.editPlaylist(' + ep.id + ')">' + iRadioIcons.edit + '</button> ' +
-        '<button type="button" class="icon-btn danger" title="Delete" onclick="iRadioPlaylists.deletePlaylist(' + ep.id + ')">' + iRadioIcons.del + '</button>';
+        '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + ep.id + ')">' + RendezVoxIcons.view + '</button> ' +
+        '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + ep.id + ')">' + RendezVoxIcons.edit + '</button> ' +
+        '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + ep.id + ')">' + RendezVoxIcons.del + '</button>';
     }
   }
 
@@ -172,7 +172,7 @@ var iRadioPlaylists = (function() {
       return;
     }
 
-    iRadioAPI.post('/admin/playlists', {
+    RendezVoxAPI.post('/admin/playlists', {
       name: 'Emergency',
       description: 'Fallback playlist for emergency mode',
       type: 'emergency',
@@ -221,7 +221,7 @@ var iRadioPlaylists = (function() {
       return;
     }
 
-    iRadioAPI.get('/admin/categories').then(function(data) {
+    RendezVoxAPI.get('/admin/categories').then(function(data) {
       autoCategoriesData = (data.categories || []).filter(function(c) {
         return c.type === 'music' || !c.type;
       });
@@ -249,7 +249,7 @@ var iRadioPlaylists = (function() {
       return;
     }
 
-    iRadioAPI.get('/admin/artists').then(function(data) {
+    RendezVoxAPI.get('/admin/artists').then(function(data) {
       autoArtistsData = (data.artists || []).sort(function(a, b) {
         return a.name.localeCompare(b.name);
       });
@@ -277,7 +277,7 @@ var iRadioPlaylists = (function() {
       return;
     }
 
-    iRadioAPI.get('/admin/songs/years').then(function(data) {
+    RendezVoxAPI.get('/admin/songs/years').then(function(data) {
       autoYearsData = data.years || [];
       renderYears(autoYearsData);
     });
@@ -313,7 +313,7 @@ var iRadioPlaylists = (function() {
   // ── Playlist CRUD ────────────────────────────────────
 
   function loadPlaylists() {
-    iRadioAPI.get('/admin/playlists').then(function(data) {
+    RendezVoxAPI.get('/admin/playlists').then(function(data) {
       allPlaylists = data.playlists || [];
       currentStreamingPlaylistId = data.current_playlist_id || null;
       fixDuplicateColors();
@@ -364,7 +364,7 @@ var iRadioPlaylists = (function() {
 
     // Save all fixes in parallel, then render once done
     var saves = fixes.map(function(p) {
-      return iRadioAPI.put('/admin/playlists/' + p.id, { color: p.color });
+      return RendezVoxAPI.put('/admin/playlists/' + p.id, { color: p.color });
     });
     var render = function() {
       renderEmergencyCard(allPlaylists);
@@ -447,12 +447,12 @@ var iRadioPlaylists = (function() {
         '<td><span class="badge ' + typeCls + '">' + typeLabel + '</span></td>' +
         '<td>' + songCount + '</td>' +
         '<td>' + p.cycle_count + '</td>' +
-        '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="iRadioPlaylists.toggleActive(' + p.id + ',this.checked)"' + toggleChecked + '><span class="slider"></span></label></td>' +
+        '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="RendezVoxPlaylists.toggleActive(' + p.id + ',this.checked)"' + toggleChecked + '><span class="slider"></span></label></td>' +
         '<td style="white-space:nowrap">' +
-          '<button type="button" class="icon-btn" title="View" onclick="iRadioPlaylists.viewDetail(' + p.id + ')">' + iRadioIcons.view + '</button> ' +
-          '<label class="icon-btn" title="Change color" style="position:relative;cursor:pointer;color:' + escHtml(p.color || '#00c8a0') + '">' + iRadioIcons.palette + '<input type="color" value="' + escHtml(p.color || '#00c8a0') + '" onchange="iRadioPlaylists.changeColor(' + p.id + ',this.value)" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></label> ' +
-          '<button type="button" class="icon-btn" title="Edit" onclick="iRadioPlaylists.editPlaylist(' + p.id + ')">' + iRadioIcons.edit + '</button> ' +
-          '<button type="button" class="icon-btn danger" title="Delete" onclick="iRadioPlaylists.deletePlaylist(' + p.id + ')">' + iRadioIcons.del + '</button>' +
+          '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + p.id + ')">' + RendezVoxIcons.view + '</button> ' +
+          '<label class="icon-btn" title="Change color" style="position:relative;cursor:pointer;color:' + escHtml(p.color || '#00c8a0') + '">' + RendezVoxIcons.palette + '<input type="color" value="' + escHtml(p.color || '#00c8a0') + '" onchange="RendezVoxPlaylists.changeColor(' + p.id + ',this.value)" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></label> ' +
+          '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + p.id + ')">' + RendezVoxIcons.edit + '</button> ' +
+          '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + p.id + ')">' + RendezVoxIcons.del + '</button>' +
         '</td>' +
         '</tr>';
     });
@@ -506,7 +506,7 @@ var iRadioPlaylists = (function() {
     var names = selected.slice(0, 3).map(function(s) { return s.name; }).join(', ');
     if (selected.length > 3) names += ' + ' + (selected.length - 3) + ' more';
 
-    iRadioConfirm('Delete ' + selected.length + ' playlist' + (selected.length !== 1 ? 's' : '') + '?\n' + names, {
+    RendezVoxConfirm('Delete ' + selected.length + ' playlist' + (selected.length !== 1 ? 's' : '') + '?\n' + names, {
       title: 'Bulk Delete', okLabel: 'Delete All'
     }).then(function(ok) {
       if (!ok) return;
@@ -531,7 +531,7 @@ var iRadioPlaylists = (function() {
           return;
         }
         var id = ids.shift();
-        iRadioAPI.del('/admin/playlists/' + id).then(function() {
+        RendezVoxAPI.del('/admin/playlists/' + id).then(function() {
           done++;
           deleteNext();
         }).catch(function() {
@@ -544,10 +544,10 @@ var iRadioPlaylists = (function() {
   }
 
   function toggleActive(id, active) {
-    iRadioAPI.put('/admin/playlists/' + id, { is_active: active }).then(function() {
+    RendezVoxAPI.put('/admin/playlists/' + id, { is_active: active }).then(function() {
       showToast(active ? 'Playlist activated' : 'Playlist deactivated');
       // Notify stream in case this playlist is currently scheduled
-      iRadioAPI.post('/admin/schedules/reload', {}).catch(function() {});
+      RendezVoxAPI.post('/admin/schedules/reload', {}).catch(function() {});
     }).catch(function(err) {
       showToast((err && err.error) || 'Update failed', 'error');
       loadPlaylists();
@@ -560,7 +560,7 @@ var iRadioPlaylists = (function() {
       loadPlaylists();
       return;
     }
-    iRadioAPI.put('/admin/playlists/' + id, { color: color }).then(function() {
+    RendezVoxAPI.put('/admin/playlists/' + id, { color: color }).then(function() {
       loadPlaylists();
     }).catch(function(err) {
       showToast((err && err.error) || 'Update failed', 'error');
@@ -586,7 +586,7 @@ var iRadioPlaylists = (function() {
   }
 
   function editPlaylist(id) {
-    iRadioAPI.get('/admin/playlists/' + id).then(function(data) {
+    RendezVoxAPI.get('/admin/playlists/' + id).then(function(data) {
       var p = data.playlist;
       document.getElementById('playlistModalTitle').textContent = 'Edit Playlist';
       document.getElementById('plId').value      = p.id;
@@ -649,8 +649,8 @@ var iRadioPlaylists = (function() {
     }
 
     var promise = id
-      ? iRadioAPI.put('/admin/playlists/' + id, body)
-      : iRadioAPI.post('/admin/playlists', body);
+      ? RendezVoxAPI.put('/admin/playlists/' + id, body)
+      : RendezVoxAPI.post('/admin/playlists', body);
 
     promise.then(function() {
       showToast(id ? 'Playlist updated' : 'Playlist created');
@@ -663,10 +663,10 @@ var iRadioPlaylists = (function() {
   }
 
   function deletePlaylist(id) {
-    iRadioConfirm('Delete this playlist?', { title: 'Delete Playlist', okLabel: 'Delete' }).then(function(ok) {
+    RendezVoxConfirm('Delete this playlist?', { title: 'Delete Playlist', okLabel: 'Delete' }).then(function(ok) {
       if (!ok) return;
 
-      iRadioAPI.del('/admin/playlists/' + id).then(function() {
+      RendezVoxAPI.del('/admin/playlists/' + id).then(function() {
         showToast('Playlist deleted');
         if (activePlaylistId === id) {
           document.getElementById('detailPanel').classList.add('hidden');
@@ -692,7 +692,7 @@ var iRadioPlaylists = (function() {
   }
 
   function loadDetail(id) {
-    iRadioAPI.get('/admin/playlists/' + id).then(function(data) {
+    RendezVoxAPI.get('/admin/playlists/' + id).then(function(data) {
       var pl     = data.playlist;
       var isAuto = pl.type === 'auto';
       activePlaylistType = pl.type;
@@ -779,7 +779,7 @@ var iRadioPlaylists = (function() {
       } else {
         playedCol = 'No';
       }
-      var actionCell = '<button type="button" class="icon-btn danger" title="Remove" onclick="iRadioPlaylists.removeSong(' + s.song_id + ')">' + iRadioIcons.remove + '</button>';
+      var actionCell = '<button type="button" class="icon-btn danger" title="Remove" onclick="RendezVoxPlaylists.removeSong(' + s.song_id + ')">' + RendezVoxIcons.remove + '</button>';
       var rowAttr    = isAuto
         ? ''
         : ' draggable="true" data-song-id="' + s.song_id + '"';
@@ -804,7 +804,7 @@ var iRadioPlaylists = (function() {
   function removeSong(songId) {
     if (!activePlaylistId) return;
 
-    iRadioAPI.del('/admin/playlists/' + activePlaylistId + '/songs/' + songId).then(function() {
+    RendezVoxAPI.del('/admin/playlists/' + activePlaylistId + '/songs/' + songId).then(function() {
       showToast('Song removed');
       loadDetail(activePlaylistId);
       loadPlaylists();
@@ -850,7 +850,7 @@ var iRadioPlaylists = (function() {
       return;
     }
 
-    iRadioAPI.post('/admin/playlists/' + activePlaylistId + '/shuffle', {}).then(function() {
+    RendezVoxAPI.post('/admin/playlists/' + activePlaylistId + '/shuffle', {}).then(function() {
       showToast('Playlist shuffled');
       loadDetail(activePlaylistId);
     }).catch(function(err) {
@@ -877,13 +877,13 @@ var iRadioPlaylists = (function() {
     updateSelectionCount();
 
     if (addSongArtists.length === 0) {
-      iRadioAPI.get('/admin/artists').then(function(data) {
+      RendezVoxAPI.get('/admin/artists').then(function(data) {
         addSongArtists = data.artists || [];
         populateArtistDropdown();
       });
     }
     if (addSongCategories.length === 0) {
-      iRadioAPI.get('/admin/categories').then(function(data) {
+      RendezVoxAPI.get('/admin/categories').then(function(data) {
         addSongCategories = data.categories || [];
         populateCategoryDropdown();
       });
@@ -921,7 +921,7 @@ var iRadioPlaylists = (function() {
     if (artistId) q += '&artist_id='   + artistId;
     if (catId)    q += '&category_id=' + catId;
 
-    iRadioAPI.get('/admin/songs' + q).then(function(data) {
+    RendezVoxAPI.get('/admin/songs' + q).then(function(data) {
       var songs = data.songs || [];
       renderAddSongTable(songs);
       var available = songs.filter(function(s) { return !playlistSongIds[s.id]; }).length;
@@ -1025,7 +1025,7 @@ var iRadioPlaylists = (function() {
     btn.disabled = true;
     btn.textContent = 'Adding…';
 
-    iRadioAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
+    RendezVoxAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
       song_ids: ids
     }).then(function(data) {
       showToast(ids.length + ' song' + (ids.length !== 1 ? 's' : '') + ' added');
@@ -1058,7 +1058,7 @@ var iRadioPlaylists = (function() {
       filterDesc = 'all songs in ' + sel2.options[sel2.selectedIndex].text;
     }
 
-    iRadioConfirm('Add ' + filterDesc + ' to this playlist?', { title: 'Add Songs', okLabel: 'Add', okClass: 'btn-primary' }).then(function(ok) {
+    RendezVoxConfirm('Add ' + filterDesc + ' to this playlist?', { title: 'Add Songs', okLabel: 'Add', okClass: 'btn-primary' }).then(function(ok) {
       if (!ok) return;
 
       var q = '?per_page=500&active=true';
@@ -1070,7 +1070,7 @@ var iRadioPlaylists = (function() {
       btn.disabled = true;
       btn.textContent = 'Adding…';
 
-      iRadioAPI.get('/admin/songs' + q).then(function(data) {
+      RendezVoxAPI.get('/admin/songs' + q).then(function(data) {
         var ids = data.songs.map(function(s) { return s.id; });
         ids = ids.filter(function(sid) { return !playlistSongIds[sid]; });
 
@@ -1081,7 +1081,7 @@ var iRadioPlaylists = (function() {
           return;
         }
 
-        return iRadioAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
+        return RendezVoxAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
           song_ids: ids
         }).then(function(result) {
           showToast(ids.length + ' song' + (ids.length !== 1 ? 's' : '') + ' added');
@@ -1279,7 +1279,7 @@ var iRadioPlaylists = (function() {
   // ── Add from Folder ──────────────────────────────────
 
   function loadFolders() {
-    iRadioAPI.get('/admin/media/folders').then(function(data) {
+    RendezVoxAPI.get('/admin/media/folders').then(function(data) {
       allFolders = data.folders || [];
     }).catch(function() {
       allFolders = [];
@@ -1325,7 +1325,7 @@ var iRadioPlaylists = (function() {
     btn.disabled    = true;
     btn.textContent = 'Adding\u2026';
 
-    iRadioAPI.post('/admin/playlists/' + activePlaylistId + '/songs/folder', {
+    RendezVoxAPI.post('/admin/playlists/' + activePlaylistId + '/songs/folder', {
       folder_path: folderPath,
       recursive:   recursive
     }).then(function(data) {
@@ -1352,7 +1352,7 @@ var iRadioPlaylists = (function() {
     document.getElementById('importFoldersModal').classList.remove('hidden');
 
     // Fetch folders with song counts
-    iRadioAPI.get('/admin/media/folders?counts=true').then(function(data) {
+    RendezVoxAPI.get('/admin/media/folders?counts=true').then(function(data) {
       var folders = data.folders || [];
 
       // Build set of existing playlist names (case-insensitive)
@@ -1441,7 +1441,7 @@ var iRadioPlaylists = (function() {
     btn.disabled = true;
     btn.textContent = 'Starting import…';
 
-    iRadioAPI.post('/admin/playlists/batch-import', {
+    RendezVoxAPI.post('/admin/playlists/batch-import', {
       folders: folders,
       recursive: recursive
     }).then(function(data) {
@@ -1473,7 +1473,7 @@ var iRadioPlaylists = (function() {
     if (progressWrap) progressWrap.style.display = 'block';
 
     batchImportPollTimer = setInterval(function() {
-      iRadioAPI.get('/admin/playlists/batch-import').then(function(data) {
+      RendezVoxAPI.get('/admin/playlists/batch-import').then(function(data) {
         if (!data || data.status === 'idle') {
           if (++idleCount >= 3) {
             clearInterval(batchImportPollTimer);
@@ -1588,7 +1588,7 @@ var iRadioPlaylists = (function() {
       songIds.push(parseInt(r.getAttribute('data-song-id')));
     });
 
-    iRadioAPI.put('/admin/playlists/' + activePlaylistId + '/reorder', { song_ids: songIds }).then(function() {
+    RendezVoxAPI.put('/admin/playlists/' + activePlaylistId + '/reorder', { song_ids: songIds }).then(function() {
       showToast('Order saved');
       loadDetail(activePlaylistId);
     }).catch(function(err) {
@@ -1646,7 +1646,7 @@ var iRadioPlaylists = (function() {
     document.getElementById('surpriseMeModal').classList.remove('hidden');
 
     // Pre-check availability and get avg duration
-    iRadioAPI.get('/admin/songs/random?count=1&exclude_playlist_id=' + activePlaylistId).then(function(data) {
+    RendezVoxAPI.get('/admin/songs/random?count=1&exclude_playlist_id=' + activePlaylistId).then(function(data) {
       var avail = data.total_available || 0;
       surpriseAvgDurationMs = data.avg_duration_ms || 210000;
       document.getElementById('surpriseAvailable').textContent =
@@ -1679,7 +1679,7 @@ var iRadioPlaylists = (function() {
     btn.disabled = true;
     btn.textContent = 'Adding…';
 
-    iRadioAPI.get('/admin/songs/random?hours=' + hours + '&exclude_playlist_id=' + activePlaylistId).then(function(data) {
+    RendezVoxAPI.get('/admin/songs/random?hours=' + hours + '&exclude_playlist_id=' + activePlaylistId).then(function(data) {
       var songs = data.songs || [];
       if (songs.length === 0) {
         showToast('No songs available to add', 'error');
@@ -1692,7 +1692,7 @@ var iRadioPlaylists = (function() {
       var totalMs = data.total_duration_ms || 0;
       var totalHrs = totalMs > 0 ? Math.round(totalMs / 3600000 * 10) / 10 : 0;
 
-      return iRadioAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
+      return RendezVoxAPI.post('/admin/playlists/' + activePlaylistId + '/songs/bulk', {
         song_ids: ids
       }).then(function() {
         var msg = ids.length + ' random song' + (ids.length !== 1 ? 's' : '') + ' added';

@@ -63,7 +63,7 @@ class WeatherHandler
         $lon = $coords['lon'];
 
         // Check cache for this location grid
-        $cacheFile = self::CACHE_DIR . '/iradio_weather_' . $lat . '_' . $lon . '.json';
+        $cacheFile = self::CACHE_DIR . '/rendezvox_weather_' . $lat . '_' . $lon . '.json';
         if (file_exists($cacheFile)) {
             $cached = json_decode((string) file_get_contents($cacheFile), true);
             if ($cached && isset($cached['_cached_at']) && (time() - $cached['_cached_at']) < self::CACHE_TTL) {
@@ -138,7 +138,7 @@ class WeatherHandler
 
         $ctx = stream_context_create([
             'http' => [
-                'header'  => "User-Agent: iRadio/1.0\r\n",
+                'header'  => "User-Agent: RendezVox/1.0\r\n",
                 'timeout' => 5,
             ],
         ]);

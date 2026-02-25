@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 class MediaBrowseHandler
 {
-    public const BASE_DIR = '/var/lib/iradio/music';
+    public const BASE_DIR = '/var/lib/rendezvox/music';
 
     public function handle(): void
     {

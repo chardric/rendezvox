@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Jingle Manager
+   RendezVox Admin — Jingle Manager
    ============================================================ */
-var iRadioJingles = (function() {
+var RendezVoxJingles = (function() {
 
   var currentlyPlaying = null; // filename of currently playing jingle
   var renameTarget = null;     // filename being renamed
@@ -64,10 +64,11 @@ var iRadioJingles = (function() {
   // ── Load & render ──────────────────────────────────────
 
   function loadJingles() {
-    iRadioAPI.get('/admin/jingles').then(function(data) {
+    RendezVoxAPI.get('/admin/jingles').then(function(data) {
       renderTable(data.jingles);
       renderSummary(data.jingles);
-    }).catch(function() {
+    }).catch(function(err) {
+      console.error('Jingles load error:', err);
       showToast('Failed to load jingles', 'error');
     });
   }
@@ -97,7 +98,7 @@ var iRadioJingles = (function() {
     jingles.forEach(function(j) {
       var size = formatSize(j.size);
       var dur = formatDuration(j.duration_ms);
-      var date = new Date(j.created_at).toLocaleDateString('en-US', Object.assign({ day: 'numeric', month: 'short', year: 'numeric' }, iRadioAPI.tzOpts()));
+      var date = new Date(j.created_at).toLocaleDateString('en-US', Object.assign({ day: 'numeric', month: 'short', year: 'numeric' }, RendezVoxAPI.tzOpts()));
       var isPlaying = currentlyPlaying === j.filename;
       var playIcon = isPlaying
         ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'
@@ -110,9 +111,9 @@ var iRadioJingles = (function() {
         '<td class="file-size">' + size + '</td>' +
         '<td>' + date + '</td>' +
         '<td style="white-space:nowrap">' +
-          '<button type="button" class="btn-play' + playClass + '" title="' + (isPlaying ? 'Stop' : 'Play') + '" onclick="iRadioJingles.togglePlay(\'' + escAttr(j.filename) + '\')">' + playIcon + '</button> ' +
-          '<button type="button" class="icon-btn" title="Rename" onclick="iRadioJingles.renameJingle(\'' + escAttr(j.filename) + '\')">' + iRadioIcons.edit + '</button> ' +
-          '<button type="button" class="icon-btn danger" title="Delete" onclick="iRadioJingles.deleteJingle(\'' + escAttr(j.filename) + '\')">' + iRadioIcons.del + '</button>' +
+          '<button type="button" class="btn-play' + playClass + '" title="' + (isPlaying ? 'Stop' : 'Play') + '" onclick="RendezVoxJingles.togglePlay(\'' + escAttr(j.filename) + '\')">' + playIcon + '</button> ' +
+          '<button type="button" class="icon-btn" title="Rename" onclick="RendezVoxJingles.renameJingle(\'' + escAttr(j.filename) + '\')">' + RendezVoxIcons.edit + '</button> ' +
+          '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxJingles.deleteJingle(\'' + escAttr(j.filename) + '\')">' + RendezVoxIcons.del + '</button>' +
         '</td>' +
         '</tr>';
     });
@@ -144,7 +145,7 @@ var iRadioJingles = (function() {
     // Fetch with auth header, create blob URL for audio element
     // (<audio> elements cannot send Authorization headers natively)
     fetch('/api/admin/jingles/' + encodeURIComponent(filename) + '/stream', {
-      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('iradio_token') }
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('rendezvox_token') }
     })
     .then(function(res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -228,7 +229,7 @@ var iRadioJingles = (function() {
       var formData = new FormData();
       formData.append('file', file);
 
-      iRadioAPI.upload('/admin/jingles', formData, function() {})
+      RendezVoxAPI.upload('/admin/jingles', formData, function() {})
         .then(function() { onFileComplete(); })
         .catch(function(err) {
           errors++;
@@ -249,7 +250,7 @@ var iRadioJingles = (function() {
 
     showProgress('Uploading...', 0);
 
-    iRadioAPI.upload('/admin/jingles', formData, function(p) {
+    RendezVoxAPI.upload('/admin/jingles', formData, function(p) {
       var label = p.pct < 100 ? 'Uploading...' : 'Processing...';
       showProgress(label, p.pct);
     }).then(function() {
@@ -310,7 +311,7 @@ var iRadioJingles = (function() {
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
-    iRadioAPI.put('/admin/jingles/' + encodeURIComponent(filename) + '/rename', { filename: newName })
+    RendezVoxAPI.put('/admin/jingles/' + encodeURIComponent(filename) + '/rename', { filename: newName })
       .then(function(data) {
         showToast('Renamed to ' + data.filename);
         if (currentlyPlaying === filename) {
@@ -331,11 +332,11 @@ var iRadioJingles = (function() {
   // ── Delete ─────────────────────────────────────────────
 
   function deleteJingle(filename) {
-    iRadioConfirm('Delete jingle "' + filename + '"?', { title: 'Delete Jingle', okLabel: 'Delete' })
+    RendezVoxConfirm('Delete jingle "' + filename + '"?', { title: 'Delete Jingle', okLabel: 'Delete' })
       .then(function(ok) {
         if (!ok) return;
         if (currentlyPlaying === filename) stopJingle();
-        iRadioAPI.del('/admin/jingles/' + encodeURIComponent(filename))
+        RendezVoxAPI.del('/admin/jingles/' + encodeURIComponent(filename))
           .then(function() { showToast('Jingle deleted'); loadJingles(); })
           .catch(function(err) { showToast((err && err.error) || 'Delete failed', 'error'); });
       });

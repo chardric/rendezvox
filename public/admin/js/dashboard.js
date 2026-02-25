@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Dashboard
+   RendezVox Admin — Dashboard
    ============================================================ */
-var iRadioDashboard = (function() {
+var RendezVoxDashboard = (function() {
 
   var pollTimer    = null;
   var progressTimer = null;
@@ -22,7 +22,7 @@ var iRadioDashboard = (function() {
     initTabs();
 
     // Load config, then start polling + SSE
-    iRadioAPI.get('/config').then(function(cfg) {
+    RendezVoxAPI.get('/config').then(function(cfg) {
       streamUrl = '/stream/live';
       initDJBooth();
       fetchStats();
@@ -46,7 +46,7 @@ var iRadioDashboard = (function() {
     loadQuickSettings();
 
     // Load station timezone (auto-detected from server), then start clock
-    iRadioAPI.getTimezone().then(function() {
+    RendezVoxAPI.getTimezone().then(function() {
       updateClock();
       setInterval(updateClock, 1000);
     });
@@ -87,7 +87,7 @@ var iRadioDashboard = (function() {
 
   function updateClock() {
     var now = new Date();
-    var opts = iRadioAPI.tzOpts();
+    var opts = RendezVoxAPI.tzOpts();
 
     var h  = parseInt(now.toLocaleString('en-US', Object.assign({ hour: '2-digit', hour12: false }, opts)), 10);
     var m  = parseInt(now.toLocaleString('en-US', Object.assign({ minute: '2-digit' }, opts)), 10);
@@ -111,7 +111,7 @@ var iRadioDashboard = (function() {
     var dateStr = now.toLocaleDateString('en-US', Object.assign({
       month: 'long', day: 'numeric', year: 'numeric'
     }, opts));
-    var tz = iRadioAPI.tz();
+    var tz = RendezVoxAPI.tz();
     var tzLabel = tz ? ' (' + tz.replace(/_/g, ' ') + ')' : '';
     var dateEl = document.getElementById('djClockDate');
     if (dateEl) {
@@ -184,7 +184,7 @@ var iRadioDashboard = (function() {
   function skipTrack() {
     var btn = document.getElementById('djSkipBtn');
     btn.disabled = true;
-    iRadioAPI.post('/admin/skip-track', {}).then(function() {
+    RendezVoxAPI.post('/admin/skip-track', {}).then(function() {
       showToast('Skipped to next track');
       if (djStreaming) {
         djStopping = true;
@@ -286,7 +286,7 @@ var iRadioDashboard = (function() {
     var isActive = btn.classList.contains('active');
     var action = isActive ? 'stop' : 'start';
 
-    iRadioAPI.post('/admin/stream-control', { action: action })
+    RendezVoxAPI.post('/admin/stream-control', { action: action })
       .then(function(data) {
         renderStreamStatus(data.stream_active);
         showToast(data.message, action === 'stop' ? 'error' : 'success');
@@ -323,7 +323,7 @@ var iRadioDashboard = (function() {
   // ── Stats polling ─────────────────────────────────────
 
   function fetchStats() {
-    iRadioAPI.get('/admin/stats/dashboard')
+    RendezVoxAPI.get('/admin/stats/dashboard')
       .then(function(data) {
         renderNowPlaying(data.now_playing);
         renderUpNext(data.next_track);
@@ -395,7 +395,7 @@ var iRadioDashboard = (function() {
   // ── Library Overview ──────────────────────────────────
 
   function loadLibraryStats() {
-    iRadioAPI.get('/admin/library-stats').then(function(data) {
+    RendezVoxAPI.get('/admin/library-stats').then(function(data) {
       renderLibraryStats(data);
     }).catch(function() {
       var el = document.getElementById('libraryStats');
@@ -509,7 +509,7 @@ var iRadioDashboard = (function() {
   function toggleEmergency() {
     var enabled = document.getElementById('emergencyToggle').checked;
 
-    iRadioAPI.post('/admin/toggle-emergency', { enabled: enabled })
+    RendezVoxAPI.post('/admin/toggle-emergency', { enabled: enabled })
       .then(function() {
         showToast(enabled ? 'Emergency mode ACTIVATED' : 'Emergency mode deactivated',
                   enabled ? 'error' : 'success');
@@ -545,7 +545,7 @@ var iRadioDashboard = (function() {
   }
 
   function fetchWeather() {
-    iRadioAPI.get('/weather').then(function(data) {
+    RendezVoxAPI.get('/weather').then(function(data) {
       var el = document.getElementById('djClockWeather');
       if (!el || !data || data.error) {
         if (el) el.classList.remove('visible');
@@ -568,7 +568,7 @@ var iRadioDashboard = (function() {
   // ── Quick Settings toggles ─────────────────────────────
 
   function loadQuickSettings() {
-    iRadioAPI.get('/admin/settings').then(function(result) {
+    RendezVoxAPI.get('/admin/settings').then(function(result) {
       var map = {};
       result.settings.forEach(function(s) { map[s.key] = s.value; });
 
@@ -593,7 +593,7 @@ var iRadioDashboard = (function() {
       var el = document.getElementById(inputId);
       var val = el.checked ? 'true' : 'false';
 
-      iRadioAPI.put('/admin/settings/' + encodeURIComponent(settingKey), { value: val })
+      RendezVoxAPI.put('/admin/settings/' + encodeURIComponent(settingKey), { value: val })
         .then(function() {
           setToggle(inputId, statusId, el.checked);
           showToast(label + ' ' + (el.checked ? 'enabled' : 'disabled'));
@@ -618,7 +618,7 @@ var iRadioDashboard = (function() {
   function formatTime(isoStr) {
     if (!isoStr) return '—';
     var d = new Date(isoStr);
-    var opts = Object.assign({ hour: '2-digit', minute: '2-digit', second: '2-digit' }, iRadioAPI.tzOpts());
+    var opts = Object.assign({ hour: '2-digit', minute: '2-digit', second: '2-digit' }, RendezVoxAPI.tzOpts());
     return d.toLocaleTimeString([], opts);
   }
 

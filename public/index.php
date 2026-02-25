@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // -- Error handling --
-$debug = getenv('IRADIO_APP_DEBUG') === 'true';
+$debug = getenv('RENDEZVOX_APP_DEBUG') === 'true';
 error_reporting($debug ? E_ALL : 0);
 ini_set('display_errors', $debug ? '1' : '0');
 ini_set('log_errors', '1');

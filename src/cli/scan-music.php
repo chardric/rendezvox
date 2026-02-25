@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 /**
- * iRadio — Music Directory Scanner
+ * RendezVox — Music Directory Scanner
  *
- * Scans /var/lib/iradio/music for audio files and imports them into the database.
+ * Scans /var/lib/rendezvox/music for audio files and imports them into the database.
  * Uses MetadataExtractor for ffprobe tag extraction + filename fallback.
  *
  * Usage:
@@ -21,11 +21,11 @@ require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
 // -- Configuration --
-$musicDir   = '/var/lib/iradio/music';
+$musicDir   = '/var/lib/rendezvox/music';
 $lockFile   = '/tmp/scan-music.lock';
 $extensions = ['mp3', 'flac', 'ogg', 'wav', 'aac', 'm4a'];
 $dryRun     = in_array('--dry-run', $argv ?? []);
-$defaultCat = (int) (getenv('IRADIO_DEFAULT_CATEGORY_ID') ?: 1);
+$defaultCat = (int) (getenv('RENDEZVOX_DEFAULT_CATEGORY_ID') ?: 1);
 
 // -- Lock file --
 if (file_exists($lockFile)) {

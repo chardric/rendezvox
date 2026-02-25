@@ -28,11 +28,11 @@ class AvatarServeHandler
             return;
         }
 
-        $filePath = '/var/lib/iradio/avatars/' . $avatarPath;
+        $filePath = '/var/lib/rendezvox/avatars/' . $avatarPath;
 
         // Verify resolved path stays within avatars directory
         $realPath = realpath($filePath);
-        if ($realPath === false || !str_starts_with($realPath, '/var/lib/iradio/avatars/')) {
+        if ($realPath === false || !str_starts_with($realPath, '/var/lib/rendezvox/avatars/')) {
             Response::error('Avatar file not found', 404);
             return;
         }

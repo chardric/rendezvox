@@ -9,7 +9,7 @@ declare(strict_types=1);
  */
 class RenamePathsHandler
 {
-    private const PROGRESS_FILE = '/tmp/iradio_rename_paths.json';
+    private const PROGRESS_FILE = '/tmp/rendezvox_rename_paths.json';
     private const LOCK_FILE     = '/tmp/rename-paths.lock';
     private const SCRIPT        = '/var/www/html/src/scripts/rename_paths.php';
 
@@ -36,7 +36,7 @@ class RenamePathsHandler
                ->execute();
         }
 
-        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/iradio_rename_paths.log 2>&1 &';
+        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/rendezvox_rename_paths.log 2>&1 &';
         exec($cmd);
 
         usleep(500000);
@@ -109,7 +109,7 @@ class RenamePathsHandler
     {
         Auth::requireAuth();
 
-        $file = '/tmp/iradio_auto_rename_last.json';
+        $file = '/tmp/rendezvox_auto_rename_last.json';
         if (!file_exists($file)) {
             Response::json([
                 'has_run' => false,

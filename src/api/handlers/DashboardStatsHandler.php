@@ -237,9 +237,9 @@ class DashboardStatsHandler
         // PHP-FPM — we're executing inside it; if we're here, it's up
         $services['php'] = 'running';
 
-        // Icecast — TCP connect (both on iradio_net bridge)
-        $icecastHost = getenv('IRADIO_ICECAST_HOST') ?: 'icecast';
-        $icecastPort = (int) (getenv('IRADIO_ICECAST_PORT') ?: 8000);
+        // Icecast — TCP connect (both on rendezvox_net bridge)
+        $icecastHost = getenv('RENDEZVOX_ICECAST_HOST') ?: 'icecast';
+        $icecastPort = (int) (getenv('RENDEZVOX_ICECAST_PORT') ?: 8000);
 
         $icecastUp = false;
         $fp = @fsockopen($icecastHost, $icecastPort, $errno, $errstr, 2);

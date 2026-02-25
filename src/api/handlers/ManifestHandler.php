@@ -13,7 +13,7 @@ class ManifestHandler
 
         $stmt = $db->prepare("SELECT value FROM settings WHERE key = 'station_name'");
         $stmt->execute();
-        $name = $stmt->fetchColumn() ?: 'iRadio';
+        $name = $stmt->fetchColumn() ?: 'RendezVox';
 
         header('Content-Type: application/manifest+json');
         echo json_encode([

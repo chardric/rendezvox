@@ -1,9 +1,9 @@
 // ============================================================
-// iRadio — Service Worker
+// RendezVox — Service Worker
 // ============================================================
 
-var CACHE_STATIC = 'iradio-static-v1';
-var CACHE_ASSETS = 'iradio-assets-v1';
+var CACHE_STATIC = 'rendezvox-static-v1';
+var CACHE_ASSETS = 'rendezvox-assets-v1';
 var EXPECTED_CACHES = [CACHE_STATIC, CACHE_ASSETS];
 
 var PRECACHE_URLS = [

@@ -9,8 +9,8 @@ declare(strict_types=1);
  */
 class ArtistDedupHandler
 {
-    private const PROGRESS_FILE = '/tmp/iradio_artist_dedup.json';
-    private const LOCK_FILE     = '/tmp/iradio_artist_dedup.lock';
+    private const PROGRESS_FILE = '/tmp/rendezvox_artist_dedup.json';
+    private const LOCK_FILE     = '/tmp/rendezvox_artist_dedup.lock';
     private const SCRIPT        = '/var/www/html/src/scripts/artist_dedup.php';
 
     public function start(): void
@@ -52,7 +52,7 @@ class ArtistDedupHandler
         }
 
         // Launch background process
-        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/iradio_artist_dedup.log 2>&1 &';
+        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/rendezvox_artist_dedup.log 2>&1 &';
         exec($cmd);
 
         // Brief pause to let the script start and write initial progress
@@ -152,7 +152,7 @@ class ArtistDedupHandler
     {
         Auth::requireAuth();
 
-        $file = '/tmp/iradio_auto_dedup_last.json';
+        $file = '/tmp/rendezvox_auto_dedup_last.json';
         if (!file_exists($file)) {
             Response::json([
                 'has_run' => false,

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * File Manager: rename a file or folder and update all DB references.
  *
  * Songs may be stored in any of three path formats:
- *   1. Absolute:       /var/lib/iradio/music/tagged/Rock/song.mp3
+ *   1. Absolute:       /var/lib/rendezvox/music/tagged/Rock/song.mp3
  *   2. Relative:       tagged/Rock/song.mp3
  *   3. Slash-relative: /tagged/Rock/song.mp3
  *

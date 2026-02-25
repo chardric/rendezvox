@@ -66,7 +66,7 @@ class PlaylistSongFolderAddHandler
             while ($row = $catStmt->fetch()) {
                 $categoryCache[$row['lname']] = (int) $row['id'];
             }
-            $defaultCatId = (int) (getenv('IRADIO_DEFAULT_CATEGORY_ID') ?: 1);
+            $defaultCatId = (int) (getenv('RENDEZVOX_DEFAULT_CATEGORY_ID') ?: 1);
 
             $workers = MetadataExtractor::safeWorkerCount();
             MetadataExtractor::prefetch(array_column($newFiles, 'abs'), $workers);

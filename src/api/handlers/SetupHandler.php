@@ -104,7 +104,7 @@ class SetupHandler
         ]);
 
         Response::json([
-            'message' => 'Setup complete! Welcome to iRadio.',
+            'message' => 'Setup complete! Welcome to RendezVox.',
             'token'   => $token,
             'user'    => [
                 'id'           => $userId,

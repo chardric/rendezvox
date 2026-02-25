@@ -5,7 +5,7 @@
  * Songs whose files no longer exist on disk are deactivated (is_active = false).
  * This is safe and reversible — no data is deleted.
  *
- * Progress is written to /tmp/iradio_library_sync.json so the admin UI
+ * Progress is written to /tmp/rendezvox_library_sync.json so the admin UI
  * can poll for status.
  */
 
@@ -18,7 +18,7 @@ $autoMode = in_array('--auto', $argv ?? []);
 $db = Database::get();
 
 // ── Lock file — prevent concurrent runs ─────────────────
-$lockFile = '/tmp/iradio_library_sync.lock';
+$lockFile = '/tmp/rendezvox_library_sync.lock';
 if (file_exists($lockFile)) {
     $pid = (int) @file_get_contents($lockFile);
     if ($pid > 0 && file_exists("/proc/{$pid}")) {
@@ -63,14 +63,14 @@ $progress = [
 
 function writeProgress(array &$progress): void
 {
-    $file = '/tmp/iradio_library_sync.json';
+    $file = '/tmp/rendezvox_library_sync.json';
     @file_put_contents($file, json_encode($progress), LOCK_EX);
     @chmod($file, 0666);
 }
 
 // ── Main ─────────────────────────────────────────────────
 
-$musicDir = '/var/lib/iradio/music';
+$musicDir = '/var/lib/rendezvox/music';
 
 $stmt = $db->query("SELECT id, file_path FROM songs WHERE is_active = true");
 $allSongs = $stmt->fetchAll();
@@ -84,20 +84,20 @@ if (count($allSongs) === 0) {
     $progress['finished_at'] = date('c');
     writeProgress($progress);
     if ($autoMode) {
-        @file_put_contents('/tmp/iradio_auto_sync_last.json', json_encode([
+        @file_put_contents('/tmp/rendezvox_auto_sync_last.json', json_encode([
             'ran_at'      => date('c'),
             'total'       => 0,
             'missing'     => 0,
             'deactivated' => 0,
             'message'     => 'No active songs found',
         ]), LOCK_EX);
-        @chmod('/tmp/iradio_auto_sync_last.json', 0666);
+        @chmod('/tmp/rendezvox_auto_sync_last.json', 0666);
     }
     @unlink($lockFile);
     exit(0);
 }
 
-$stopFile   = '/tmp/iradio_library_sync.lock.stop';
+$stopFile   = '/tmp/rendezvox_library_sync.lock.stop';
 $batchSize  = 100;  // Progress write + stop check frequency
 $missingIds = [];    // Collect for batch DB update
 
@@ -117,14 +117,14 @@ foreach ($allSongs as $i => $song) {
         writeProgress($progress);
         logMsg('Sync stopped — ' . $progress['processed'] . '/' . $progress['total'] . ' processed, ' . $progress['deactivated'] . ' deactivated', $autoMode);
         if ($autoMode) {
-            @file_put_contents('/tmp/iradio_auto_sync_last.json', json_encode([
+            @file_put_contents('/tmp/rendezvox_auto_sync_last.json', json_encode([
                 'ran_at'      => date('c'),
                 'total'       => $progress['total'],
                 'missing'     => $progress['missing'],
                 'deactivated' => $progress['deactivated'],
                 'message'     => 'Stopped — ' . $progress['deactivated'] . ' deactivated so far',
             ]), LOCK_EX);
-            @chmod('/tmp/iradio_auto_sync_last.json', 0666);
+            @chmod('/tmp/rendezvox_auto_sync_last.json', 0666);
         }
         @unlink($lockFile);
         exit(0);
@@ -170,14 +170,14 @@ logMsg('Sync complete — ' . $progress['missing'] . ' missing, ' . $progress['d
 
 // Write auto-sync summary for the Settings UI
 if ($autoMode) {
-    @file_put_contents('/tmp/iradio_auto_sync_last.json', json_encode([
+    @file_put_contents('/tmp/rendezvox_auto_sync_last.json', json_encode([
         'ran_at'      => date('c'),
         'total'       => $progress['total'],
         'missing'     => $progress['missing'],
         'deactivated' => $progress['deactivated'],
         'message'     => $progress['missing'] . ' missing, ' . $progress['deactivated'] . ' deactivated',
     ]), LOCK_EX);
-    @chmod('/tmp/iradio_auto_sync_last.json', 0666);
+    @chmod('/tmp/rendezvox_auto_sync_last.json', 0666);
 }
 
 @unlink($lockFile);

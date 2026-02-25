@@ -1,16 +1,16 @@
 /* ============================================================
-   iRadio Admin — Settings
+   RendezVox Admin — Settings
    ============================================================ */
-var iRadioSettings = (function() {
+var RendezVoxSettings = (function() {
 
   var groups = {
-    'Station':   ['station_name'],
+    'Station':   [],
     'Playback':  ['artist_repeat_block', 'crossfade_ms'],
     'Requests':  ['request_expiry_minutes', 'request_rate_limit_seconds', 'request_auto_approve', 'profanity_filter_enabled'],
   };
 
   var defaults = {
-    'station_name':               'iRadio',
+    'station_name':               'RendezVox',
     'artist_repeat_block':        '6',
     'crossfade_ms':               '3000',
     'request_expiry_minutes':     '120',
@@ -25,8 +25,18 @@ var iRadioSettings = (function() {
   var settings = {};
   var dirty = false;
 
+  function restoreAuto(settingKey, checkboxId) {
+    RendezVoxAPI.put('/admin/settings/' + settingKey, { value: 'true' })
+      .then(function() {
+        if (settings[settingKey]) settings[settingKey].value = 'true';
+        var el = document.getElementById(checkboxId);
+        if (el) el.checked = true;
+      })
+      .catch(function() { /* silent — not critical */ });
+  }
+
   function init() {
-    iRadioAPI.get('/admin/settings').then(function(result) {
+    RendezVoxAPI.get('/admin/settings').then(function(result) {
       result.settings.forEach(function(s) { settings[s.key] = s; });
       render();
       loadTimezoneDisplay();
@@ -95,7 +105,7 @@ var iRadioSettings = (function() {
   }
 
   function loadTimezoneDisplay() {
-    iRadioAPI.getTimezone().then(function(tz) {
+    RendezVoxAPI.getTimezone().then(function(tz) {
       var el = document.getElementById('stationTimezone');
       if (el) el.textContent = tz.replace(/_/g, ' ');
     });
@@ -115,7 +125,7 @@ var iRadioSettings = (function() {
     btn.disabled = true;
     btn.textContent = 'Saving…';
 
-    iRadioAPI.put('/admin/settings/profanity_custom_words', { value: val })
+    RendezVoxAPI.put('/admin/settings/profanity_custom_words', { value: val })
       .then(function() {
         if (settings['profanity_custom_words']) settings['profanity_custom_words'].value = val;
         showToast('Custom blocked words saved');
@@ -143,7 +153,7 @@ var iRadioSettings = (function() {
     btn.disabled = true;
     btn.textContent = 'Saving…';
 
-    iRadioAPI.put('/admin/settings/schedule_reserved_keywords', { value: val })
+    RendezVoxAPI.put('/admin/settings/schedule_reserved_keywords', { value: val })
       .then(function() {
         if (settings['schedule_reserved_keywords']) settings['schedule_reserved_keywords'].value = val;
         showToast('Reserved keywords saved');
@@ -167,14 +177,14 @@ var iRadioSettings = (function() {
   }
 
   function loadAutoSyncStatus() {
-    iRadioAPI.get('/admin/auto-sync-status').then(function(data) {
+    RendezVoxAPI.get('/admin/auto-sync-status').then(function(data) {
       var el = document.getElementById('autoSyncStatus');
       if (!el) return;
       if (!data.has_run) {
         el.innerHTML = '<span style="opacity:.6">No auto-sync runs yet</span>';
       } else {
         var d = new Date(data.ran_at);
-        var opts = iRadioAPI.tzOpts();
+        var opts = RendezVoxAPI.tzOpts();
         var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
                       d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
         el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
@@ -189,7 +199,7 @@ var iRadioSettings = (function() {
   function saveAutoSync() {
     var el = document.getElementById('autoSyncEnabled');
     var val = el.checked ? 'true' : 'false';
-    iRadioAPI.put('/admin/settings/auto_library_sync_enabled', { value: val })
+    RendezVoxAPI.put('/admin/settings/auto_library_sync_enabled', { value: val })
       .then(function() {
         if (settings['auto_library_sync_enabled']) settings['auto_library_sync_enabled'].value = val;
         showToast('Auto-sync ' + (el.checked ? 'enabled' : 'disabled'));
@@ -210,14 +220,14 @@ var iRadioSettings = (function() {
   }
 
   function loadAutoDedupStatus() {
-    iRadioAPI.get('/admin/auto-dedup-status').then(function(data) {
+    RendezVoxAPI.get('/admin/auto-dedup-status').then(function(data) {
       var el = document.getElementById('autoDedupStatus');
       if (!el) return;
       if (!data.has_run) {
         el.innerHTML = '<span style="opacity:.6">No auto-dedup runs yet</span>';
       } else {
         var d = new Date(data.ran_at);
-        var opts = iRadioAPI.tzOpts();
+        var opts = RendezVoxAPI.tzOpts();
         var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
                       d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
         el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
@@ -232,7 +242,7 @@ var iRadioSettings = (function() {
   function saveAutoDedup() {
     var el = document.getElementById('autoDedupEnabled');
     var val = el.checked ? 'true' : 'false';
-    iRadioAPI.put('/admin/settings/auto_artist_dedup_enabled', { value: val })
+    RendezVoxAPI.put('/admin/settings/auto_artist_dedup_enabled', { value: val })
       .then(function() {
         if (settings['auto_artist_dedup_enabled']) settings['auto_artist_dedup_enabled'].value = val;
         showToast('Auto-dedup ' + (el.checked ? 'enabled' : 'disabled'));
@@ -252,14 +262,14 @@ var iRadioSettings = (function() {
   }
 
   function loadAutoTagStatus() {
-    iRadioAPI.get('/admin/auto-tag-status').then(function(data) {
+    RendezVoxAPI.get('/admin/auto-tag-status').then(function(data) {
       var el = document.getElementById('autoTagStatus');
       if (!el) return;
       if (!data.has_run) {
         el.innerHTML = '<span style="opacity:.6">No auto-tag runs yet</span>';
       } else {
         var d = new Date(data.ran_at);
-        var opts = iRadioAPI.tzOpts();
+        var opts = RendezVoxAPI.tzOpts();
         var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
                       d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
         el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
@@ -274,7 +284,7 @@ var iRadioSettings = (function() {
   function saveAutoTag() {
     var el = document.getElementById('autoTagEnabled');
     var val = el.checked ? 'true' : 'false';
-    iRadioAPI.put('/admin/settings/auto_tag_enabled', { value: val })
+    RendezVoxAPI.put('/admin/settings/auto_tag_enabled', { value: val })
       .then(function() {
         if (settings['auto_tag_enabled']) settings['auto_tag_enabled'].value = val;
         showToast('Auto-tag ' + (el.checked ? 'enabled' : 'disabled'));
@@ -294,14 +304,14 @@ var iRadioSettings = (function() {
   }
 
   function loadAutoNormStatus() {
-    iRadioAPI.get('/admin/auto-norm-status').then(function(data) {
+    RendezVoxAPI.get('/admin/auto-norm-status').then(function(data) {
       var el = document.getElementById('autoNormStatus');
       if (!el) return;
       if (!data.has_run) {
         el.innerHTML = '<span style="opacity:.6">No auto-normalize runs yet</span>';
       } else {
         var d = new Date(data.ran_at);
-        var opts = iRadioAPI.tzOpts();
+        var opts = RendezVoxAPI.tzOpts();
         var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
                       d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
         el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
@@ -316,7 +326,7 @@ var iRadioSettings = (function() {
   function saveAutoNorm() {
     var el = document.getElementById('autoNormEnabled');
     var val = el.checked ? 'true' : 'false';
-    iRadioAPI.put('/admin/settings/auto_normalize_enabled', { value: val })
+    RendezVoxAPI.put('/admin/settings/auto_normalize_enabled', { value: val })
       .then(function() {
         if (settings['auto_normalize_enabled']) settings['auto_normalize_enabled'].value = val;
         showToast('Auto-normalize ' + (el.checked ? 'enabled' : 'disabled'));
@@ -340,7 +350,7 @@ var iRadioSettings = (function() {
     btn.disabled = true;
     btn.textContent = 'Saving…';
 
-    iRadioAPI.put('/admin/settings/acoustid_api_key', { value: val })
+    RendezVoxAPI.put('/admin/settings/acoustid_api_key', { value: val })
       .then(function() {
         if (settings['acoustid_api_key']) settings['acoustid_api_key'].value = val;
         showToast('API key saved');
@@ -367,7 +377,7 @@ var iRadioSettings = (function() {
     btn.disabled = true;
     btn.textContent = 'Saving…';
 
-    iRadioAPI.put('/admin/settings/theaudiodb_api_key', { value: val })
+    RendezVoxAPI.put('/admin/settings/theaudiodb_api_key', { value: val })
       .then(function() {
         if (settings['theaudiodb_api_key']) settings['theaudiodb_api_key'].value = val;
         showToast('TheAudioDB key saved');
@@ -407,7 +417,7 @@ var iRadioSettings = (function() {
       var el  = document.getElementById(smtpFields[key]);
       var val = el ? el.value.trim() : '';
       promises.push(
-        iRadioAPI.put('/admin/settings/' + encodeURIComponent(key), { value: val })
+        RendezVoxAPI.put('/admin/settings/' + encodeURIComponent(key), { value: val })
           .then(function() { if (settings[key]) settings[key].value = val; })
       );
     });
@@ -422,7 +432,7 @@ var iRadioSettings = (function() {
     statusEl.textContent = 'Sending test email…';
     statusEl.style.color = 'var(--text-dim)';
 
-    iRadioAPI.post('/admin/test-email', {})
+    RendezVoxAPI.post('/admin/test-email', {})
       .then(function(data) {
         statusEl.textContent = data.message || 'Test email sent!';
         statusEl.style.color = 'var(--success)';
@@ -541,7 +551,7 @@ var iRadioSettings = (function() {
         if (newVal !== s.value) {
           changedGroups[groupName] = true;
           promises.push(
-            iRadioAPI.put('/admin/settings/' + encodeURIComponent(key), { value: newVal })
+            RendezVoxAPI.put('/admin/settings/' + encodeURIComponent(key), { value: newVal })
               .then(function() { s.value = newVal; })
           );
         }
@@ -562,7 +572,6 @@ var iRadioSettings = (function() {
         showToast('Settings saved');
         dirty = false;
         document.getElementById('saveBar').classList.add('hidden');
-        if (changedGroups['Station']) applyBranding();
       })
       .catch(function(err) {
         showToast((err && err.error) || 'Save failed', 'error');
@@ -608,7 +617,7 @@ var iRadioSettings = (function() {
       var def = defaults[key];
       if (def === undefined) return;
       promises.push(
-        iRadioAPI.put('/admin/settings/' + encodeURIComponent(key), { value: def })
+        RendezVoxAPI.put('/admin/settings/' + encodeURIComponent(key), { value: def })
           .then(function() {
             if (settings[key]) settings[key].value = def;
           })
@@ -623,24 +632,15 @@ var iRadioSettings = (function() {
         render();
         loadTimezoneDisplay();
         loadNormTarget();
-        applyBranding();
       })
       .catch(function(err) {
         showToast((err && err.error) || 'Reset failed', 'error');
       });
   }
 
-  // ── Branding ───────────────────────────────────────
-  function applyBranding() {
-    var name = (settings['station_name'] && settings['station_name'].value) || 'iRadio';
-    window.iRadioStationName = name;
-    var brand = document.getElementById('brandName');
-    if (brand) brand.textContent = name + ' Admin';
-    document.title = name + ' Admin — Settings';
-  }
-
   // ── Genre Scan ──────────────────────────────────────
   var scanPollTimer = null;
+  var scanWasAutoEnabled = false;
 
   function setScanButtons(scanning) {
     var btnStart = document.getElementById('btnGenreScan');
@@ -659,16 +659,16 @@ var iRadioSettings = (function() {
   function startGenreScan() {
     setScanButtons(true);
 
-    iRadioAPI.post('/admin/genre-scan', {})
+    RendezVoxAPI.post('/admin/genre-scan', {})
       .then(function(res) {
         var msg = res.message || 'Scan started';
         var isBlocked = msg.indexOf('already running') !== -1;
         showToast(msg, isBlocked ? 'error' : 'success');
         if (res.auto_tag_disabled) {
+          scanWasAutoEnabled = true;
           var el = document.getElementById('autoTagEnabled');
           if (el) el.checked = false;
           if (settings['auto_tag_enabled']) settings['auto_tag_enabled'].value = 'false';
-          showToast('Auto-tag disabled — manual scan takes over', 'success');
         }
         if (res.progress) {
           showScanProgress(res.progress);
@@ -682,7 +682,7 @@ var iRadioSettings = (function() {
   }
 
   function stopGenreScan() {
-    iRadioAPI.del('/admin/genre-scan')
+    RendezVoxAPI.del('/admin/genre-scan')
       .then(function(res) {
         showToast(res.message || 'Stopping scan…');
       })
@@ -694,7 +694,7 @@ var iRadioSettings = (function() {
   function pollScanStatus() {
     if (scanPollTimer) clearInterval(scanPollTimer);
     scanPollTimer = setInterval(function() {
-      iRadioAPI.get('/admin/genre-scan')
+      RendezVoxAPI.get('/admin/genre-scan')
         .then(function(data) {
           showScanProgress(data);
           if (data.status !== 'running') {
@@ -707,6 +707,9 @@ var iRadioSettings = (function() {
             } else if (data.status === 'stopped') {
               showToast('Scan stopped — ' + (data.updated || 0) + ' songs updated so far');
             }
+            if (scanWasAutoEnabled) restoreAuto('auto_tag_enabled', 'autoTagEnabled');
+            scanWasAutoEnabled = false;
+            setTimeout(function() { document.getElementById('genreScanStatus').style.display = 'none'; }, 3000);
           }
         });
     }, 2000);
@@ -739,14 +742,12 @@ var iRadioSettings = (function() {
   }
 
   function checkInitialScanStatus() {
-    iRadioAPI.get('/admin/genre-scan')
+    RendezVoxAPI.get('/admin/genre-scan')
       .then(function(data) {
         if (data.status === 'running') {
           showScanProgress(data);
           setScanButtons(true);
           pollScanStatus();
-        } else if (data.status === 'done' || data.status === 'stopped') {
-          showScanProgress(data);
         }
       })
       .catch(function() { /* ignore */ });
@@ -754,6 +755,7 @@ var iRadioSettings = (function() {
 
   // ── Library Sync ───────────────────────────────────
   var syncPollTimer = null;
+  var syncWasAutoEnabled = false;
 
   function setSyncButtons(syncing) {
     var btnStart = document.getElementById('btnLibrarySync');
@@ -772,11 +774,17 @@ var iRadioSettings = (function() {
   function startLibrarySync() {
     setSyncButtons(true);
 
-    iRadioAPI.post('/admin/library-sync', {})
+    RendezVoxAPI.post('/admin/library-sync', {})
       .then(function(res) {
         var msg = res.message || 'Sync started';
         var isBlocked = msg.indexOf('already running') !== -1;
         showToast(msg, isBlocked ? 'error' : 'success');
+        if (res.auto_sync_disabled) {
+          syncWasAutoEnabled = true;
+          var el = document.getElementById('autoSyncEnabled');
+          if (el) el.checked = false;
+          if (settings['auto_library_sync_enabled']) settings['auto_library_sync_enabled'].value = 'false';
+        }
         if (res.progress) {
           showSyncProgress(res.progress);
           pollSyncStatus();
@@ -789,7 +797,7 @@ var iRadioSettings = (function() {
   }
 
   function stopLibrarySync() {
-    iRadioAPI.del('/admin/library-sync')
+    RendezVoxAPI.del('/admin/library-sync')
       .then(function(res) {
         showToast(res.message || 'Stopping sync…');
       })
@@ -801,7 +809,7 @@ var iRadioSettings = (function() {
   function pollSyncStatus() {
     if (syncPollTimer) clearInterval(syncPollTimer);
     syncPollTimer = setInterval(function() {
-      iRadioAPI.get('/admin/library-sync')
+      RendezVoxAPI.get('/admin/library-sync')
         .then(function(data) {
           showSyncProgress(data);
           if (data.status !== 'running') {
@@ -814,6 +822,9 @@ var iRadioSettings = (function() {
             } else if (data.status === 'stopped') {
               showToast('Sync stopped — ' + (data.deactivated || 0) + ' deactivated so far');
             }
+            if (syncWasAutoEnabled) restoreAuto('auto_library_sync_enabled', 'autoSyncEnabled');
+            syncWasAutoEnabled = false;
+            setTimeout(function() { document.getElementById('librarySyncStatus').style.display = 'none'; }, 3000);
           }
         });
     }, 2000);
@@ -844,14 +855,12 @@ var iRadioSettings = (function() {
   }
 
   function checkInitialSyncStatus() {
-    iRadioAPI.get('/admin/library-sync')
+    RendezVoxAPI.get('/admin/library-sync')
       .then(function(data) {
         if (data.status === 'running') {
           showSyncProgress(data);
           setSyncButtons(true);
           pollSyncStatus();
-        } else if (data.status === 'done' || data.status === 'stopped') {
-          showSyncProgress(data);
         }
       })
       .catch(function() { /* ignore */ });
@@ -859,6 +868,7 @@ var iRadioSettings = (function() {
 
   // ── Artist Dedup ───────────────────────────────────
   var dedupPollTimer = null;
+  var dedupWasAutoEnabled = false;
 
   function setDedupButtons(running) {
     var btnStart = document.getElementById('btnArtistDedup');
@@ -877,11 +887,17 @@ var iRadioSettings = (function() {
   function startArtistDedup() {
     setDedupButtons(true);
 
-    iRadioAPI.post('/admin/artist-dedup', {})
+    RendezVoxAPI.post('/admin/artist-dedup', {})
       .then(function(res) {
         var msg = res.message || 'Dedup started';
         var isBlocked = msg.indexOf('already running') !== -1;
         showToast(msg, isBlocked ? 'error' : 'success');
+        if (res.auto_dedup_disabled) {
+          dedupWasAutoEnabled = true;
+          var el = document.getElementById('autoDedupEnabled');
+          if (el) el.checked = false;
+          if (settings['auto_artist_dedup_enabled']) settings['auto_artist_dedup_enabled'].value = 'false';
+        }
         if (res.progress) {
           showDedupProgress(res.progress);
           pollDedupStatus();
@@ -894,7 +910,7 @@ var iRadioSettings = (function() {
   }
 
   function stopArtistDedup() {
-    iRadioAPI.del('/admin/artist-dedup')
+    RendezVoxAPI.del('/admin/artist-dedup')
       .then(function(res) {
         showToast(res.message || 'Stopping dedup…');
       })
@@ -906,7 +922,7 @@ var iRadioSettings = (function() {
   function pollDedupStatus() {
     if (dedupPollTimer) clearInterval(dedupPollTimer);
     dedupPollTimer = setInterval(function() {
-      iRadioAPI.get('/admin/artist-dedup')
+      RendezVoxAPI.get('/admin/artist-dedup')
         .then(function(data) {
           showDedupProgress(data);
           if (data.status !== 'running') {
@@ -919,6 +935,9 @@ var iRadioSettings = (function() {
             } else if (data.status === 'stopped') {
               showToast('Dedup stopped — ' + (data.merged || 0) + ' merged so far');
             }
+            if (dedupWasAutoEnabled) restoreAuto('auto_artist_dedup_enabled', 'autoDedupEnabled');
+            dedupWasAutoEnabled = false;
+            setTimeout(function() { document.getElementById('artistDedupStatus').style.display = 'none'; }, 3000);
           }
         });
     }, 2000);
@@ -949,14 +968,12 @@ var iRadioSettings = (function() {
   }
 
   function checkInitialDedupStatus() {
-    iRadioAPI.get('/admin/artist-dedup')
+    RendezVoxAPI.get('/admin/artist-dedup')
       .then(function(data) {
         if (data.status === 'running') {
           showDedupProgress(data);
           setDedupButtons(true);
           pollDedupStatus();
-        } else if (data.status === 'done' || data.status === 'stopped') {
-          showDedupProgress(data);
         }
       })
       .catch(function() { /* ignore */ });
@@ -974,7 +991,7 @@ var iRadioSettings = (function() {
   function saveNormTarget() {
     var el = document.getElementById('normTargetLufs');
     var val = el ? el.value : '-14.0';
-    iRadioAPI.put('/admin/settings/normalize_target_lufs', { value: val })
+    RendezVoxAPI.put('/admin/settings/normalize_target_lufs', { value: val })
       .then(function() {
         if (settings['normalize_target_lufs']) settings['normalize_target_lufs'].value = val;
         showToast('Target LUFS saved');
@@ -985,6 +1002,7 @@ var iRadioSettings = (function() {
   }
 
   var normPollTimer = null;
+  var normWasAutoEnabled = false;
 
   function setNormButtons(running) {
     var btnStart = document.getElementById('btnNormalize');
@@ -1003,16 +1021,16 @@ var iRadioSettings = (function() {
   function startNormalize() {
     setNormButtons(true);
 
-    iRadioAPI.post('/admin/normalize', {})
+    RendezVoxAPI.post('/admin/normalize', {})
       .then(function(res) {
         var msg = res.message || 'Normalization started';
         var isBlocked = msg.indexOf('already running') !== -1;
         showToast(msg, isBlocked ? 'error' : 'success');
         if (res.auto_normalize_disabled) {
+          normWasAutoEnabled = true;
           var el = document.getElementById('autoNormEnabled');
           if (el) el.checked = false;
           if (settings['auto_normalize_enabled']) settings['auto_normalize_enabled'].value = 'false';
-          showToast('Auto-normalize disabled — manual scan takes over', 'success');
         }
         if (res.progress) {
           showNormProgress(res.progress);
@@ -1026,7 +1044,7 @@ var iRadioSettings = (function() {
   }
 
   function stopNormalize() {
-    iRadioAPI.del('/admin/normalize')
+    RendezVoxAPI.del('/admin/normalize')
       .then(function(res) {
         showToast(res.message || 'Stopping normalization…');
       })
@@ -1038,7 +1056,7 @@ var iRadioSettings = (function() {
   function pollNormStatus() {
     if (normPollTimer) clearInterval(normPollTimer);
     normPollTimer = setInterval(function() {
-      iRadioAPI.get('/admin/normalize')
+      RendezVoxAPI.get('/admin/normalize')
         .then(function(data) {
           showNormProgress(data);
           if (data.status !== 'running') {
@@ -1051,6 +1069,9 @@ var iRadioSettings = (function() {
             } else if (data.status === 'stopped') {
               showToast('Normalization stopped — ' + (data.normalized || 0) + ' songs normalized so far');
             }
+            if (normWasAutoEnabled) restoreAuto('auto_normalize_enabled', 'autoNormEnabled');
+            normWasAutoEnabled = false;
+            setTimeout(function() { document.getElementById('normStatus').style.display = 'none'; }, 3000);
           }
         });
     }, 2000);
@@ -1081,14 +1102,12 @@ var iRadioSettings = (function() {
   }
 
   function checkInitialNormStatus() {
-    iRadioAPI.get('/admin/normalize')
+    RendezVoxAPI.get('/admin/normalize')
       .then(function(data) {
         if (data.status === 'running') {
           showNormProgress(data);
           setNormButtons(true);
           pollNormStatus();
-        } else if (data.status === 'done' || data.status === 'stopped') {
-          showNormProgress(data);
         }
       })
       .catch(function() { /* ignore */ });
@@ -1104,14 +1123,14 @@ var iRadioSettings = (function() {
   }
 
   function loadAutoRenameStatus() {
-    iRadioAPI.get('/admin/auto-rename-status').then(function(data) {
+    RendezVoxAPI.get('/admin/auto-rename-status').then(function(data) {
       var el = document.getElementById('autoRenameStatus');
       if (!el) return;
       if (!data.has_run) {
         el.innerHTML = '<span style="opacity:.6">No auto-rename runs yet</span>';
       } else {
         var d = new Date(data.ran_at);
-        var opts = iRadioAPI.tzOpts();
+        var opts = RendezVoxAPI.tzOpts();
         var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
                       d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
         el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
@@ -1126,7 +1145,7 @@ var iRadioSettings = (function() {
   function saveAutoRename() {
     var el = document.getElementById('autoRenameEnabled');
     var val = el.checked ? 'true' : 'false';
-    iRadioAPI.put('/admin/settings/auto_rename_paths_enabled', { value: val })
+    RendezVoxAPI.put('/admin/settings/auto_rename_paths_enabled', { value: val })
       .then(function() {
         if (settings['auto_rename_paths_enabled']) settings['auto_rename_paths_enabled'].value = val;
         showToast('Auto-rename ' + (el.checked ? 'enabled' : 'disabled'));
@@ -1139,6 +1158,7 @@ var iRadioSettings = (function() {
 
   // ── Path Rename ──────────────────────────────────────
   var renamePollTimer = null;
+  var renameWasAutoEnabled = false;
 
   function setRenameButtons(running) {
     var btnStart = document.getElementById('btnRenamePaths');
@@ -1157,17 +1177,17 @@ var iRadioSettings = (function() {
   function startRenamePaths() {
     setRenameButtons(true);
 
-    iRadioAPI.post('/admin/rename-paths', {})
+    RendezVoxAPI.post('/admin/rename-paths', {})
       .then(function(res) {
         var msg = res.message || 'Rename started';
         var isBlocked = msg.indexOf('already running') !== -1;
         showToast(msg, isBlocked ? 'error' : 'success');
         if (isBlocked) { setRenameButtons(false); return; }
         if (res.auto_rename_disabled) {
+          renameWasAutoEnabled = true;
           var el = document.getElementById('autoRenameEnabled');
           if (el) el.checked = false;
           if (settings['auto_rename_paths_enabled']) settings['auto_rename_paths_enabled'].value = 'false';
-          showToast('Auto-rename disabled — manual rename takes over', 'success');
         }
         if (res.progress) showRenameProgress(res.progress);
         pollRenameStatus();
@@ -1179,7 +1199,7 @@ var iRadioSettings = (function() {
   }
 
   function stopRenamePaths() {
-    iRadioAPI.del('/admin/rename-paths')
+    RendezVoxAPI.del('/admin/rename-paths')
       .then(function(res) {
         showToast(res.message || 'Stopping rename…');
         if (res.message && res.message.indexOf('No') !== -1) {
@@ -1196,7 +1216,7 @@ var iRadioSettings = (function() {
     if (renamePollTimer) clearInterval(renamePollTimer);
     var idleCount = 0;
     renamePollTimer = setInterval(function() {
-      iRadioAPI.get('/admin/rename-paths')
+      RendezVoxAPI.get('/admin/rename-paths')
         .then(function(data) {
           if (!data || data.status === 'idle') {
             if (++idleCount >= 3) {
@@ -1217,6 +1237,9 @@ var iRadioSettings = (function() {
             } else if (data.status === 'stopped') {
               showToast('Rename stopped — ' + (data.dirs_renamed || 0) + ' dirs, ' + (data.files_renamed || 0) + ' files so far');
             }
+            if (renameWasAutoEnabled) restoreAuto('auto_rename_paths_enabled', 'autoRenameEnabled');
+            renameWasAutoEnabled = false;
+            setTimeout(function() { document.getElementById('renameStatus').style.display = 'none'; }, 3000);
           }
         });
     }, 2000);
@@ -1247,14 +1270,12 @@ var iRadioSettings = (function() {
   }
 
   function checkInitialRenameStatus() {
-    iRadioAPI.get('/admin/rename-paths')
+    RendezVoxAPI.get('/admin/rename-paths')
       .then(function(data) {
         if (data.status === 'running') {
           showRenameProgress(data);
           setRenameButtons(true);
           pollRenameStatus();
-        } else if (data.status === 'done' || data.status === 'stopped') {
-          showRenameProgress(data);
         }
       })
       .catch(function() { /* ignore */ });
@@ -1328,7 +1349,7 @@ var iRadioSettings = (function() {
     var sel = document.getElementById('locProvince');
     if (!sel) return;
 
-    iRadioAPI.get('/admin/geo/provinces')
+    RendezVoxAPI.get('/admin/geo/provinces')
       .then(function(data) {
         var html = '<option value="">— Select province —</option>';
         (data.provinces || []).forEach(function(p) {
@@ -1369,7 +1390,7 @@ var iRadioSettings = (function() {
       return;
     }
 
-    iRadioAPI.get('/admin/geo/cities?province=' + encodeURIComponent(province))
+    RendezVoxAPI.get('/admin/geo/cities?province=' + encodeURIComponent(province))
       .then(function(data) {
         var html = '<option value="">— Select city —</option>';
         (data.cities || []).forEach(function(c) {
@@ -1415,7 +1436,7 @@ var iRadioSettings = (function() {
     var cityLat = parseFloat(opt.getAttribute('data-lat')) || 0;
     var cityLon = parseFloat(opt.getAttribute('data-lon')) || 0;
 
-    iRadioAPI.get('/admin/geo/barangays?province=' + encodeURIComponent(province) + '&city=' + encodeURIComponent(cityVal))
+    RendezVoxAPI.get('/admin/geo/barangays?province=' + encodeURIComponent(province) + '&city=' + encodeURIComponent(cityVal))
       .then(function(data) {
         var coords = data.coords || [cityLat, cityLon];
         var html = '<option value="">— City center —</option>';
@@ -1474,7 +1495,7 @@ var iRadioSettings = (function() {
     var q = brgy + ', ' + city + ', ' + province + ', Philippines';
     setLocStatus('Geocoding…', 'dim');
 
-    iRadioAPI.get('/admin/geo/geocode?q=' + encodeURIComponent(q))
+    RendezVoxAPI.get('/admin/geo/geocode?q=' + encodeURIComponent(q))
       .then(function(data) {
         if (data.lat && data.lon) {
           locPickerCoords = [data.lat, data.lon];
@@ -1553,11 +1574,11 @@ var iRadioSettings = (function() {
     var lon = String(locPickerCoords[1]);
 
     Promise.all([
-      iRadioAPI.put('/admin/settings/weather_province',  { value: province }),
-      iRadioAPI.put('/admin/settings/weather_city',      { value: city }),
-      iRadioAPI.put('/admin/settings/weather_barangay',  { value: brgy }),
-      iRadioAPI.put('/admin/settings/weather_latitude',  { value: lat }),
-      iRadioAPI.put('/admin/settings/weather_longitude', { value: lon }),
+      RendezVoxAPI.put('/admin/settings/weather_province',  { value: province }),
+      RendezVoxAPI.put('/admin/settings/weather_city',      { value: city }),
+      RendezVoxAPI.put('/admin/settings/weather_barangay',  { value: brgy }),
+      RendezVoxAPI.put('/admin/settings/weather_latitude',  { value: lat }),
+      RendezVoxAPI.put('/admin/settings/weather_longitude', { value: lon }),
     ])
     .then(function() {
       if (settings['weather_province'])  settings['weather_province'].value  = province;
@@ -1583,15 +1604,14 @@ var iRadioSettings = (function() {
   function initAppearanceTab() {
     renderThemeDropdown();
     initAccentPicker();
-    initLogoUpload();
   }
 
   function renderThemeDropdown() {
     var sel = document.getElementById('themeSelect');
     var dot = document.getElementById('themePreviewDot');
     if (!sel) return;
-    var themes = iRadioTheme.list();
-    var current = iRadioTheme.current();
+    var themes = RendezVoxTheme.list();
+    var current = RendezVoxTheme.current();
     var html = '';
     var lastGroup = '';
 
@@ -1612,7 +1632,7 @@ var iRadioSettings = (function() {
 
     sel.addEventListener('change', function() {
       var name = sel.value;
-      iRadioTheme.apply(name);
+      RendezVoxTheme.apply(name);
       updatePreviewDot(dot, themes, name);
       syncAccentPicker();
       showToast('Theme changed to ' + (themes[name] || {}).label);
@@ -1636,7 +1656,7 @@ var iRadioSettings = (function() {
     // Color picker → hex field
     picker.addEventListener('input', function() {
       hex.value = picker.value;
-      iRadioTheme.setAccent(picker.value);
+      RendezVoxTheme.setAccent(picker.value);
     });
 
     // Hex field → color picker
@@ -1644,13 +1664,13 @@ var iRadioSettings = (function() {
       var val = hex.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(val)) {
         picker.value = val;
-        iRadioTheme.setAccent(val);
+        RendezVoxTheme.setAccent(val);
       }
     });
 
     // Reset accent
     reset.addEventListener('click', function() {
-      iRadioTheme.clearAccent();
+      RendezVoxTheme.clearAccent();
       syncAccentPicker();
       showToast('Accent color reset to theme default');
     });
@@ -1661,291 +1681,20 @@ var iRadioSettings = (function() {
     var hex = document.getElementById('accentColorHex');
     if (!picker || !hex) return;
 
-    var customAccent = iRadioTheme.accent();
+    var customAccent = RendezVoxTheme.accent();
     if (customAccent) {
       picker.value = customAccent;
       hex.value = customAccent;
     } else {
-      var current = iRadioTheme.current();
-      var themes = iRadioTheme.list();
+      var current = RendezVoxTheme.current();
+      var themes = RendezVoxTheme.list();
       var defaultAccent = themes[current] ? themes[current].vars['--accent'] : '#00c8a0';
       picker.value = defaultAccent;
       hex.value = defaultAccent;
     }
   }
 
-  function initLogoUpload() {
-    var section = document.getElementById('logoSection');
-    if (!section) return;
 
-    var preview = document.getElementById('logoPreview');
-    var btnUpload = document.getElementById('btnUploadLogo');
-    var btnRemove = document.getElementById('btnRemoveLogo');
-    var fileInput = document.getElementById('logoFileInput');
-
-    // Load current logo state from config
-    iRadioAPI.get('/config').then(function(cfg) {
-      if (cfg.has_logo) {
-        showLogoPreview(preview, btnRemove);
-      }
-    }).catch(function() {});
-
-    // Upload button → trigger file input
-    btnUpload.addEventListener('click', function() {
-      fileInput.click();
-    });
-
-    // File selected → open crop modal
-    fileInput.addEventListener('change', function() {
-      if (!fileInput.files || !fileInput.files[0]) return;
-      var file = fileInput.files[0];
-
-      // SVG — skip crop, upload directly
-      if (file.type === 'image/svg+xml') {
-        uploadLogoFile(file, preview, btnUpload, btnRemove, fileInput);
-        return;
-      }
-
-      openCropModal(file, function(blob) {
-        uploadLogoFile(blob, preview, btnUpload, btnRemove, fileInput);
-      });
-      fileInput.value = '';
-    });
-
-    // Remove button
-    btnRemove.addEventListener('click', function() {
-      btnRemove.disabled = true;
-      btnRemove.textContent = 'Removing…';
-
-      iRadioAPI.del('/admin/logo')
-        .then(function() {
-          preview.innerHTML = '';
-          btnRemove.classList.add('hidden');
-          showToast('Station logo removed');
-          if (window.iRadioNav && window.iRadioNav.refreshLogo) window.iRadioNav.refreshLogo();
-        })
-        .catch(function(err) {
-          showToast((err && err.error) || 'Failed to remove logo', 'error');
-        })
-        .then(function() {
-          btnRemove.disabled = false;
-          btnRemove.textContent = 'Remove Logo';
-        });
-    });
-  }
-
-  function uploadLogoFile(fileOrBlob, preview, btnUpload, btnRemove, fileInput) {
-    var formData = new FormData();
-    if (fileOrBlob instanceof Blob && !(fileOrBlob instanceof File)) {
-      formData.append('file', fileOrBlob, 'logo.png');
-    } else {
-      formData.append('file', fileOrBlob);
-    }
-
-    btnUpload.disabled = true;
-    btnUpload.textContent = 'Uploading…';
-
-    iRadioAPI.upload('/admin/logo', formData)
-      .then(function() {
-        showLogoPreview(preview, btnRemove);
-        showToast('Station logo uploaded');
-        if (window.iRadioNav && window.iRadioNav.refreshLogo) window.iRadioNav.refreshLogo();
-      })
-      .catch(function(err) {
-        showToast((err && err.error) || 'Failed to upload logo', 'error');
-      })
-      .then(function() {
-        btnUpload.disabled = false;
-        btnUpload.textContent = 'Upload Logo';
-        if (fileInput) fileInput.value = '';
-      });
-  }
-
-  function showLogoPreview(preview, btnRemove) {
-    preview.innerHTML = '<img class="logo-preview" src="/api/logo?v=' + Date.now() + '" alt="Station Logo">';
-    btnRemove.classList.remove('hidden');
-  }
-
-  // ── Logo Crop Modal ──────────────────────────────────
-  function openCropModal(file, onCrop) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var imgSrc = e.target.result;
-      var img = new Image();
-      img.onload = function() {
-        buildCropUI(img, imgSrc, onCrop);
-      };
-      img.src = imgSrc;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function buildCropUI(sourceImg, imgSrc, onCrop) {
-    var VIEWPORT = 280;
-    var OUTPUT = 512; // output square size
-
-    // State
-    var scale = 1;
-    var minScale = 0.1;
-    var maxScale = 4;
-    var offsetX = 0;
-    var offsetY = 0;
-    var dragging = false;
-    var dragStartX = 0;
-    var dragStartY = 0;
-    var dragOffsetX = 0;
-    var dragOffsetY = 0;
-
-    // Calculate initial scale so image fills viewport
-    var fitScale = Math.max(VIEWPORT / sourceImg.width, VIEWPORT / sourceImg.height);
-    minScale = fitScale * 0.5;
-    maxScale = fitScale * 5;
-    scale = fitScale;
-    offsetX = (VIEWPORT - sourceImg.width * scale) / 2;
-    offsetY = (VIEWPORT - sourceImg.height * scale) / 2;
-
-    // Build DOM
-    var backdrop = document.createElement('div');
-    backdrop.className = 'crop-modal';
-
-    var box = document.createElement('div');
-    box.className = 'crop-box';
-    box.innerHTML =
-      '<h3>Crop Logo</h3>' +
-      '<div class="crop-viewport" id="cropViewport"></div>' +
-      '<div class="crop-zoom-row">' +
-        '<label>Zoom</label>' +
-        '<input type="range" id="cropZoom" min="' + (minScale * 100) + '" max="' + (maxScale * 100) + '" value="' + (scale * 100) + '" step="1">' +
-      '</div>' +
-      '<div class="crop-actions">' +
-        '<button class="btn btn-ghost btn-sm" id="cropCancel">Cancel</button>' +
-        '<button class="btn btn-primary btn-sm" id="cropConfirm">Crop & Upload</button>' +
-      '</div>';
-
-    backdrop.appendChild(box);
-    document.body.appendChild(backdrop);
-
-    var viewport = document.getElementById('cropViewport');
-    var cropImg = document.createElement('img');
-    cropImg.src = imgSrc;
-    viewport.appendChild(cropImg);
-
-    var zoomSlider = document.getElementById('cropZoom');
-
-    function render() {
-      cropImg.style.transform = 'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + scale + ')';
-    }
-    render();
-
-    // Zoom
-    zoomSlider.addEventListener('input', function() {
-      var newScale = parseFloat(zoomSlider.value) / 100;
-      // Zoom toward center of viewport
-      var cx = VIEWPORT / 2;
-      var cy = VIEWPORT / 2;
-      offsetX = cx - (cx - offsetX) * (newScale / scale);
-      offsetY = cy - (cy - offsetY) * (newScale / scale);
-      scale = newScale;
-      render();
-    });
-
-    // Drag
-    viewport.addEventListener('mousedown', startDrag);
-    viewport.addEventListener('touchstart', startDragTouch, { passive: false });
-
-    function startDrag(e) {
-      e.preventDefault();
-      dragging = true;
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
-      dragOffsetX = offsetX;
-      dragOffsetY = offsetY;
-      document.addEventListener('mousemove', onDrag);
-      document.addEventListener('mouseup', endDrag);
-    }
-
-    function startDragTouch(e) {
-      if (e.touches.length !== 1) return;
-      e.preventDefault();
-      dragging = true;
-      dragStartX = e.touches[0].clientX;
-      dragStartY = e.touches[0].clientY;
-      dragOffsetX = offsetX;
-      dragOffsetY = offsetY;
-      document.addEventListener('touchmove', onDragTouch, { passive: false });
-      document.addEventListener('touchend', endDrag);
-    }
-
-    function onDrag(e) {
-      if (!dragging) return;
-      offsetX = dragOffsetX + (e.clientX - dragStartX);
-      offsetY = dragOffsetY + (e.clientY - dragStartY);
-      render();
-    }
-
-    function onDragTouch(e) {
-      if (!dragging || e.touches.length !== 1) return;
-      e.preventDefault();
-      offsetX = dragOffsetX + (e.touches[0].clientX - dragStartX);
-      offsetY = dragOffsetY + (e.touches[0].clientY - dragStartY);
-      render();
-    }
-
-    function endDrag() {
-      dragging = false;
-      document.removeEventListener('mousemove', onDrag);
-      document.removeEventListener('mouseup', endDrag);
-      document.removeEventListener('touchmove', onDragTouch);
-      document.removeEventListener('touchend', endDrag);
-    }
-
-    // Mouse wheel zoom
-    viewport.addEventListener('wheel', function(e) {
-      e.preventDefault();
-      var delta = e.deltaY > 0 ? -0.05 : 0.05;
-      var newScale = Math.min(maxScale, Math.max(minScale, scale + delta * scale));
-      var cx = VIEWPORT / 2;
-      var cy = VIEWPORT / 2;
-      offsetX = cx - (cx - offsetX) * (newScale / scale);
-      offsetY = cy - (cy - offsetY) * (newScale / scale);
-      scale = newScale;
-      zoomSlider.value = scale * 100;
-      render();
-    }, { passive: false });
-
-    // Cancel
-    document.getElementById('cropCancel').addEventListener('click', cleanup);
-    backdrop.addEventListener('click', function(e) {
-      if (e.target === backdrop) cleanup();
-    });
-
-    // Crop & Upload
-    document.getElementById('cropConfirm').addEventListener('click', function() {
-      var canvas = document.createElement('canvas');
-      canvas.width = OUTPUT;
-      canvas.height = OUTPUT;
-      var ctx = canvas.getContext('2d');
-
-      // Map viewport coords to source image coords
-      var ratio = OUTPUT / VIEWPORT;
-      var sx = -offsetX / scale;
-      var sy = -offsetY / scale;
-      var sw = VIEWPORT / scale;
-      var sh = VIEWPORT / scale;
-
-      ctx.drawImage(sourceImg, sx, sy, sw, sh, 0, 0, OUTPUT, OUTPUT);
-
-      canvas.toBlob(function(blob) {
-        cleanup();
-        if (blob) onCrop(blob);
-      }, 'image/png');
-    });
-
-    function cleanup() {
-      endDrag();
-      backdrop.remove();
-    }
-  }
 
   // ── Helpers ──────────────────────────────────────────
 

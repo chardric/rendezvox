@@ -1,14 +1,14 @@
 /* ============================================================
-   iRadio Admin — Auth Helper
+   RendezVox Admin — Auth Helper
    ============================================================ */
-var iRadioAuth = (function() {
+var RendezVoxAuth = (function() {
 
   function getToken() {
-    return localStorage.getItem('iradio_token');
+    return localStorage.getItem('rendezvox_token');
   }
 
   function getUser() {
-    try { return JSON.parse(localStorage.getItem('iradio_user')); }
+    try { return JSON.parse(localStorage.getItem('rendezvox_user')); }
     catch (e) { return null; }
   }
 
@@ -17,13 +17,13 @@ var iRadioAuth = (function() {
   }
 
   function login(token, user) {
-    localStorage.setItem('iradio_token', token);
-    localStorage.setItem('iradio_user', JSON.stringify(user));
+    localStorage.setItem('rendezvox_token', token);
+    localStorage.setItem('rendezvox_user', JSON.stringify(user));
   }
 
   function logout() {
-    localStorage.removeItem('iradio_token');
-    localStorage.removeItem('iradio_user');
+    localStorage.removeItem('rendezvox_token');
+    localStorage.removeItem('rendezvox_user');
     window.location.href = '/admin/';
   }
 

@@ -12,7 +12,7 @@ class Router
     {
         foreach (self::INTERNAL_ROUTES as $r) {
             if ($path === $r) {
-                $expected = getenv('IRADIO_INTERNAL_SECRET') ?: '';
+                $expected = getenv('RENDEZVOX_INTERNAL_SECRET') ?: '';
                 if ($expected === '') return; // not configured = allow (dev mode)
                 $provided = $_SERVER['HTTP_X_INTERNAL_SECRET'] ?? '';
                 if (!hash_equals($expected, $provided)) {

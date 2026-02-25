@@ -1,7 +1,7 @@
 /* ============================================================
-   iRadio Admin — Media Library (genre/artist filter-based)
+   RendezVox Admin — Media Library (genre/artist filter-based)
    ============================================================ */
-var iRadioMedia = (function () {
+var RendezVoxMedia = (function () {
 
   // ── Icons ─────────────────────────────────────────────
   var IC = {
@@ -22,7 +22,7 @@ var iRadioMedia = (function () {
 
   // Pagination / filter state
   var currentPage = 1;
-  var _storedPP   = localStorage.getItem('iradio_media_perpage');
+  var _storedPP   = localStorage.getItem('rendezvox_media_perpage');
   var perPage     = _storedPP === 'all' ? 'all' : (parseInt(_storedPP) || 25);
 
   function numericPerPage() { return perPage === 'all' ? 10000 : perPage; }
@@ -95,7 +95,7 @@ var iRadioMedia = (function () {
     perPageSel.value = String(perPage);
     perPageSel.addEventListener('change', function () {
       perPage = this.value === 'all' ? 'all' : (parseInt(this.value) || 25);
-      localStorage.setItem('iradio_media_perpage', perPage);
+      localStorage.setItem('rendezvox_media_perpage', perPage);
       currentPage = 1;
       loadSongs();
     });
@@ -353,14 +353,14 @@ var iRadioMedia = (function () {
   // ── Reference data ────────────────────────────────────
 
   function loadArtists() {
-    iRadioAPI.get('/admin/artists').then(function (data) {
+    RendezVoxAPI.get('/admin/artists').then(function (data) {
       artists = data.artists || [];
       populateArtistSelects();
     });
   }
 
   function loadCategories() {
-    iRadioAPI.get('/admin/categories').then(function (data) {
+    RendezVoxAPI.get('/admin/categories').then(function (data) {
       categories = data.categories || [];
       populateGenreSelects();
     });
@@ -439,7 +439,7 @@ var iRadioMedia = (function () {
     document.getElementById('songTable').innerHTML =
       '<tr><td colspan="7" class="empty">Loading...</td></tr>';
 
-    iRadioAPI.get(url)
+    RendezVoxAPI.get(url)
       .then(function (data) {
         totalSongs = data.total || 0;
         totalPages = data.pages || 1;
@@ -490,19 +490,19 @@ var iRadioMedia = (function () {
         dateCol   = s.trashed_at ? formatDate(s.trashed_at) : '-';
         dateLabel = 'Trashed';
         actions =
-          '<button type="button" class="icon-btn" title="Restore" onclick="iRadioMedia.restoreSong(' + s.id + ')">' + IC.restore + '</button>' +
-          '<button type="button" class="icon-btn danger" title="Delete forever" onclick="iRadioMedia.purgeSong(' + s.id + ')">' + IC.del + '</button>';
+          '<button type="button" class="icon-btn" title="Restore" onclick="RendezVoxMedia.restoreSong(' + s.id + ')">' + IC.restore + '</button>' +
+          '<button type="button" class="icon-btn danger" title="Delete forever" onclick="RendezVoxMedia.purgeSong(' + s.id + ')">' + IC.del + '</button>';
       } else if (isInactiveView()) {
         dateCol   = s.created_at ? formatDate(s.created_at) : '-';
         dateLabel = 'Added';
         actions =
-          '<button type="button" class="icon-btn danger" title="Delete permanently" onclick="iRadioMedia.purgeInactiveSong(' + s.id + ')">' + IC.del + '</button>';
+          '<button type="button" class="icon-btn danger" title="Delete permanently" onclick="RendezVoxMedia.purgeInactiveSong(' + s.id + ')">' + IC.del + '</button>';
       } else {
         dateCol   = s.created_at ? formatDate(s.created_at) : '-';
         dateLabel = 'Added';
         actions =
-          '<button type="button" class="icon-btn" title="Edit metadata" onclick="iRadioMedia.editSong(' + s.id + ')">' + IC.edit + '</button>' +
-          '<button type="button" class="icon-btn danger" title="Move to trash" onclick="iRadioMedia.trashSong(' + s.id + ')">' + IC.del + '</button>';
+          '<button type="button" class="icon-btn" title="Edit metadata" onclick="RendezVoxMedia.editSong(' + s.id + ')">' + IC.edit + '</button>' +
+          '<button type="button" class="icon-btn danger" title="Move to trash" onclick="RendezVoxMedia.trashSong(' + s.id + ')">' + IC.del + '</button>';
       }
 
       html +=
@@ -548,7 +548,7 @@ var iRadioMedia = (function () {
 
     var html = '';
     html += '<button type="button"' + (currentPage <= 1 ? ' disabled' : '') +
-            ' onclick="iRadioMedia.goToPage(' + (currentPage - 1) + ')">&lsaquo;</button>';
+            ' onclick="RendezVoxMedia.goToPage(' + (currentPage - 1) + ')">&lsaquo;</button>';
 
     var pages = buildPageNumbers(currentPage, totalPages);
     pages.forEach(function (p) {
@@ -556,12 +556,12 @@ var iRadioMedia = (function () {
         html += '<span class="page-ellipsis">...</span>';
       } else {
         html += '<button type="button" class="' + (p === currentPage ? 'active' : '') + '"' +
-                ' onclick="iRadioMedia.goToPage(' + p + ')">' + p + '</button>';
+                ' onclick="RendezVoxMedia.goToPage(' + p + ')">' + p + '</button>';
       }
     });
 
     html += '<button type="button"' + (currentPage >= totalPages ? ' disabled' : '') +
-            ' onclick="iRadioMedia.goToPage(' + (currentPage + 1) + ')">&rsaquo;</button>';
+            ' onclick="RendezVoxMedia.goToPage(' + (currentPage + 1) + ')">&rsaquo;</button>';
 
     nav.innerHTML = html;
   }
@@ -595,7 +595,7 @@ var iRadioMedia = (function () {
   var lastPendingCount = -1;  // -1 = not yet loaded
 
   function loadPendingCount() {
-    iRadioAPI.get('/admin/media/pending-count')
+    RendezVoxAPI.get('/admin/media/pending-count')
       .then(function (data) {
         var el = document.getElementById('noticeBanner');
         var count = data.pending_count || 0;
@@ -629,7 +629,7 @@ var iRadioMedia = (function () {
   // ── Trash count (badge) ────────────────────────────────
 
   function loadTrashCount() {
-    iRadioAPI.get('/admin/songs?trashed=true&per_page=1')
+    RendezVoxAPI.get('/admin/songs?trashed=true&per_page=1')
       .then(function (data) {
         var count = data.total || 0;
         var badge = document.getElementById('trashBadge');
@@ -690,7 +690,7 @@ var iRadioMedia = (function () {
   // ── Trash operations ──────────────────────────────────
 
   function trashSong(id) {
-    iRadioAPI.post('/admin/songs/trash', { ids: [id] })
+    RendezVoxAPI.post('/admin/songs/trash', { ids: [id] })
       .then(function () {
         showToast('Moved to trash');
         loadSongs();
@@ -703,9 +703,9 @@ var iRadioMedia = (function () {
 
   function bulkTrash() {
     var count = selectedIds.size;
-    iRadioConfirm('Move ' + count + ' selected song(s) to trash?', { title: 'Move to Trash', okLabel: 'Move to Trash' }).then(function (ok) {
+    RendezVoxConfirm('Move ' + count + ' selected song(s) to trash?', { title: 'Move to Trash', okLabel: 'Move to Trash' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.post('/admin/songs/trash', { ids: Array.from(selectedIds) })
+      RendezVoxAPI.post('/admin/songs/trash', { ids: Array.from(selectedIds) })
         .then(function () {
           selectedIds.clear();
           showToast(count + ' song(s) moved to trash');
@@ -719,7 +719,7 @@ var iRadioMedia = (function () {
   }
 
   function restoreSong(id) {
-    iRadioAPI.post('/admin/songs/restore', { ids: [id] })
+    RendezVoxAPI.post('/admin/songs/restore', { ids: [id] })
       .then(function () {
         showToast('Song restored');
         loadSongs();
@@ -732,7 +732,7 @@ var iRadioMedia = (function () {
 
   function bulkRestore() {
     var count = selectedIds.size;
-    iRadioAPI.post('/admin/songs/restore', { ids: Array.from(selectedIds) })
+    RendezVoxAPI.post('/admin/songs/restore', { ids: Array.from(selectedIds) })
       .then(function () {
         selectedIds.clear();
         showToast(count + ' song(s) restored');
@@ -745,9 +745,9 @@ var iRadioMedia = (function () {
   }
 
   function purgeSong(id) {
-    iRadioConfirm('Permanently delete this song? This cannot be undone. The file will be removed from disk.', { title: 'Delete Forever', okLabel: 'Delete Forever' }).then(function (ok) {
+    RendezVoxConfirm('Permanently delete this song? This cannot be undone. The file will be removed from disk.', { title: 'Delete Forever', okLabel: 'Delete Forever' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.del('/admin/songs/purge', { ids: [id] })
+      RendezVoxAPI.del('/admin/songs/purge', { ids: [id] })
         .then(function () {
           showToast('Song permanently deleted');
           loadSongs();
@@ -762,9 +762,9 @@ var iRadioMedia = (function () {
 
   function bulkPurge() {
     var count = selectedIds.size;
-    iRadioConfirm('Permanently delete ' + count + ' selected song(s)? This cannot be undone. Files will be removed from disk.', { title: 'Delete Forever', okLabel: 'Delete Forever' }).then(function (ok) {
+    RendezVoxConfirm('Permanently delete ' + count + ' selected song(s)? This cannot be undone. Files will be removed from disk.', { title: 'Delete Forever', okLabel: 'Delete Forever' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.del('/admin/songs/purge', { ids: Array.from(selectedIds) })
+      RendezVoxAPI.del('/admin/songs/purge', { ids: Array.from(selectedIds) })
         .then(function () {
           selectedIds.clear();
           showToast(count + ' song(s) permanently deleted');
@@ -779,9 +779,9 @@ var iRadioMedia = (function () {
   }
 
   function emptyTrash() {
-    iRadioConfirm('Permanently delete ALL songs in trash? This cannot be undone. All files will be removed from disk.', { title: 'Empty Trash', okLabel: 'Empty Trash' }).then(function (ok) {
+    RendezVoxConfirm('Permanently delete ALL songs in trash? This cannot be undone. All files will be removed from disk.', { title: 'Empty Trash', okLabel: 'Empty Trash' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.del('/admin/songs/purge-all')
+      RendezVoxAPI.del('/admin/songs/purge-all')
         .then(function (data) {
           var n = (data && data.purged) || 0;
           showToast(n + ' song(s) permanently deleted');
@@ -796,9 +796,9 @@ var iRadioMedia = (function () {
   }
 
   function purgeInactive() {
-    iRadioConfirm('Permanently delete ALL inactive songs? This removes DB records and any remaining files on disk.', { title: 'Purge Inactive', okLabel: 'Purge All' }).then(function (ok) {
+    RendezVoxConfirm('Permanently delete ALL inactive songs? This removes DB records and any remaining files on disk.', { title: 'Purge Inactive', okLabel: 'Purge All' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.del('/admin/songs/purge-inactive')
+      RendezVoxAPI.del('/admin/songs/purge-inactive')
         .then(function (data) {
           var n = (data && data.purged) || 0;
           showToast(n + ' inactive song(s) permanently deleted');
@@ -813,9 +813,9 @@ var iRadioMedia = (function () {
   }
 
   function purgeInactiveSong(id) {
-    iRadioConfirm('Permanently delete this inactive song?', { title: 'Delete Song', okLabel: 'Delete' }).then(function (ok) {
+    RendezVoxConfirm('Permanently delete this inactive song?', { title: 'Delete Song', okLabel: 'Delete' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.del('/admin/songs/purge-inactive', { ids: [id] })
+      RendezVoxAPI.del('/admin/songs/purge-inactive', { ids: [id] })
         .then(function () {
           showToast('Song permanently deleted');
           loadSongs();
@@ -829,9 +829,9 @@ var iRadioMedia = (function () {
 
   function bulkPurgeInactive() {
     var count = selectedIds.size;
-    iRadioConfirm('Permanently delete ' + count + ' inactive song(s)?', { title: 'Delete Songs', okLabel: 'Delete All' }).then(function (ok) {
+    RendezVoxConfirm('Permanently delete ' + count + ' inactive song(s)?', { title: 'Delete Songs', okLabel: 'Delete All' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.del('/admin/songs/purge-inactive', { ids: Array.from(selectedIds) })
+      RendezVoxAPI.del('/admin/songs/purge-inactive', { ids: Array.from(selectedIds) })
         .then(function (data) {
           var n = (data && data.purged) || 0;
           selectedIds.clear();
@@ -978,7 +978,7 @@ var iRadioMedia = (function () {
     for (var si = 0; si < files.length; si++) totalSize += files[si].size;
 
     // Check server disk space before uploading
-    iRadioAPI.get('/admin/disk-space').then(function (ds) {
+    RendezVoxAPI.get('/admin/disk-space').then(function (ds) {
       if (totalSize > ds.usable_bytes) {
         showToast(
           'Insufficient disk space. Need ' + formatBytes(totalSize) +
@@ -1015,7 +1015,7 @@ var iRadioMedia = (function () {
       var rp = files[0].webkitRelativePath || folderPaths[0] || '';
       if (rp) formData.append('relative_path', rp);
 
-      iRadioAPI.upload('/admin/songs', formData, function(p) {
+      RendezVoxAPI.upload('/admin/songs', formData, function(p) {
         var label = p.pct < 100 ? 'Uploading...' : 'Processing...';
         updateProgressUI(label, p.pct, formatBytes(p.loaded) + ' / ' + formatBytes(p.total));
       })
@@ -1103,7 +1103,7 @@ var iRadioMedia = (function () {
       var rp = file.webkitRelativePath || folderPaths[idx] || '';
       if (rp) fd.append('relative_path', rp);
 
-      iRadioAPI.upload('/admin/songs', fd, function() {})
+      RendezVoxAPI.upload('/admin/songs', fd, function() {})
         .then(function () {
           results.push({ status: 'queued', filename: file.name });
           imported++;
@@ -1125,15 +1125,15 @@ var iRadioMedia = (function () {
 
   function editSong(id) {
     Promise.all([
-      iRadioAPI.get('/admin/artists').then(function (data) {
+      RendezVoxAPI.get('/admin/artists').then(function (data) {
         artists = data.artists || [];
         populateArtistSelects();
       }).catch(function () {}),
-      iRadioAPI.get('/admin/categories').then(function (data) {
+      RendezVoxAPI.get('/admin/categories').then(function (data) {
         categories = data.categories || [];
         populateGenreSelects();
       }).catch(function () {}),
-      iRadioAPI.get('/admin/songs/' + id)
+      RendezVoxAPI.get('/admin/songs/' + id)
     ]).then(function (results) {
       var s = results[2].song;
 
@@ -1176,7 +1176,7 @@ var iRadioMedia = (function () {
       is_requestable:  document.getElementById('editRequestable').checked,
     };
 
-    iRadioAPI.put('/admin/songs/' + id, body)
+    RendezVoxAPI.put('/admin/songs/' + id, body)
       .then(function () {
         showToast('Metadata saved');
         document.getElementById('editModal').classList.add('hidden');
@@ -1199,14 +1199,14 @@ var iRadioMedia = (function () {
     var name = document.getElementById('newArtistName').value.trim();
     if (!name) return;
 
-    iRadioAPI.post('/admin/artists', { name: name })
+    RendezVoxAPI.post('/admin/artists', { name: name })
       .then(function (data) {
         var msg = data.message === 'Artist already exists' ? 'Artist already exists: ' + name : 'Artist created: ' + name;
         showToast(msg);
         document.getElementById('artistModal').classList.add('hidden');
         var newId = data.id;
         // Reload artists and auto-select the new one
-        iRadioAPI.get('/admin/artists').then(function (result) {
+        RendezVoxAPI.get('/admin/artists').then(function (result) {
           artists = result.artists || [];
           populateArtistSelects();
           if (newId) {
@@ -1234,14 +1234,14 @@ var iRadioMedia = (function () {
     var name = document.getElementById('newGenreName').value.trim();
     if (!name) return;
 
-    iRadioAPI.post('/admin/categories', { name: name, type: 'music' })
+    RendezVoxAPI.post('/admin/categories', { name: name, type: 'music' })
       .then(function (data) {
         var msg = data.message === 'Category already exists' ? 'Genre/category already exists: ' + name : 'Genre/category created: ' + name;
         showToast(msg);
         document.getElementById('genreModal').classList.add('hidden');
         var newId = data.id;
         // Reload categories and auto-select the new one
-        iRadioAPI.get('/admin/categories').then(function (result) {
+        RendezVoxAPI.get('/admin/categories').then(function (result) {
           categories = result.categories || [];
           populateGenreSelects();
           if (newId) {
@@ -1268,7 +1268,7 @@ var iRadioMedia = (function () {
     document.getElementById('dupResults').innerHTML =
       '<p class="text-dim" style="padding:20px 0;text-align:center">Scanning library for duplicates\u2026</p>';
 
-    iRadioAPI.get('/admin/duplicates/scan')
+    RendezVoxAPI.get('/admin/duplicates/scan')
       .then(function (data) {
         dupGroups = data.groups || [];
         dupRenderGroups();
@@ -1312,7 +1312,7 @@ var iRadioMedia = (function () {
       html += '<div class="dup-group" data-group="' + idx + '">';
       html += '<div class="flex items-center justify-between" style="margin-bottom:10px">';
       html += '<strong style="font-size:.9rem">Group ' + (idx + 1) + ' ' + badge + '</strong>';
-      html += '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="iRadioMedia.dupResolveGroup(' + idx + ')">Delete Unselected</button>';
+      html += '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="RendezVoxMedia.dupResolveGroup(' + idx + ')">Delete Unselected</button>';
       html += '</div>';
 
       html += '<table><thead><tr>';
@@ -1368,9 +1368,9 @@ var iRadioMedia = (function () {
     });
 
     if (deleteIds.length === 0) return;
-    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.', { title: 'Delete Duplicates', okLabel: 'Delete' }).then(function (ok) {
+    RendezVoxConfirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.', { title: 'Delete Duplicates', okLabel: 'Delete' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
+      RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
         .then(function (data) {
           showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
           dupGroups.splice(idx, 1);
@@ -1404,9 +1404,9 @@ var iRadioMedia = (function () {
     }
 
     if (deleteIds.length === 0) return;
-    iRadioConfirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.', { title: 'Delete All Duplicates', okLabel: 'Delete All' }).then(function (ok) {
+    RendezVoxConfirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.', { title: 'Delete All Duplicates', okLabel: 'Delete All' }).then(function (ok) {
       if (!ok) return;
-      iRadioAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
+      RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
         .then(function (data) {
           showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
           dupGroups = [];
@@ -1455,7 +1455,7 @@ var iRadioMedia = (function () {
   function formatDate(iso) {
     if (!iso) return '-';
     var d = new Date(iso);
-    return d.toLocaleDateString('en-US', Object.assign({ day: 'numeric', month: 'short', year: 'numeric' }, iRadioAPI.tzOpts()));
+    return d.toLocaleDateString('en-US', Object.assign({ day: 'numeric', month: 'short', year: 'numeric' }, RendezVoxAPI.tzOpts()));
   }
 
   function formatDuration(ms) {

@@ -47,7 +47,7 @@ class JingleRenameHandler
             return;
         }
 
-        $dir = '/var/lib/iradio/jingles';
+        $dir = '/var/lib/rendezvox/jingles';
         $oldPath = $dir . '/' . $oldFilename;
 
         // Verify old file exists and is within jingles dir

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * iRadio — Path Renamer
+ * RendezVox — Path Renamer
  *
  * Atomically renames directories and files to proper title case, updating DB
  * references immediately after each rename to avoid streaming disruption.
@@ -20,15 +20,15 @@ declare(strict_types=1);
 
 require __DIR__ . '/../core/Database.php';
 
-$MUSIC_DIR    = '/var/lib/iradio/music';
+$MUSIC_DIR    = '/var/lib/rendezvox/music';
 $SYSTEM_DIRS  = ['imports', 'tagged', 'upload', '_untagged', '_duplicates'];
 $MINOR_WORDS  = ['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'yet', 'so',
                  'at', 'by', 'in', 'of', 'on', 'to', 'up', 'as', 'vs',
                  'is', 'it', 'if', 'no', 'not', 'with', 'from'];
 $lockFile     = '/tmp/rename-paths.lock';
 $stopFile     = '/tmp/rename-paths.lock.stop';
-$progressFile = '/tmp/iradio_rename_paths.json';
-$autoLastFile = '/tmp/iradio_auto_rename_last.json';
+$progressFile = '/tmp/rendezvox_rename_paths.json';
+$autoLastFile = '/tmp/rendezvox_auto_rename_last.json';
 $dryRun       = in_array('--dry-run', $argv ?? []);
 $autoMode     = in_array('--auto', $argv ?? []);
 

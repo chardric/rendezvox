@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 class LogoUploadHandler
 {
-    private const LOGO_DIR = '/var/lib/iradio/logos';
+    private const LOGO_DIR = '/var/lib/rendezvox/logos';
 
     public function handle(): void
     {

@@ -21,7 +21,7 @@ class JingleStreamHandler
             return;
         }
 
-        $dir = '/var/lib/iradio/jingles';
+        $dir = '/var/lib/rendezvox/jingles';
         $filePath = $dir . '/' . $filename;
 
         // Verify resolved path stays within jingles directory

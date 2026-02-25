@@ -18,7 +18,7 @@
  *   5. If no genre found → keep current genre
  *   6. Write updated tags back to the audio file via ffmpeg
  *
- * Progress is written to /tmp/iradio_genre_scan.json so the admin UI
+ * Progress is written to /tmp/rendezvox_genre_scan.json so the admin UI
  * can poll for status.
  */
 
@@ -34,7 +34,7 @@ $autoMode = in_array('--auto', $argv ?? []);
 $db = Database::get();
 
 // ── Lock file — prevent concurrent runs ─────────────────
-$lockFile = '/tmp/iradio_genre_scan.lock';
+$lockFile = '/tmp/rendezvox_genre_scan.lock';
 if (file_exists($lockFile)) {
     $pid = (int) @file_get_contents($lockFile);
     if ($pid > 0 && file_exists("/proc/{$pid}")) {
@@ -80,7 +80,7 @@ $progress = [
 
 function writeProgress(array &$progress): void
 {
-    $file = '/tmp/iradio_genre_scan.json';
+    $file = '/tmp/rendezvox_genre_scan.json';
     @file_put_contents($file, json_encode($progress), LOCK_EX);
     @chmod($file, 0666);
 }
@@ -99,7 +99,7 @@ while ($row = $stmt->fetch()) {
     }
 }
 
-$musicDir = '/var/lib/iradio/music';
+$musicDir = '/var/lib/rendezvox/music';
 
 // ── Category cache ──────────────────────────────────────
 $categoryCache = [];
@@ -246,21 +246,21 @@ if (count($allSongs) === 0) {
     $progress['finished_at'] = date('c');
     writeProgress($progress);
     if ($autoMode) {
-        @file_put_contents('/tmp/iradio_auto_tag_last.json', json_encode([
+        @file_put_contents('/tmp/rendezvox_auto_tag_last.json', json_encode([
             'ran_at'    => date('c'),
             'total'     => 0,
             'updated'   => 0,
             'skipped'   => 0,
             'message'   => 'No untagged songs found',
         ]), LOCK_EX);
-        @chmod('/tmp/iradio_auto_tag_last.json', 0666);
+        @chmod('/tmp/rendezvox_auto_tag_last.json', 0666);
     }
     @unlink($lockFile);
     exit(0);
 }
 
 $artistGenreCache = [];
-$stopFile         = '/tmp/iradio_genre_scan.lock.stop';
+$stopFile         = '/tmp/rendezvox_genre_scan.lock.stop';
 
 foreach ($allSongs as $song) {
     // Check for stop signal
@@ -271,16 +271,16 @@ foreach ($allSongs as $song) {
         writeProgress($progress);
         logMsg('Scan stopped — ' . $progress['processed'] . '/' . $progress['total'] . ' processed, ' . $progress['updated'] . ' updated', $autoMode);
         if ($autoMode) {
-            @file_put_contents('/tmp/iradio_auto_tag_last.json', json_encode([
+            @file_put_contents('/tmp/rendezvox_auto_tag_last.json', json_encode([
                 'ran_at'    => date('c'),
                 'total'     => $progress['total'],
                 'updated'   => $progress['updated'],
                 'skipped'   => $progress['skipped'],
                 'message'   => 'Stopped — ' . $progress['updated'] . ' updated so far',
             ]), LOCK_EX);
-            @chmod('/tmp/iradio_auto_tag_last.json', 0666);
+            @chmod('/tmp/rendezvox_auto_tag_last.json', 0666);
         }
-        @unlink('/tmp/iradio_genre_scan.lock');
+        @unlink('/tmp/rendezvox_genre_scan.lock');
         exit(0);
     }
 
@@ -591,14 +591,14 @@ foreach ($allSongs as $song) {
 $progress['status']      = 'done';
 $progress['finished_at'] = date('c');
 writeProgress($progress);
-@unlink('/tmp/iradio_genre_scan.lock');
+@unlink('/tmp/rendezvox_genre_scan.lock');
 @unlink($stopFile);
 
 logMsg('Scan complete — ' . $progress['updated'] . ' updated, ' . $progress['skipped'] . ' skipped, ' . ($progress['covers'] ?? 0) . ' covers, ' . ($progress['relocated'] ?? 0) . ' relocated out of ' . $progress['total'], $autoMode);
 
 // Write auto-tag summary for the Settings UI
 if ($autoMode) {
-    @file_put_contents('/tmp/iradio_auto_tag_last.json', json_encode([
+    @file_put_contents('/tmp/rendezvox_auto_tag_last.json', json_encode([
         'ran_at'    => date('c'),
         'total'     => $progress['total'],
         'updated'   => $progress['updated'],
@@ -607,5 +607,5 @@ if ($autoMode) {
         'relocated' => $progress['relocated'] ?? 0,
         'message'   => $progress['updated'] . ' updated, ' . ($progress['covers'] ?? 0) . ' covers, ' . ($progress['relocated'] ?? 0) . ' relocated',
     ]), LOCK_EX);
-    @chmod('/tmp/iradio_auto_tag_last.json', 0666);
+    @chmod('/tmp/rendezvox_auto_tag_last.json', 0666);
 }

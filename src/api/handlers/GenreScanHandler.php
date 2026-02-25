@@ -9,8 +9,8 @@ declare(strict_types=1);
  */
 class GenreScanHandler
 {
-    private const PROGRESS_FILE = '/tmp/iradio_genre_scan.json';
-    private const LOCK_FILE     = '/tmp/iradio_genre_scan.lock';
+    private const PROGRESS_FILE = '/tmp/rendezvox_genre_scan.json';
+    private const LOCK_FILE     = '/tmp/rendezvox_genre_scan.lock';
     private const SCRIPT        = '/var/www/html/src/scripts/fix_genres.php';
 
     public function start(): void
@@ -53,7 +53,7 @@ class GenreScanHandler
         }
 
         // Launch background process (it creates its own lock file)
-        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/iradio_genre_scan.log 2>&1 &';
+        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/rendezvox_genre_scan.log 2>&1 &';
         exec($cmd);
 
         // Brief pause to let the script start and write initial progress
@@ -131,7 +131,7 @@ class GenreScanHandler
     {
         Auth::requireAuth();
 
-        $file = '/tmp/iradio_auto_tag_last.json';
+        $file = '/tmp/rendezvox_auto_tag_last.json';
         if (!file_exists($file)) {
             Response::json([
                 'has_run' => false,

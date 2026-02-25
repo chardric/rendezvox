@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 class DuplicateScanHandler
 {
-    private const BASE_DIR = '/var/lib/iradio/music';
+    private const BASE_DIR = '/var/lib/rendezvox/music';
 
     private function resolveFilePath(string $filePath): string
     {

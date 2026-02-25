@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================================
-# iRadio — Raspberry Pi Automated Installer
+# RendezVox — Raspberry Pi Automated Installer
 # ==========================================================
 # Fully automated installation for Raspberry Pi with Docker.
 # Run on a fresh Raspberry Pi OS 64-bit (Bookworm or later).
@@ -20,8 +20,8 @@
 #   9. Create the initial admin user
 #
 # Usage:
-#   git clone https://github.com/chardric/iRadio.git
-#   cd iRadio
+#   git clone https://github.com/chardric/RendezVox.git
+#   cd RendezVox
 #   chmod +x deploy/rpi/install.sh
 #   sudo ./deploy/rpi/install.sh
 # ==========================================================
@@ -34,7 +34,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-log()  { echo -e "${GREEN}[iRadio]${NC} $1"; }
+log()  { echo -e "${GREEN}[RendezVox]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 err()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 info() { echo -e "${CYAN}[INFO]${NC} $1"; }
@@ -44,19 +44,19 @@ info() { echo -e "${CYAN}[INFO]${NC} $1"; }
 
 # ── Detect project directory ──
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-IRADIO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+RENDEZVOX_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Verify project structure
-[ -f "$IRADIO_DIR/docker/docker-compose.yml" ] || err "Cannot find docker-compose.yml. Run this script from the iRadio project root."
-[ -f "$IRADIO_DIR/deploy/rpi/docker-compose.override.yml" ] || err "Cannot find RPi override. Run this script from the iRadio project root."
+[ -f "$RENDEZVOX_DIR/docker/docker-compose.yml" ] || err "Cannot find docker-compose.yml. Run this script from the RendezVox project root."
+[ -f "$RENDEZVOX_DIR/deploy/rpi/docker-compose.override.yml" ] || err "Cannot find RPi override. Run this script from the RendezVox project root."
 
 # ── Detect architecture ──
 ARCH=$(uname -m)
 log "=========================================="
-log " iRadio — Raspberry Pi Installer"
+log " RendezVox — Raspberry Pi Installer"
 log "=========================================="
 log " Architecture: $ARCH"
-log " Project dir:  $IRADIO_DIR"
+log " Project dir:  $RENDEZVOX_DIR"
 log " RAM:          $(free -h | awk '/Mem:/{print $2}')"
 log "=========================================="
 echo ""
@@ -153,11 +153,11 @@ fi
 log "Step 5/9: Checking system optimizations..."
 
 CURRENT_SWAPPINESS=$(sysctl -n vm.swappiness 2>/dev/null || echo "60")
-if [ "$CURRENT_SWAPPINESS" -gt 10 ] || [ ! -f /etc/sysctl.d/99-iradio.conf ]; then
+if [ "$CURRENT_SWAPPINESS" -gt 10 ] || [ ! -f /etc/sysctl.d/99-rendezvox.conf ]; then
     log "Applying system optimizations..."
     sysctl -w vm.swappiness=10 >/dev/null
-    cat > /etc/sysctl.d/99-iradio.conf << 'SYSCTL'
-# iRadio: reduce swap aggressiveness for audio workloads
+    cat > /etc/sysctl.d/99-rendezvox.conf << 'SYSCTL'
+# RendezVox: reduce swap aggressiveness for audio workloads
 vm.swappiness=10
 # Increase file watchers for Liquidsoap
 fs.inotify.max_user_watches=65536
@@ -185,30 +185,30 @@ ADMIN_PASS=$(openssl rand -base64 12 | tr -d '/+=' | head -c 12)
 # ==========================================================
 log "Step 7/9: Creating directories and configuration..."
 
-mkdir -p "$IRADIO_DIR"/{data/postgres,data/avatars,data/logs,music,jingles}
-chown -R "${SUDO_USER:-1000}":"${SUDO_USER:-1000}" "$IRADIO_DIR"/data 2>/dev/null || true
-chown -R 1000:1000 "$IRADIO_DIR"/data/postgres 2>/dev/null || true
+mkdir -p "$RENDEZVOX_DIR"/{data/postgres,data/avatars,data/logs,music,jingles}
+chown -R "${SUDO_USER:-1000}":"${SUDO_USER:-1000}" "$RENDEZVOX_DIR"/data 2>/dev/null || true
+chown -R 1000:1000 "$RENDEZVOX_DIR"/data/postgres 2>/dev/null || true
 
 # Generate .env — skip if already exists (re-running installer)
-if [ -f "$IRADIO_DIR/docker/.env" ]; then
+if [ -f "$RENDEZVOX_DIR/docker/.env" ]; then
     warn ".env already exists — preserving existing configuration"
-    warn "To regenerate, delete $IRADIO_DIR/docker/.env and re-run this script"
+    warn "To regenerate, delete $RENDEZVOX_DIR/docker/.env and re-run this script"
     # Read existing passwords from .env for credential file
-    DB_PASS=$(grep '^POSTGRES_PASSWORD=' "$IRADIO_DIR/docker/.env" | cut -d'=' -f2)
-    ICECAST_SOURCE_PASS=$(grep '^ICECAST_SOURCE_PASSWORD=' "$IRADIO_DIR/docker/.env" | cut -d'=' -f2)
-    ICECAST_ADMIN_PASS=$(grep '^ICECAST_ADMIN_PASSWORD=' "$IRADIO_DIR/docker/.env" | cut -d'=' -f2)
+    DB_PASS=$(grep '^POSTGRES_PASSWORD=' "$RENDEZVOX_DIR/docker/.env" | cut -d'=' -f2)
+    ICECAST_SOURCE_PASS=$(grep '^ICECAST_SOURCE_PASSWORD=' "$RENDEZVOX_DIR/docker/.env" | cut -d'=' -f2)
+    ICECAST_ADMIN_PASS=$(grep '^ICECAST_ADMIN_PASSWORD=' "$RENDEZVOX_DIR/docker/.env" | cut -d'=' -f2)
 else
     log "Generating .env with secure passwords..."
-    cat > "$IRADIO_DIR/docker/.env" << ENV
+    cat > "$RENDEZVOX_DIR/docker/.env" << ENV
 # ==========================================================
-# iRadio — Environment Variables (auto-generated)
+# RendezVox — Environment Variables (auto-generated)
 # ==========================================================
 # Generated on: $(date -Iseconds)
 # ==========================================================
 
 # ── PostgreSQL ───────────────────────────────────────────
-POSTGRES_DB=iradio
-POSTGRES_USER=iradio
+POSTGRES_DB=rendezvox
+POSTGRES_USER=rendezvox
 POSTGRES_PASSWORD=$DB_PASS
 
 # ── Icecast ──────────────────────────────────────────────
@@ -221,16 +221,16 @@ ICECAST_MAX_CLIENTS=30
 ICECAST_MAX_SOURCES=3
 
 # ── Application ─────────────────────────────────────────
-IRADIO_APP_ENV=production
-IRADIO_APP_DEBUG=false
-IRADIO_JWT_SECRET=$JWT_SECRET
-IRADIO_INTERNAL_SECRET=$INTERNAL_SECRET
-IRADIO_ICECAST_MOUNT=/live
+RENDEZVOX_APP_ENV=production
+RENDEZVOX_APP_DEBUG=false
+RENDEZVOX_JWT_SECRET=$JWT_SECRET
+RENDEZVOX_INTERNAL_SECRET=$INTERNAL_SECRET
+RENDEZVOX_ICECAST_MOUNT=/live
 TZ=UTC
 
 # ── Host Port Overrides ─────────────────────────────────
-IRADIO_HTTP_PORT=80
-IRADIO_ICECAST_PUBLIC_PORT=8000
+RENDEZVOX_HTTP_PORT=80
+RENDEZVOX_ICECAST_PUBLIC_PORT=8000
 ENV
     log ".env created with secure passwords"
 fi
@@ -240,9 +240,9 @@ fi
 # ==========================================================
 log "Step 8/9: Building and starting containers (this may take 10-20 min on RPi)..."
 
-cd "$IRADIO_DIR/docker"
+cd "$RENDEZVOX_DIR/docker"
 docker compose -f docker-compose.yml \
-    -f "$IRADIO_DIR/deploy/rpi/docker-compose.override.yml" \
+    -f "$RENDEZVOX_DIR/deploy/rpi/docker-compose.override.yml" \
     up -d --build 2>&1 | while read -r line; do
     echo -e "  ${CYAN}>${NC} $line"
 done
@@ -250,7 +250,7 @@ done
 # Wait for PostgreSQL to be healthy
 log "Waiting for database to be ready..."
 for i in $(seq 1 60); do
-    if docker exec iradio-postgres pg_isready -U iradio -d iradio >/dev/null 2>&1; then
+    if docker exec rendezvox-postgres pg_isready -U rendezvox -d rendezvox >/dev/null 2>&1; then
         log "Database is ready"
         break
     fi
@@ -265,7 +265,7 @@ log "Step 9/9: Creating admin user..."
 
 sleep 3  # Give PHP-FPM a moment to initialize
 
-docker exec iradio-php php -r "
+docker exec rendezvox-php php -r "
     require '/var/www/html/src/core/Database.php';
     \$db = Database::get();
     \$hash = password_hash('$ADMIN_PASS', PASSWORD_BCRYPT);
@@ -274,18 +274,18 @@ docker exec iradio-php php -r "
     if (\$stmt->rowCount() > 0) {
         echo \"Admin user already exists — skipping\n\";
     } else {
-        \$db->prepare(\"INSERT INTO users (username, email, password_hash, role) VALUES ('admin', 'admin@iradio.local', :hash, 'super_admin')\")->execute(['hash' => \$hash]);
+        \$db->prepare(\"INSERT INTO users (username, email, password_hash, role) VALUES ('admin', 'admin@rendezvox.local', :hash, 'super_admin')\")->execute(['hash' => \$hash]);
         echo \"Admin user created.\n\";
     }
 " 2>/dev/null || warn "Could not create admin user — create it manually (see README)"
 
 # ── Save credentials ──
-CREDS_FILE="$IRADIO_DIR/.credentials"
+CREDS_FILE="$RENDEZVOX_DIR/.credentials"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 cat > "$CREDS_FILE" << CREDS
 # ==========================================================
-# iRadio — Installation Credentials
+# RendezVox — Installation Credentials
 # ==========================================================
 # Generated: $(date)
 # KEEP THIS FILE SECURE. Delete after noting the passwords.
@@ -299,8 +299,8 @@ Admin Panel:
 Database:
   Host:     localhost (inside Docker: postgres)
   Port:     5432
-  Name:     iradio
-  User:     iradio
+  Name:     rendezvox
+  User:     rendezvox
   Password: $DB_PASS
 
 Icecast:
@@ -311,10 +311,10 @@ Icecast:
   Source Password: $ICECAST_SOURCE_PASS
 
 Docker Commands:
-  Start:    cd $IRADIO_DIR/docker && docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.yml up -d
-  Stop:     cd $IRADIO_DIR/docker && docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.yml down
-  Logs:     cd $IRADIO_DIR/docker && docker compose logs -f
-  Restart:  cd $IRADIO_DIR/docker && docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.yml restart
+  Start:    cd $RENDEZVOX_DIR/docker && docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.yml up -d
+  Stop:     cd $RENDEZVOX_DIR/docker && docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.yml down
+  Logs:     cd $RENDEZVOX_DIR/docker && docker compose logs -f
+  Restart:  cd $RENDEZVOX_DIR/docker && docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.yml restart
 CREDS
 
 chmod 600 "$CREDS_FILE"
@@ -322,14 +322,14 @@ chmod 600 "$CREDS_FILE"
 # ── Final status ──
 echo ""
 log "=========================================="
-log " iRadio installation complete!"
+log " RendezVox installation complete!"
 log "=========================================="
 echo ""
 log " Services:"
 
 for svc in postgres php nginx icecast liquidsoap; do
-    status=$(docker inspect -f '{{.State.Health.Status}}' "iradio-$svc" 2>/dev/null || echo "unknown")
-    running=$(docker inspect -f '{{.State.Running}}' "iradio-$svc" 2>/dev/null || echo "false")
+    status=$(docker inspect -f '{{.State.Health.Status}}' "rendezvox-$svc" 2>/dev/null || echo "unknown")
+    running=$(docker inspect -f '{{.State.Running}}' "rendezvox-$svc" 2>/dev/null || echo "false")
     if [ "$running" = "true" ]; then
         log "   $svc: RUNNING ($status)"
     else
@@ -348,7 +348,7 @@ echo ""
 log " Login: admin / $ADMIN_PASS"
 warn " Change your password after first login!"
 echo ""
-log " Place music files in: $IRADIO_DIR/music/"
+log " Place music files in: $RENDEZVOX_DIR/music/"
 log " Then import via the Media page in the admin panel."
 echo ""
 info " Hardware recommendations:"

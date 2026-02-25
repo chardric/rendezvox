@@ -1,5 +1,5 @@
 -- ============================================================
--- iRadio — Migration 003: Media Organizer
+-- RendezVox — Migration 003: Media Organizer
 --
 -- Adds queue and hash tables for the real-time media organizer,
 -- plus settings to enable/configure it.

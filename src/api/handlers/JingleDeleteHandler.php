@@ -21,7 +21,7 @@ class JingleDeleteHandler
             return;
         }
 
-        $dir = '/var/lib/iradio/jingles';
+        $dir = '/var/lib/rendezvox/jingles';
         $path = $dir . '/' . $filename;
 
         $realPath = realpath($path);

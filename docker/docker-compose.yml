@@ -1,5 +1,5 @@
 # ==========================================================
-# iRadio — Online FM Radio Automation System
+# RendezVox — Online FM Radio Automation System
 # Production Docker Compose (Security-Hardened)
 # ==========================================================
 #
@@ -18,26 +18,26 @@ services:
   # ── PostgreSQL 16 ─────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: iradio-postgres
+    container_name: rendezvox-postgres
     restart: always
     shm_size: 256mb
     user: "1000:1000"
     security_opt:
       - no-new-privileges:true
     environment:
-      POSTGRES_DB:       ${POSTGRES_DB:-iradio}
-      POSTGRES_USER:     ${POSTGRES_USER:-iradio}
+      POSTGRES_DB:       ${POSTGRES_DB:-rendezvox}
+      POSTGRES_USER:     ${POSTGRES_USER:-rendezvox}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - ../data/postgres:/var/lib/postgresql/data
       - ../docs/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     networks:
-      - iradio_net
+      - rendezvox_net
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U $${POSTGRES_USER:-iradio} -d $${POSTGRES_DB:-iradio}",
+          "pg_isready -U $${POSTGRES_USER:-rendezvox} -d $${POSTGRES_DB:-rendezvox}",
         ]
       interval: 10s
       timeout: 5s
@@ -49,36 +49,36 @@ services:
     build:
       context: ./php
       dockerfile: Dockerfile
-    container_name: iradio-php
+    container_name: rendezvox-php
     restart: always
     security_opt:
       - no-new-privileges:true
     ports:
       - "127.0.0.1:9000:9000"      # Exposed on localhost for nginx (host network mode)
     environment:
-      IRADIO_DB_HOST:     postgres
-      IRADIO_DB_PORT:     "5432"
-      IRADIO_DB_NAME:     ${POSTGRES_DB:-iradio}
-      IRADIO_DB_USER:     ${POSTGRES_USER:-iradio}
-      IRADIO_DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
-      IRADIO_APP_ENV:     ${IRADIO_APP_ENV:-production}
-      IRADIO_APP_DEBUG:   ${IRADIO_APP_DEBUG:-false}
-      IRADIO_JWT_SECRET:  ${IRADIO_JWT_SECRET:-}
-      IRADIO_ICECAST_HOST: icecast
-      IRADIO_ICECAST_PORT: "8000"
+      RENDEZVOX_DB_HOST:     postgres
+      RENDEZVOX_DB_PORT:     "5432"
+      RENDEZVOX_DB_NAME:     ${POSTGRES_DB:-rendezvox}
+      RENDEZVOX_DB_USER:     ${POSTGRES_USER:-rendezvox}
+      RENDEZVOX_DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      RENDEZVOX_APP_ENV:     ${RENDEZVOX_APP_ENV:-production}
+      RENDEZVOX_APP_DEBUG:   ${RENDEZVOX_APP_DEBUG:-false}
+      RENDEZVOX_JWT_SECRET:  ${RENDEZVOX_JWT_SECRET:-}
+      RENDEZVOX_ICECAST_HOST: icecast
+      RENDEZVOX_ICECAST_PORT: "8000"
       ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:?ICECAST_ADMIN_PASSWORD must be set in .env}
-      IRADIO_INTERNAL_SECRET: ${IRADIO_INTERNAL_SECRET:-}
+      RENDEZVOX_INTERNAL_SECRET: ${RENDEZVOX_INTERNAL_SECRET:-}
       TZ: ${TZ:-UTC}
     volumes:
       - ../src:/var/www/html/src:ro
       - ../public:/var/www/html/public:ro
-      - ../music:/var/lib/iradio/music
-      - ../jingles:/var/lib/iradio/jingles
-      - ../data/avatars:/var/lib/iradio/avatars
-      - ../data/logos:/var/lib/iradio/logos
-      - ../data/logs:/var/log/iradio
+      - ../music:/var/lib/rendezvox/music
+      - ../jingles:/var/lib/rendezvox/jingles
+      - ../data/avatars:/var/lib/rendezvox/avatars
+      - ../data/logos:/var/lib/rendezvox/logos
+      - ../data/logs:/var/log/rendezvox
     networks:
-      - iradio_net
+      - rendezvox_net
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,7 +95,7 @@ services:
   # Binds directly to host port 80 — no Docker port mapping needed.
   nginx:
     image: nginx:1.27-alpine
-    container_name: iradio-nginx
+    container_name: rendezvox-nginx
     restart: always
     network_mode: host
     security_opt:
@@ -110,7 +110,8 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ../public:/var/www/html/public:ro
-      - ../data/logs:/var/log/iradio
+      - ../installers:/var/www/html/installers:ro
+      - ../data/logs:/var/log/rendezvox
     depends_on:
       php:
         condition: service_healthy
@@ -131,12 +132,12 @@ services:
     build:
       context: ./icecast
       dockerfile: Dockerfile
-    container_name: iradio-icecast
+    container_name: rendezvox-icecast
     restart: always
     security_opt:
       - no-new-privileges:true
     ports:
-      - "${IRADIO_ICECAST_PUBLIC_PORT:-8000}:8000"
+      - "${RENDEZVOX_ICECAST_PUBLIC_PORT:-8000}:8000"
     environment:
       ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?ICECAST_SOURCE_PASSWORD must be set in .env}
       ICECAST_RELAY_PASSWORD:  ${ICECAST_RELAY_PASSWORD:-}
@@ -147,9 +148,9 @@ services:
       ICECAST_MAX_SOURCES:     ${ICECAST_MAX_SOURCES:-3}
     volumes:
       - ./icecast/icecast.xml:/etc/icecast2/icecast.xml.tpl:ro
-      - ../data/logs:/var/log/iradio
+      - ../data/logs:/var/log/rendezvox
     networks:
-      - iradio_net
+      - rendezvox_net
     healthcheck:
       test:
         [
@@ -166,30 +167,30 @@ services:
     build:
       context: ./liquidsoap
       dockerfile: Dockerfile
-    container_name: iradio-liquidsoap
+    container_name: rendezvox-liquidsoap
     restart: always
     security_opt:
       - no-new-privileges:true
     extra_hosts:
-      - "iradio-nginx:host-gateway"   # nginx is on host network; map its name to host IP
+      - "rendezvox-nginx:host-gateway"   # nginx is on host network; map its name to host IP
     environment:
-      IRADIO_DB_HOST:                postgres
-      IRADIO_DB_PORT:                "5432"
-      IRADIO_DB_NAME:                ${POSTGRES_DB:-iradio}
-      IRADIO_DB_USER:                ${POSTGRES_USER:-iradio}
-      IRADIO_DB_PASSWORD:            ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
-      IRADIO_ICECAST_HOST:           icecast
-      IRADIO_ICECAST_PORT:           "8000"
-      IRADIO_ICECAST_MOUNT:          ${IRADIO_ICECAST_MOUNT:-/live}
-      IRADIO_ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?ICECAST_SOURCE_PASSWORD must be set in .env}
-      IRADIO_INTERNAL_SECRET:        ${IRADIO_INTERNAL_SECRET:-}
+      RENDEZVOX_DB_HOST:                postgres
+      RENDEZVOX_DB_PORT:                "5432"
+      RENDEZVOX_DB_NAME:                ${POSTGRES_DB:-rendezvox}
+      RENDEZVOX_DB_USER:                ${POSTGRES_USER:-rendezvox}
+      RENDEZVOX_DB_PASSWORD:            ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      RENDEZVOX_ICECAST_HOST:           icecast
+      RENDEZVOX_ICECAST_PORT:           "8000"
+      RENDEZVOX_ICECAST_MOUNT:          ${RENDEZVOX_ICECAST_MOUNT:-/live}
+      RENDEZVOX_ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?ICECAST_SOURCE_PASSWORD must be set in .env}
+      RENDEZVOX_INTERNAL_SECRET:        ${RENDEZVOX_INTERNAL_SECRET:-}
     volumes:
       - ../liquidsoap:/etc/liquidsoap:ro
-      - ../music:/var/lib/iradio/music:ro
-      - ../jingles:/var/lib/iradio/jingles:ro
-      - ../data/logs:/var/log/iradio
+      - ../music:/var/lib/rendezvox/music:ro
+      - ../jingles:/var/lib/rendezvox/jingles:ro
+      - ../data/logs:/var/log/rendezvox
     networks:
-      - iradio_net
+      - rendezvox_net
     depends_on:
       postgres:
         condition: service_healthy
@@ -205,6 +206,6 @@ services:
 # ── Network ─────────────────────────────────────────────
 
 networks:
-  iradio_net:
+  rendezvox_net:
     driver: bridge
     internal: false

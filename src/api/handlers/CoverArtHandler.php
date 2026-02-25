@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 class CoverArtHandler
 {
-    private const CACHE_DIR = '/tmp/iradio_covers';
+    private const CACHE_DIR = '/tmp/rendezvox_covers';
     private const MAX_AGE   = 86400; // 24h browser cache
 
     public function handle(): void
@@ -52,7 +52,7 @@ class CoverArtHandler
         }
 
         // Resolve absolute path
-        $musicRoot = '/var/lib/iradio/music';
+        $musicRoot = '/var/lib/rendezvox/music';
         $filePath  = $musicRoot . '/' . ltrim($row['file_path'], '/');
 
         // Path traversal prevention

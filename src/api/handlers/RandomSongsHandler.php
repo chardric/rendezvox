@@ -15,7 +15,7 @@ declare(strict_types=1);
  */
 class RandomSongsHandler
 {
-    private const BASE_DIR = '/var/lib/iradio/music';
+    private const BASE_DIR = '/var/lib/rendezvox/music';
 
     public function handle(): void
     {

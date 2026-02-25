@@ -9,8 +9,8 @@ declare(strict_types=1);
  */
 class LibrarySyncHandler
 {
-    private const PROGRESS_FILE = '/tmp/iradio_library_sync.json';
-    private const LOCK_FILE     = '/tmp/iradio_library_sync.lock';
+    private const PROGRESS_FILE = '/tmp/rendezvox_library_sync.json';
+    private const LOCK_FILE     = '/tmp/rendezvox_library_sync.lock';
     private const SCRIPT        = '/var/www/html/src/scripts/library_sync.php';
 
     public function start(): void
@@ -52,7 +52,7 @@ class LibrarySyncHandler
         }
 
         // Launch background process
-        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/iradio_library_sync.log 2>&1 &';
+        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/rendezvox_library_sync.log 2>&1 &';
         exec($cmd);
 
         // Brief pause to let the script start and write initial progress
@@ -152,7 +152,7 @@ class LibrarySyncHandler
     {
         Auth::requireAuth();
 
-        $file = '/tmp/iradio_auto_sync_last.json';
+        $file = '/tmp/rendezvox_auto_sync_last.json';
         if (!file_exists($file)) {
             Response::json([
                 'has_run' => false,

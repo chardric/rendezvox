@@ -10,9 +10,9 @@ declare(strict_types=1);
 class PlaylistBatchImportHandler
 {
     private const MAX_FOLDERS   = 1000;
-    private const PROGRESS_FILE = '/tmp/iradio_batch_import.json';
-    private const LOCK_FILE     = '/tmp/iradio_batch_import.lock';
-    private const PARAMS_FILE   = '/tmp/iradio_batch_import_params.json';
+    private const PROGRESS_FILE = '/tmp/rendezvox_batch_import.json';
+    private const LOCK_FILE     = '/tmp/rendezvox_batch_import.lock';
+    private const PARAMS_FILE   = '/tmp/rendezvox_batch_import_params.json';
     private const SCRIPT        = '/var/www/html/src/scripts/batch_import.php';
 
     public function start(): void
@@ -53,7 +53,7 @@ class PlaylistBatchImportHandler
         file_put_contents(self::PARAMS_FILE, json_encode($params), LOCK_EX);
 
         // Launch background process
-        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/iradio_batch_import.log 2>&1 &';
+        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/rendezvox_batch_import.log 2>&1 &';
         exec($cmd);
 
         // Brief pause to let script start

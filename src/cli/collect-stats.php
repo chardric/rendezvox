@@ -15,8 +15,8 @@ require __DIR__ . '/../core/Database.php';
 
 // ── Configuration from environment ───────────────────────────
 
-$icecastHost = getenv('IRADIO_ICECAST_HOST') ?: 'icecast';
-$icecastPort = getenv('IRADIO_ICECAST_PORT') ?: '8000';
+$icecastHost = getenv('RENDEZVOX_ICECAST_HOST') ?: 'icecast';
+$icecastPort = getenv('RENDEZVOX_ICECAST_PORT') ?: '8000';
 $adminPass   = getenv('ICECAST_ADMIN_PASSWORD') ?: 'changeme_admin';
 $mount       = '/live';
 
