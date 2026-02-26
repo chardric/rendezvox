@@ -4,13 +4,40 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src https://radio.chadlinuxtech.net; media-src https://radio.chadlinuxtech.net; img-src https://radio.chadlinuxtech.net 'self' data:; script-src 'self'; style-src 'self';" />
+        content="default-src 'self'; connect-src https: http:; media-src https: http:; img-src https: http: 'self' data:; script-src 'self'; style-src 'self';" />
   <title>RendezVox</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Server Selection Screen -->
+  <div id="server-screen">
+    <div id="server-card">
+      <div id="server-brand">RendezVox</div>
+      <div id="server-subtitle">Connect to a server</div>
+
+      <label class="server-option">
+        <input type="radio" name="server-choice" value="official" checked />
+        <span class="server-option-label">Official Server</span>
+        <span class="server-option-url">radio.chadlinuxtech.net</span>
+      </label>
+
+      <label class="server-option">
+        <input type="radio" name="server-choice" value="custom" />
+        <span class="server-option-label">Custom Server</span>
+      </label>
+
+      <input type="text" id="custom-url" class="field-input" placeholder="https://your-server.com" autocomplete="off" />
+
+      <button id="server-connect" class="btn-submit">Connect</button>
+      <div id="server-error"></div>
+    </div>
+  </div>
+
   <div id="app">
     <div id="content">
+
+      <!-- Offline banner -->
+      <div id="offline-banner">Server offline — Retrying…</div>
 
       <!-- Station -->
       <div id="station-name">RendezVox</div>
@@ -133,10 +160,12 @@
       <div class="about-section">
         <div class="about-label">Developer</div>
         <div>Engr. Richard R. Ayuyang, PhD</div>
-        <div style="color:#555">Professor II, CSU</div>
+        <div class="about-dim">Professor II, CSU</div>
       </div>
-      <div style="text-align:right;margin-top:12px">
-        <button class="btn-cancel" id="about-dismiss">Close</button>
+      <div class="about-section">
+        <div class="about-label">Server</div>
+        <div id="about-server-url"></div>
+        <a href="#" id="change-server">Change Server</a>
       </div>
     </div>
   </div>
