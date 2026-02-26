@@ -21,7 +21,7 @@
     <div class="tabs" id="settingsTabs">
       <button class="tab active" data-tab="general">General</button>
       <button class="tab" data-tab="appearance">Appearance</button>
-      <button class="tab" data-tab="tools">Library Tools</button>
+      <button class="tab" data-tab="tools">Tools</button>
       <button class="tab" data-tab="email">Email</button>
       <button class="tab" data-tab="system">System</button>
       <button class="tab" data-tab="about">About</button>
@@ -207,6 +207,41 @@
         </div>
         <button id="btnArtistDedup" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startArtistDedup()">Deduplicate Artists</button>
         <button id="btnStopDedup" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopArtistDedup()">Stop</button>
+      </div>
+
+      <!-- Duplicate Cleanup -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Duplicate Cleanup</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Find and delete exact duplicate songs (identical file hash).
+          Keeps the copy with the most plays; deletes the rest from disk.
+          Likely duplicates (same title/artist) are skipped — review those in the Media &rsaquo; Duplicates tab.
+        </p>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Auto-delete duplicates</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoDedupSongsEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Automatically delete exact duplicates every 15 minutes</span>
+          </div>
+          <div id="autoDedupSongsStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+        </div>
+        <div id="dedupSongsStatus" style="display:none;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
+            <span id="dedupSongsLabel">Scanning…</span>
+            <span id="dedupSongsPct">0%</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
+            <div id="dedupSongsBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
+            <span id="dedupSongsDetails"></span>
+          </div>
+        </div>
+        <button id="btnDedupSongs" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startDedupSongs()">Deduplicate Songs</button>
+        <button id="btnStopDedupSongs" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopDedupSongs()">Stop</button>
       </div>
 
       <!-- Audio Normalization -->
@@ -410,12 +445,12 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js?v=20260225"></script>
-<script src="/admin/js/api.js?v=20260225"></script>
-<script src="/admin/js/auth.js?v=20260225"></script>
-<script src="/admin/js/theme.js?v=20260225"></script>
-<script src="/admin/js/nav.js?v=20260225e"></script>
-<script src="/admin/js/settings.js?v=20260225e"></script>
+<script src="/assets/scroll-controls.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260226"></script>
+<script src="/admin/js/auth.js?v=20260226"></script>
+<script src="/admin/js/theme.js?v=20260226"></script>
+<script src="/admin/js/nav.js?v=20260226"></script>
+<script src="/admin/js/settings.js?v=20260226"></script>
 <script>
   if (RendezVoxAuth.requireRole('super_admin')) {
     RendezVoxNav.init();

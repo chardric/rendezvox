@@ -351,6 +351,46 @@
           </div>
           <div class="card-sub" id="autoNormStatus">Off</div>
         </div>
+        <div class="card">
+          <div class="card-label">Auto-sync Library</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="autoSyncToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="autoSyncStatus">Off</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Auto-dedup Artists</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="autoDedupArtistsToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="autoDedupArtistsStatus">Off</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Auto-dedup Songs</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="autoDedupSongsToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="autoDedupSongsStatus">Off</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Auto-rename Paths</div>
+          <div class="card-value">
+            <label class="toggle">
+              <input type="checkbox" id="autoRenameToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="card-sub" id="autoRenameStatus">Off</div>
+        </div>
       </div>
     </div>
 
@@ -396,12 +436,12 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js?v=20260225"></script>
-<script src="/admin/js/api.js?v=20260225"></script>
-<script src="/admin/js/auth.js?v=20260225"></script>
-<script src="/admin/js/theme.js?v=20260225"></script>
-<script src="/admin/js/nav.js?v=20260225e"></script>
-<script src="/admin/js/dashboard.js?v=20260225"></script>
+<script src="/assets/scroll-controls.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260226"></script>
+<script src="/admin/js/auth.js?v=20260226"></script>
+<script src="/admin/js/theme.js?v=20260226"></script>
+<script src="/admin/js/nav.js?v=20260226"></script>
+<script src="/admin/js/dashboard.js?v=20260226"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

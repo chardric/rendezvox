@@ -170,11 +170,7 @@ var RendezVoxPlaylists = (function() {
     loadSpecialConfig();
     document.getElementById('btnSaveSpecial').addEventListener('click', saveSpecialConfig);
 
-    // Auto-refresh every 5 seconds (picks up changes from other windows/tabs)
-    setInterval(function() {
-      loadPlaylists();
-      if (activePlaylistId) loadDetail(activePlaylistId);
-    }, 5000);
+    // No auto-refresh — user actions already reload data where needed
   }
 
   // ── Emergency Playlist Card ────────────────────────────

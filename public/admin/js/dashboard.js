@@ -33,6 +33,10 @@ var RendezVoxDashboard = (function() {
     document.getElementById('autoApproveToggle').addEventListener('change', toggleSetting('request_auto_approve', 'autoApproveToggle', 'autoApproveStatus', 'Auto-approve'));
     document.getElementById('autoTagToggle').addEventListener('change', toggleSetting('auto_tag_enabled', 'autoTagToggle', 'autoTagStatus', 'Auto-tag'));
     document.getElementById('autoNormToggle').addEventListener('change', toggleSetting('auto_normalize_enabled', 'autoNormToggle', 'autoNormStatus', 'Auto-normalize'));
+    document.getElementById('autoSyncToggle').addEventListener('change', toggleSetting('auto_library_sync_enabled', 'autoSyncToggle', 'autoSyncStatus', 'Auto-sync'));
+    document.getElementById('autoDedupArtistsToggle').addEventListener('change', toggleSetting('auto_artist_dedup_enabled', 'autoDedupArtistsToggle', 'autoDedupArtistsStatus', 'Auto-dedup artists'));
+    document.getElementById('autoDedupSongsToggle').addEventListener('change', toggleSetting('auto_dedup_songs_enabled', 'autoDedupSongsToggle', 'autoDedupSongsStatus', 'Auto-dedup songs'));
+    document.getElementById('autoRenameToggle').addEventListener('change', toggleSetting('auto_rename_paths_enabled', 'autoRenameToggle', 'autoRenameStatus', 'Auto-rename'));
     loadLibraryStats();
     loadQuickSettings();
 
@@ -589,6 +593,10 @@ var RendezVoxDashboard = (function() {
       setToggle('autoApproveToggle', 'autoApproveStatus', map['request_auto_approve'] === 'true');
       setToggle('autoTagToggle', 'autoTagStatus', map['auto_tag_enabled'] === 'true');
       setToggle('autoNormToggle', 'autoNormStatus', map['auto_normalize_enabled'] === 'true');
+      setToggle('autoSyncToggle', 'autoSyncStatus', map['auto_library_sync_enabled'] === 'true');
+      setToggle('autoDedupArtistsToggle', 'autoDedupArtistsStatus', map['auto_artist_dedup_enabled'] === 'true');
+      setToggle('autoDedupSongsToggle', 'autoDedupSongsStatus', map['auto_dedup_songs_enabled'] === 'true');
+      setToggle('autoRenameToggle', 'autoRenameStatus', map['auto_rename_paths_enabled'] === 'true');
     }).catch(function() {});
   }
 

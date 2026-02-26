@@ -84,6 +84,7 @@ require __DIR__ . '/handlers/NormalizeHandler.php';
 require __DIR__ . '/handlers/ScheduleReloadHandler.php';
 require __DIR__ . '/handlers/DuplicateScanHandler.php';
 require __DIR__ . '/handlers/DuplicateResolveHandler.php';
+require __DIR__ . '/handlers/DedupSongsHandler.php';
 require __DIR__ . '/handlers/ManifestHandler.php';
 require __DIR__ . '/handlers/WeatherHandler.php';
 require __DIR__ . '/handlers/UserListHandler.php';
@@ -268,6 +269,12 @@ Router::post('/admin/artist-dedup',      [ArtistDedupHandler::class, 'start']);
 Router::get('/admin/artist-dedup',       [ArtistDedupHandler::class, 'status']);
 Router::delete('/admin/artist-dedup',    [ArtistDedupHandler::class, 'stop']);
 Router::get('/admin/auto-dedup-status',  [ArtistDedupHandler::class, 'autoDedupStatus']);
+
+// -- Song dedup --
+Router::post('/admin/dedup-songs',           [DedupSongsHandler::class, 'start']);
+Router::get('/admin/dedup-songs',            [DedupSongsHandler::class, 'status']);
+Router::delete('/admin/dedup-songs',         [DedupSongsHandler::class, 'stop']);
+Router::get('/admin/auto-dedup-songs-status', [DedupSongsHandler::class, 'autoStatus']);
 
 // -- Audio normalization --
 Router::post('/admin/normalize',      [NormalizeHandler::class, 'start']);
