@@ -6,7 +6,7 @@
 var RendezVoxTheme = (function () {
 
   var THEMES = {
-    dark:        { label: 'Dark',            group: 'Dark',  vars: { '--bg':'#0a0a0c','--bg-card':'#141416','--bg-input':'#0e0e10','--bg-sidebar':'#101012','--border':'#232326','--text':'#d4d4d8','--text-dim':'#71717a','--text-heading':'#fafafa','--accent':'#00c8a0','--accent-hover':'#00e6b8','--hover-overlay':'rgba(255,255,255,0.08)' }},
+    dark:        { label: 'Dark',            group: 'Dark',  vars: { '--bg':'#0a0a0c','--bg-card':'#141416','--bg-input':'#0e0e10','--bg-sidebar':'#101012','--border':'#232326','--text':'#d4d4d8','--text-dim':'#71717a','--text-heading':'#fafafa','--accent':'#ff7800','--accent-hover':'#ff8c1a','--hover-overlay':'rgba(255,255,255,0.08)' }},
     midnight:    { label: 'Midnight Blue',   group: 'Dark',  vars: { '--bg':'#0b0e1a','--bg-card':'#111827','--bg-input':'#0d1017','--bg-sidebar':'#0f1322','--border':'#1e293b','--text':'#cbd5e1','--text-dim':'#64748b','--text-heading':'#f1f5f9','--accent':'#3b82f6','--accent-hover':'#60a5fa','--hover-overlay':'rgba(255,255,255,0.08)' }},
     earth:       { label: 'Warm Earth',      group: 'Dark',  vars: { '--bg':'#1a1410','--bg-card':'#231c15','--bg-input':'#171210','--bg-sidebar':'#1e1712','--border':'#3d3228','--text':'#d4c8b8','--text-dim':'#8b7d6b','--text-heading':'#f5ebe0','--accent':'#d97706','--accent-hover':'#f59e0b','--hover-overlay':'rgba(255,255,255,0.08)' }},
     sunset:      { label: 'Sunset',          group: 'Dark',  vars: { '--bg':'#1a0e0e','--bg-card':'#231414','--bg-input':'#170d0d','--bg-sidebar':'#1e1010','--border':'#3d2828','--text':'#e0c8c8','--text-dim':'#8b6b6b','--text-heading':'#fae8e8','--accent':'#f97316','--accent-hover':'#fb923c','--hover-overlay':'rgba(255,255,255,0.08)' }},

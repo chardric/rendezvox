@@ -6,7 +6,7 @@ var RendezVoxSchedules = (function() {
   var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   var HOUR_H   = 60;  // pixels per hour
   var SNAP_MIN = 15;  // snap to 15-minute increments
-  var DEFAULT_COLOR = '#00c8a0';
+  var DEFAULT_COLOR = '#ff7800';
 
   var schedules = [];
   var playlists = [];

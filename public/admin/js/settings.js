@@ -1676,7 +1676,7 @@ var RendezVoxSettings = (function() {
     } else {
       var current = RendezVoxTheme.current();
       var themes = RendezVoxTheme.list();
-      var defaultAccent = themes[current] ? themes[current].vars['--accent'] : '#00c8a0';
+      var defaultAccent = themes[current] ? themes[current].vars['--accent'] : '#ff7800';
       picker.value = defaultAccent;
       hex.value = defaultAccent;
     }

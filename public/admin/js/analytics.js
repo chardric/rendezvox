@@ -5,7 +5,7 @@ var RendezVoxAnalytics = (function() {
 
   // ── Color palette ──────────────────────────────────────
   var COLORS = [
-    '#00c8a0', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7',
+    '#ff7800', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7',
     '#ec4899', '#06b6d4', '#22c55e', '#f97316', '#6366f1'
   ];
   var GRID = '#232326';

@@ -30,7 +30,7 @@ var RendezVoxPlaylists = (function() {
   var autoYearsData      = null;
 
   var PLAYLIST_COLORS = [
-    '#00c8a0', '#f87171', '#60a5fa', '#fbbf24', '#a78bfa',
+    '#ff7800', '#f87171', '#60a5fa', '#fbbf24', '#a78bfa',
     '#f472b6', '#2dd4bf', '#fb923c', '#818cf8', '#34d399',
     '#38bdf8', '#e879f9', '#facc15', '#4ade80', '#fb7185',
     '#22d3ee', '#c084fc', '#fdba74', '#a3e635', '#67e8f9',
@@ -438,7 +438,7 @@ var RendezVoxPlaylists = (function() {
         : '';
       var toggleChecked = p.is_active ? ' checked' : '';
       var trAttr = isStreaming
-        ? ' class="on-air" style="--pl-color:' + escHtml(p.color || '#00c8a0') + '"'
+        ? ' class="on-air" style="--pl-color:' + escHtml(p.color || '#ff7800') + '"'
         : '';
       html += '<tr' + trAttr + '>' +
         '<td><input type="checkbox" class="pl-row-check" data-id="' + p.id + '" data-name="' + escHtml(p.name) + '"' + (isStreaming ? ' disabled title="Currently streaming"' : '') + ' style="width:16px;height:16px;cursor:' + (isStreaming ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent)"></td>' +
@@ -450,7 +450,7 @@ var RendezVoxPlaylists = (function() {
         '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="RendezVoxPlaylists.toggleActive(' + p.id + ',this.checked)"' + toggleChecked + '><span class="slider"></span></label></td>' +
         '<td style="white-space:nowrap">' +
           '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + p.id + ')">' + RendezVoxIcons.view + '</button> ' +
-          '<label class="icon-btn" title="Change color" style="position:relative;cursor:pointer;color:' + escHtml(p.color || '#00c8a0') + '">' + RendezVoxIcons.palette + '<input type="color" value="' + escHtml(p.color || '#00c8a0') + '" onchange="RendezVoxPlaylists.changeColor(' + p.id + ',this.value)" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></label> ' +
+          '<label class="icon-btn" title="Change color" style="position:relative;cursor:pointer;color:' + escHtml(p.color || '#ff7800') + '">' + RendezVoxIcons.palette + '<input type="color" value="' + escHtml(p.color || '#ff7800') + '" onchange="RendezVoxPlaylists.changeColor(' + p.id + ',this.value)" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></label> ' +
           '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + p.id + ')">' + RendezVoxIcons.edit + '</button> ' +
           '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + p.id + ')">' + RendezVoxIcons.del + '</button>' +
         '</td>' +
@@ -596,7 +596,7 @@ var RendezVoxPlaylists = (function() {
       document.getElementById('plDesc').value    = p.description || '';
       document.getElementById('plType').value    = p.type;
       document.getElementById('plActive').checked = p.is_active;
-      var color = p.color || '#00c8a0';
+      var color = p.color || '#ff7800';
       document.getElementById('plColor').value = color;
       document.getElementById('plColorHex').textContent = color;
       document.getElementById('colorPickerWrap').style.display = '';
