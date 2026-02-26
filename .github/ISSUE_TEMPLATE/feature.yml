@@ -1,12 +1,57 @@
 name: "Feature Request"
-description: Suggest improvement
+description: Suggest a new feature or improvement
 title: "[FEATURE] "
 labels: ["enhancement"]
 
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to make RendezVox better? We'd love to hear it!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this solve, or why would this be useful?
+      placeholder: "I find it frustrating when..."
+    validations:
+      required: true
+
   - type: textarea
     id: proposal
     attributes:
-      label: Describe the feature
+      label: Proposed solution
+      description: Describe how you'd like this to work.
+      placeholder: "It would be great if..."
     validations:
       required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you've thought of?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of RendezVox does this relate to?
+      options:
+        - Admin dashboard
+        - Playlists / Schedules
+        - Music library
+        - Streaming / Playback
+        - Listener page
+        - Android app
+        - Desktop app
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Screenshots, mockups, or any other details.
