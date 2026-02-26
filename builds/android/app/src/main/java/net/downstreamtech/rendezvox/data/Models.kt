@@ -1,7 +1,5 @@
 package net.downstreamtech.rendezvox.data
 
-const val BASE_URL = "https://radio.chadlinuxtech.net"
-
 data class StationConfig(
     val station_name: String = "RendezVox",
     val tagline: String = "Online Radio"
@@ -70,8 +68,10 @@ data class NowPlayingState(
     val isPlaying: Boolean = false,
     val isConnecting: Boolean = false,
     val isBuffering: Boolean = false,
-    val volume: Float = 0.8f
+    val isOffline: Boolean = false,
+    val volume: Float = 0.8f,
+    val baseUrl: String = ServerPrefs.DEFAULT_URL
 ) {
     val coverArtUrl: String
-        get() = if (hasCoverArt && songId > 0) "$BASE_URL/api/cover?id=$songId" else ""
+        get() = if (hasCoverArt && songId > 0) "$baseUrl/api/cover?id=$songId" else ""
 }

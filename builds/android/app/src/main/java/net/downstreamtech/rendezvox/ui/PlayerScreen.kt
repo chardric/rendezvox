@@ -49,7 +49,8 @@ fun PlayerScreen(
     state: NowPlayingState,
     onTogglePlayback: () -> Unit,
     onVolumeChange: (Float) -> Unit,
-    onRequestSong: () -> Unit
+    onRequestSong: () -> Unit,
+    onChangeServer: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -68,6 +69,35 @@ fun PlayerScreen(
                 .padding(top = 40.dp, bottom = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Offline banner
+            if (state.isOffline) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0x1FF87171)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x40F87171))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFF87171),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Server offline \u2014 Retrying\u2026",
+                            color = Color(0xFFF87171),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
             // Station header
             Text(
                 state.stationName,
@@ -296,14 +326,25 @@ fun PlayerScreen(
             }
 
             if (showAbout) {
-                AboutDialog(onDismiss = { showAbout = false })
+                AboutDialog(
+                    baseUrl = state.baseUrl,
+                    onDismiss = { showAbout = false },
+                    onChangeServer = {
+                        showAbout = false
+                        onChangeServer()
+                    }
+                )
             }
         }
     }
 }
 
 @Composable
-fun AboutDialog(onDismiss: () -> Unit) {
+fun AboutDialog(
+    baseUrl: String,
+    onDismiss: () -> Unit,
+    onChangeServer: () -> Unit
+) {
     val uriHandler = LocalUriHandler.current
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -311,52 +352,67 @@ fun AboutDialog(onDismiss: () -> Unit) {
             color = BgCard,
             modifier = Modifier.fillMaxWidth().padding(16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    "About RendezVox",
-                    color = TextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Your personal online FM radio station \u2014 stream music, request songs, and listen live from any device, anywhere.",
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(16.dp))
+            Box {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        "About RendezVox",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Your personal online FM radio station \u2014 stream music, request songs, and listen live from any device, anywhere.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(16.dp))
 
-                // Links
-                Text("LINKS", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
-                Text("downstreamtech.net", color = Accent, fontSize = 13.sp,
-                    modifier = Modifier.clickable { uriHandler.openUri("https://downstreamtech.net") })
-                Text("radio.chadlinuxtech.net", color = Accent, fontSize = 13.sp,
-                    modifier = Modifier.clickable { uriHandler.openUri("https://radio.chadlinuxtech.net") })
-                Spacer(Modifier.height(12.dp))
+                    // Links
+                    Text("LINKS", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("downstreamtech.net", color = Accent, fontSize = 13.sp,
+                        modifier = Modifier.clickable { uriHandler.openUri("https://downstreamtech.net") })
+                    Text("radio.chadlinuxtech.net", color = Accent, fontSize = 13.sp,
+                        modifier = Modifier.clickable { uriHandler.openUri("https://radio.chadlinuxtech.net") })
+                    Spacer(Modifier.height(12.dp))
 
-                // Support
-                Text("SUPPORT", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
-                Text("Phone: +639177927953", color = TextSecondary, fontSize = 13.sp)
-                Text("Email: support@downstreamtech.net", color = TextSecondary, fontSize = 13.sp)
-                Spacer(Modifier.height(12.dp))
+                    // Support
+                    Text("SUPPORT", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Phone: +639177927953", color = TextSecondary, fontSize = 13.sp)
+                    Text("Email: support@downstreamtech.net", color = TextSecondary, fontSize = 13.sp)
+                    Spacer(Modifier.height(12.dp))
 
-                // Developer
-                Text("DEVELOPER", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
-                Text("Engr. Richard R. Ayuyang, PhD", color = TextSecondary, fontSize = 13.sp)
-                Text("Professor II, CSU", color = TextDim, fontSize = 13.sp)
-                Spacer(Modifier.height(16.dp))
+                    // Developer
+                    Text("DEVELOPER", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Engr. Richard R. Ayuyang, PhD", color = TextSecondary, fontSize = 13.sp)
+                    Text("Professor II, CSU", color = TextDim, fontSize = 13.sp)
+                    Spacer(Modifier.height(12.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Close", color = TextSecondary)
-                    }
+                    // Server
+                    Text("SERVER", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(baseUrl, color = TextSecondary, fontSize = 13.sp)
+                    Text(
+                        "Change Server",
+                        color = Accent,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clickable(onClick = onChangeServer)
+                            .padding(top = 2.dp)
+                    )
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                ) {
+                    Text("\u00D7", color = Color(0xFFF87171), fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

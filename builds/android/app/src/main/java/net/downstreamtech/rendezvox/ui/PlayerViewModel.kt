@@ -22,17 +22,19 @@ import net.downstreamtech.rendezvox.service.PlaybackService
 import java.text.SimpleDateFormat
 import java.util.*
 
-class PlayerViewModel(private val context: Context) : ViewModel() {
+class PlayerViewModel(private val context: Context, private val baseUrl: String) : ViewModel() {
 
-    private val _state = MutableStateFlow(NowPlayingState())
+    private val _state = MutableStateFlow(NowPlayingState(baseUrl = baseUrl))
     val state: StateFlow<NowPlayingState> = _state.asStateFlow()
 
-    private val api = RadioApi(BASE_URL)
+    private val api = RadioApi(baseUrl)
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
     private var pollingJob: Job? = null
     private var sseJob: Job? = null
     private var listenerJob: Job? = null
+    private var failCount = 0
+    private val offlineThreshold = 3
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -123,8 +125,12 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         sseJob = viewModelScope.launch {
             while (isActive) {
                 try {
-                    api.connectSSE { data -> handleNowPlayingData(data) }
+                    api.connectSSE { data ->
+                        handleNowPlayingData(data)
+                        markOnline()
+                    }
                 } catch (_: Exception) {}
+                markFailure()
                 delay(5_000)
             }
         }
@@ -142,8 +148,25 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     }
 
     private suspend fun fetchNowPlaying() {
-        val data = api.fetchNowPlaying() ?: return
-        handleNowPlayingData(data)
+        val data = api.fetchNowPlaying()
+        if (data != null) {
+            handleNowPlayingData(data)
+            markOnline()
+        } else {
+            markFailure()
+        }
+    }
+
+    private fun markFailure() {
+        failCount++
+        if (failCount >= offlineThreshold) {
+            _state.update { it.copy(isOffline = true) }
+        }
+    }
+
+    private fun markOnline() {
+        failCount = 0
+        _state.update { it.copy(isOffline = false) }
     }
 
     private fun handleNowPlayingData(data: NowPlayingData) {
@@ -217,9 +240,9 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 
-    class Factory(private val context: Context) : ViewModelProvider.Factory {
+    class Factory(private val context: Context, private val baseUrl: String) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlayerViewModel(context.applicationContext) as T
+            PlayerViewModel(context.applicationContext, baseUrl) as T
     }
 }

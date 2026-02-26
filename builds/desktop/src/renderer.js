@@ -1,7 +1,8 @@
 'use strict';
 
-const BASE_URL = 'https://radio.chadlinuxtech.net';
-const STREAM_URL = `${BASE_URL}/stream/live`;
+const DEFAULT_SERVER = 'https://radio.chadlinuxtech.net';
+let BASE_URL = DEFAULT_SERVER;
+let STREAM_URL = `${BASE_URL}/stream/live`;
 
 // ── DOM refs ─────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -50,6 +51,8 @@ let sseSource = null;
 let listenerInterval = null;
 let resolvedSong = null;
 let searchTimeout = null;
+let failCount = 0;
+const OFFLINE_THRESHOLD = 3;
 
 // ── Audio ─────────────────────────────────────────────────
 function createAudio() {
@@ -267,12 +270,16 @@ function connectSSE() {
   sseSource = new EventSource(`${BASE_URL}/api/sse/now-playing`);
 
   sseSource.addEventListener('now-playing', e => {
-    try { handleNowPlaying(JSON.parse(e.data)); } catch (_) {}
+    try {
+      handleNowPlaying(JSON.parse(e.data));
+      markOnline();
+    } catch (_) {}
   });
 
   sseSource.onerror = () => {
     sseSource.close();
     sseSource = null;
+    markFailure();
     setTimeout(connectSSE, 5000);
   };
 }
@@ -281,8 +288,15 @@ function connectSSE() {
 async function fetchNowPlaying() {
   try {
     const r = await fetch(`${BASE_URL}/api/now-playing`);
-    if (r.ok) handleNowPlaying(await r.json());
-  } catch (_) {}
+    if (r.ok) {
+      handleNowPlaying(await r.json());
+      markOnline();
+    } else {
+      markFailure();
+    }
+  } catch (_) {
+    markFailure();
+  }
 }
 
 async function fetchListeners() {
@@ -332,11 +346,18 @@ function closeModal() {
 }
 
 // ── About modal ──
-$('btn-about').addEventListener('click', () => $('about-overlay').classList.add('open'));
+$('btn-about').addEventListener('click', () => {
+  $('about-server-url').textContent = BASE_URL;
+  $('about-overlay').classList.add('open');
+});
 $('about-close').addEventListener('click', () => $('about-overlay').classList.remove('open'));
-$('about-dismiss').addEventListener('click', () => $('about-overlay').classList.remove('open'));
 $('about-overlay').addEventListener('click', e => {
   if (e.target === $('about-overlay')) $('about-overlay').classList.remove('open');
+});
+$('change-server').addEventListener('click', e => {
+  e.preventDefault();
+  $('about-overlay').classList.remove('open');
+  showServerScreen();
 });
 function resetModal() {
   $('req-title').value   = '';
@@ -484,12 +505,107 @@ if (window.electronAPI) {
   });
 }
 
-// ── Init ──────────────────────────────────────────────────
-(async function init() {
+// ── Offline tracking ─────────────────────────────────────
+function markFailure() {
+  failCount++;
+  if (failCount >= OFFLINE_THRESHOLD) {
+    $('offline-banner').classList.add('visible');
+  }
+}
+
+function markOnline() {
+  failCount = 0;
+  $('offline-banner').classList.remove('visible');
+}
+
+// ── Server selection ─────────────────────────────────────
+const serverRadios = document.querySelectorAll('input[name="server-choice"]');
+const customUrlInput = $('custom-url');
+
+serverRadios.forEach(r => r.addEventListener('change', () => {
+  customUrlInput.classList.toggle('visible', r.value === 'custom' && r.checked);
+}));
+
+function showServerScreen() {
+  stopPlayback();
+  if (sseSource) { sseSource.close(); sseSource = null; }
+  if (listenerInterval) { clearInterval(listenerInterval); listenerInterval = null; }
+  $('server-error').textContent = '';
+  $('app').classList.add('hidden');
+  $('server-screen').classList.add('open');
+}
+
+async function connectToServer(url) {
+  url = url.replace(/\/+$/, '');
+  $('server-error').textContent = '';
+
+  const btn = $('server-connect');
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const r = await fetch(`${url}/api/config`, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!r.ok) throw new Error('Server returned an error');
+
+    BASE_URL = url;
+    STREAM_URL = `${BASE_URL}/stream/live`;
+    localStorage.setItem('serverUrl', url);
+    $('server-screen').classList.remove('open');
+    $('app').classList.remove('hidden');
+    startApp();
+  } catch (e) {
+    $('server-error').textContent = e.name === 'AbortError'
+      ? 'Connection timed out — check the URL and try again'
+      : 'Could not connect to server — check the URL and try again';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+  }
+}
+
+$('server-connect').addEventListener('click', () => {
+  const choice = document.querySelector('input[name="server-choice"]:checked').value;
+  if (choice === 'official') {
+    connectToServer(DEFAULT_SERVER);
+  } else {
+    const url = customUrlInput.value.trim();
+    if (!url) {
+      $('server-error').textContent = 'Please enter a server URL';
+      return;
+    }
+    if (!/^https?:\/\/.+/i.test(url)) {
+      $('server-error').textContent = 'URL must start with http:// or https://';
+      return;
+    }
+    connectToServer(url);
+  }
+});
+
+// ── App start ────────────────────────────────────────────
+async function startApp() {
+  failCount = 0;
+  $('offline-banner').classList.remove('visible');
   await fetchConfig();
   await fetchNowPlaying();
   connectSSE();
   setInterval(fetchNowPlaying, 30_000);
   listenerInterval = setInterval(fetchListeners, 15_000);
   fetchListeners();
+}
+
+// ── Init ──────────────────────────────────────────────────
+(function init() {
+  const saved = localStorage.getItem('serverUrl');
+  if (saved) {
+    BASE_URL = saved;
+    STREAM_URL = `${BASE_URL}/stream/live`;
+    startApp();
+  } else {
+    $('app').classList.add('hidden');
+    $('server-screen').classList.add('open');
+  }
 })();

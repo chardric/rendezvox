@@ -229,7 +229,8 @@ button:hover{color:#fff}
 
 <!-- Request modal -->
 <div class="modal-backdrop hidden" id="requestModal">
-  <div class="modal">
+  <div class="modal" style="position:relative">
+    <button type="button" id="reqClose" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#f87171;font-size:1.4rem;font-weight:700;cursor:pointer;line-height:1;padding:2px 6px">&times;</button>
     <h3>Request a Song</h3>
     <div style="font-size:.8rem;color:#666;margin-bottom:12px;text-align:center">Search by title, artist, or both</div>
     <div id="reqMsg"></div>
@@ -823,6 +824,9 @@ button:hover{color:#fff}
   document.getElementById('reqCancel').addEventListener('click', function() {
     modal.classList.add('hidden');
   });
+  document.getElementById('reqClose').addEventListener('click', function() {
+    modal.classList.add('hidden');
+  });
 
   modal.addEventListener('click', function(e) {
     if (e.target === modal) modal.classList.add('hidden');
@@ -1016,7 +1020,8 @@ button:hover{color:#fff}
 
 <!-- About modal -->
 <div class="modal-backdrop hidden" id="aboutModal">
-  <div class="modal" style="text-align:left">
+  <div class="modal" style="text-align:left;position:relative">
+    <button type="button" id="aboutClose" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#f87171;font-size:1.4rem;font-weight:700;cursor:pointer;line-height:1;padding:2px 6px">&times;</button>
     <h3 style="text-align:center">About RendezVox</h3>
     <p class="about-desc">Your personal online FM radio station — stream music, request songs, and listen live from any device, anywhere.</p>
     <div class="about-section">
@@ -1034,7 +1039,6 @@ button:hover{color:#fff}
       <div>Engr. Richard R. Ayuyang, PhD</div>
       <div style="color:#666">Professor II, CSU</div>
     </div>
-    <div class="modal-actions"><button type="button" class="btn-cancel" id="aboutClose" style="color:#f87171;font-size:1.1rem;font-weight:700;padding:4px 10px;line-height:1">&times;</button></div>
   </div>
 </div>
 <script>
