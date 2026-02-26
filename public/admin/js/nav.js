@@ -9,7 +9,7 @@ var RendezVoxNav = (function() {
     { href: '/admin/files',     label: 'Files',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>' },
     { href: '/admin/playlists', label: 'Playlists',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>' },
     { href: '/admin/schedules', label: 'Schedules',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
-    { href: '/admin/jingles',   label: 'Jingles',    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>' },
+    { href: '/admin/station-ids', label: 'Station IDs', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>' },
     { href: '/admin/requests',  label: 'Requests',   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' },
     { href: '/admin/users',     label: 'Users',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>', role: 'super_admin' },
     { href: '/admin/settings',  label: 'Settings',   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>', role: 'super_admin' },
@@ -168,6 +168,17 @@ var RendezVoxNav = (function() {
       footer.innerHTML = '&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.';
       mainEl.appendChild(footer);
     }
+
+    // Load persistent mini-player (streams audio across all pages)
+    var mpScript = document.createElement('script');
+    mpScript.src = '/admin/js/miniplayer.js?v=20260226';
+    mpScript.onload = function() {
+      if (window.RendezVoxMiniPlayer) {
+        RendezVoxMiniPlayer.init();
+        document.dispatchEvent(new Event('miniplayer:ready'));
+      }
+    };
+    document.body.appendChild(mpScript);
   }
 
   /* ── Role display labels ──────────────────────────────── */
@@ -255,8 +266,16 @@ var RendezVoxNav = (function() {
         /* ── Password change ── */
         '<div class="compact-form">' +
           '<h4 style="color:var(--text-heading);margin-bottom:10px;font-size:.95rem">Change Password</h4>' +
-          '<label>Current Password</label><input type="password" id="pwCurrent">' +
-          '<label>New Password</label><input type="password" id="pwNew">' +
+          '<label>Current Password</label>' +
+          '<div style="position:relative">' +
+            '<input type="password" id="pwCurrent" style="padding-right:36px">' +
+            '<button type="button" class="eye-toggle" onclick="toggleVis(\'pwCurrent\',this)" aria-label="Toggle password visibility">' + EYE_OPEN + '</button>' +
+          '</div>' +
+          '<label>New Password</label>' +
+          '<div style="position:relative">' +
+            '<input type="password" id="pwNew" style="padding-right:36px">' +
+            '<button type="button" class="eye-toggle" onclick="toggleVis(\'pwNew\',this)" aria-label="Toggle password visibility">' + EYE_OPEN + '</button>' +
+          '</div>' +
           '<div id="pwNewStrength" style="margin-top:-4px;display:none">' +
             '<div style="display:flex;gap:3px;margin-bottom:4px">' +
               '<div class="pw-bar" id="pwNewBar1"></div>' +
@@ -266,7 +285,11 @@ var RendezVoxNav = (function() {
             '</div>' +
             '<span id="pwNewStrengthLabel" style="font-size:.78rem"></span>' +
           '</div>' +
-          '<label>Confirm New Password</label><input type="password" id="pwConfirm">' +
+          '<label>Confirm New Password</label>' +
+          '<div style="position:relative">' +
+            '<input type="password" id="pwConfirm" style="padding-right:36px">' +
+            '<button type="button" class="eye-toggle" onclick="toggleVis(\'pwConfirm\',this)" aria-label="Toggle password visibility">' + EYE_OPEN + '</button>' +
+          '</div>' +
           '<div id="pwError" style="color:var(--danger);font-size:.82rem;display:none"></div>' +
           '<div class="modal-actions">' +
             '<button type="button" class="btn btn-ghost" id="profileModalCancel">Cancel</button>' +

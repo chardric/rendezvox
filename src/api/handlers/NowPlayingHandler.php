@@ -14,7 +14,7 @@ class NowPlayingHandler
                 rs.playback_offset_ms,
                 rs.started_at,
                 rs.is_emergency,
-                rs.songs_since_jingle,
+                rs.songs_since_station_id,
                 rs.next_song_id,
                 s.id         AS song_id,
                 s.title      AS song_title,
@@ -88,7 +88,7 @@ class NowPlayingHandler
         Response::json([
             'is_playing'         => (bool) $row['is_playing'],
             'is_emergency'       => (bool) $row['is_emergency'],
-            'songs_since_jingle' => (int) $row['songs_since_jingle'],
+            'songs_since_station_id' => (int) $row['songs_since_station_id'],
             'song' => [
                 'id'            => (int) $row['song_id'],
                 'title'         => $row['song_title'],

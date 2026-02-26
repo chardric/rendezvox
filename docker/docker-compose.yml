@@ -73,7 +73,7 @@ services:
       - ../src:/var/www/html/src:ro
       - ../public:/var/www/html/public:ro
       - ../music:/var/lib/rendezvox/music
-      - ../jingles:/var/lib/rendezvox/jingles
+      - ../stationids:/var/lib/rendezvox/stationids
       - ../data/avatars:/var/lib/rendezvox/avatars
       - ../data/logos:/var/lib/rendezvox/logos
       - ../data/logs:/var/log/rendezvox
@@ -109,6 +109,7 @@ services:
       - SETGID
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/security-headers.conf:/etc/nginx/security-headers.conf:ro
       - ../public:/var/www/html/public:ro
       - ../installers:/var/www/html/installers:ro
       - ../data/logs:/var/log/rendezvox
@@ -187,7 +188,7 @@ services:
     volumes:
       - ../liquidsoap:/etc/liquidsoap:ro
       - ../music:/var/lib/rendezvox/music:ro
-      - ../jingles:/var/lib/rendezvox/jingles:ro
+      - ../stationids:/var/lib/rendezvox/stationids:ro
       - ../data/logs:/var/log/rendezvox
     networks:
       - rendezvox_net

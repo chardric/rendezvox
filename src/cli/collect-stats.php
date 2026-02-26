@@ -17,7 +17,11 @@ require __DIR__ . '/../core/Database.php';
 
 $icecastHost = getenv('RENDEZVOX_ICECAST_HOST') ?: 'icecast';
 $icecastPort = getenv('RENDEZVOX_ICECAST_PORT') ?: '8000';
-$adminPass   = getenv('ICECAST_ADMIN_PASSWORD') ?: 'changeme_admin';
+$adminPass   = getenv('ICECAST_ADMIN_PASSWORD') ?: '';
+if ($adminPass === '') {
+    fwrite(STDERR, date('c') . " ERROR: ICECAST_ADMIN_PASSWORD not set\n");
+    exit(1);
+}
 $mount       = '/live';
 
 $statsUrl = "http://{$icecastHost}:{$icecastPort}/admin/stats.xml";

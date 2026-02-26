@@ -17,15 +17,17 @@ CREATE TABLE users (
     username        VARCHAR(64)  NOT NULL UNIQUE,
     email           VARCHAR(255) NOT NULL UNIQUE,
     password_hash   VARCHAR(255) NOT NULL,
-    role            VARCHAR(20)  NOT NULL DEFAULT 'editor'
-                        CHECK (role IN ('super_admin','admin','editor','viewer')),
+    role            VARCHAR(20)  NOT NULL DEFAULT 'dj'
+                        CHECK (role IN ('super_admin','dj')),
     display_name    VARCHAR(255) DEFAULT NULL,
     avatar_path     VARCHAR(255) DEFAULT NULL,
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
     last_login_at   TIMESTAMPTZ,
-    last_login_ip   INET,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    last_login_ip       INET,
+    failed_login_count  SMALLINT     NOT NULL DEFAULT 0,
+    locked_until        TIMESTAMPTZ  DEFAULT NULL,
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_users_role      ON users (role);
@@ -53,7 +55,7 @@ CREATE TABLE categories (
     id              SERIAL PRIMARY KEY,
     name            VARCHAR(100) NOT NULL UNIQUE,
     type            VARCHAR(20)  NOT NULL DEFAULT 'music'
-                        CHECK (type IN ('music','jingle','sweeper','liner','emergency')),
+                        CHECK (type IN ('music','station_id','sweeper','liner','emergency')),
     rotation_weight NUMERIC(5,2) NOT NULL DEFAULT 1.00
                         CHECK (rotation_weight >= 0),
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
@@ -173,7 +175,7 @@ CREATE TABLE play_history (
     playlist_id     INT          REFERENCES playlists(id) ON DELETE SET NULL,
     schedule_id     INT          REFERENCES schedules(id) ON DELETE SET NULL,
     source          VARCHAR(20)  NOT NULL DEFAULT 'rotation'
-                        CHECK (source IN ('rotation','request','manual','emergency','jingle')),
+                        CHECK (source IN ('rotation','request','manual','emergency','station_id')),
     started_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     ended_at        TIMESTAMPTZ,
     listener_count  INT,
@@ -203,7 +205,7 @@ CREATE TABLE rotation_state (
     playback_offset_ms   INT          NOT NULL DEFAULT 0,    -- resume position within song
     is_playing           BOOLEAN      NOT NULL DEFAULT FALSE,
     is_emergency         BOOLEAN      NOT NULL DEFAULT FALSE, -- emergency mode flag
-    songs_since_jingle   INT          NOT NULL DEFAULT 0,     -- jingle interval counter
+    songs_since_station_id INT        NOT NULL DEFAULT 0,     -- station ID interval counter
     last_artist_ids      INT[]        NOT NULL DEFAULT '{}',  -- recent artist ids for repeat-block
     started_at           TIMESTAMPTZ,
     updated_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -285,7 +287,7 @@ CREATE INDEX idx_station_logs_comp    ON station_logs (component, created_at DES
 CREATE INDEX idx_station_logs_time    ON station_logs (created_at DESC);
 
 -- ============================================================
--- 14. SETTINGS  (jingle interval, emergency mode, etc.)
+-- 14. SETTINGS  (station ID interval, emergency mode, etc.)
 -- ============================================================
 CREATE TABLE settings (
     key             VARCHAR(100) PRIMARY KEY,
@@ -302,7 +304,7 @@ INSERT INTO settings (key, value, type, description) VALUES
     ('station_name',          'RendezVox',  'string',  'Station display name'),
     ('station_logo_path',     '',        'string',  'Station logo filename'),
     ('station_timezone',      'UTC',     'string',  'Station timezone for schedules and clock'),
-    ('jingle_interval',       '4',       'integer', 'Play a jingle every N songs'),
+    ('station_id_interval',   '4',       'integer', 'Play a station ID every N songs'),
     ('artist_repeat_block',   '6',       'integer', 'Min songs gap before same artist replays'),
     ('song_repeat_block',     '30',      'integer', 'Min songs gap before same song replays'),
     ('request_limit',         '3',       'integer', 'Max pending+approved requests per listener'),

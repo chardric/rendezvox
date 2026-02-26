@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-class JingleListHandler
+class StationIdListHandler
 {
     public function handle(): void
     {
-        $dir = '/var/lib/rendezvox/jingles';
+        $dir = '/var/lib/rendezvox/stationids';
         $allowed = ['mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a'];
-        $jingles = [];
+        $stationIds = [];
 
         if (is_dir($dir)) {
             $files = scandir($dir);
@@ -19,7 +19,7 @@ class JingleListHandler
                 if (!in_array($ext, $allowed)) continue;
 
                 $path = $dir . '/' . $file;
-                $jingles[] = [
+                $stationIds[] = [
                     'filename'    => $file,
                     'size'        => filesize($path),
                     'duration_ms' => self::getDurationMs($path),
@@ -29,9 +29,9 @@ class JingleListHandler
         }
 
         // Sort by filename
-        usort($jingles, fn($a, $b) => strcasecmp($a['filename'], $b['filename']));
+        usort($stationIds, fn($a, $b) => strcasecmp($a['filename'], $b['filename']));
 
-        Response::json(['jingles' => $jingles]);
+        Response::json(['station_ids' => $stationIds]);
     }
 
     private static function getDurationMs(string $path): ?int

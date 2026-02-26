@@ -10,7 +10,7 @@ fi
 env | grep -E '^(RENDEZVOX_|ICECAST_|POSTGRES_|TZ=)' | sed 's/^/export /' > /etc/environment.rendezvox
 
 # Ensure media and log directories are writable by www-data
-for dir in /var/log/rendezvox /var/lib/rendezvox/music /var/lib/rendezvox/jingles /var/lib/rendezvox/avatars /var/lib/rendezvox/logos; do
+for dir in /var/log/rendezvox /var/lib/rendezvox/music /var/lib/rendezvox/stationids /var/lib/rendezvox/avatars /var/lib/rendezvox/logos; do
   mkdir -p "$dir"
   chown www-data:www-data "$dir" 2>/dev/null || true
   chmod 775 "$dir" 2>/dev/null || true

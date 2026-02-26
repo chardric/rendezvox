@@ -38,6 +38,7 @@ var RendezVoxPlaylists = (function() {
   ];
   var allPlaylists = [];
   var currentStreamingPlaylistId = null;
+  var colorsFixed = false;
 
   function init() {
     loadPlaylists();
@@ -333,9 +334,18 @@ var RendezVoxPlaylists = (function() {
   }
 
   // Detect visually similar colors (exact OR perceptually close) and silently reassign, then render
+  // Only runs the fix-and-save once on first load; subsequent refreshes just render.
   function fixDuplicateColors() {
-    var DIST_THRESHOLD = 80; // colors within this RGB distance are "too similar"
-    var confirmed = []; // playlist colors already locked in
+    var render = function() {
+      renderEmergencyCard(allPlaylists);
+      var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
+      renderTable(regular);
+    };
+
+    if (colorsFixed) { render(); return; }
+
+    var DIST_THRESHOLD = 80;
+    var confirmed = [];
     var fixes = [];
 
     allPlaylists.forEach(function(p) {
@@ -348,29 +358,19 @@ var RendezVoxPlaylists = (function() {
       }
     });
 
-    if (fixes.length === 0) {
-      renderEmergencyCard(allPlaylists);
-      var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
-      renderTable(regular);
-      return;
-    }
+    colorsFixed = true;
 
-    // Assign new distinct colors (not close to any confirmed color)
+    if (fixes.length === 0) { render(); return; }
+
     fixes.forEach(function(p) {
       var newColor = pickDistinctColor(confirmed);
       p.color = newColor;
       confirmed.push(newColor);
     });
 
-    // Save all fixes in parallel, then render once done
     var saves = fixes.map(function(p) {
       return RendezVoxAPI.put('/admin/playlists/' + p.id, { color: p.color });
     });
-    var render = function() {
-      renderEmergencyCard(allPlaylists);
-      var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
-      renderTable(regular);
-    };
     Promise.all(saves).then(render).catch(render);
   }
 
@@ -515,27 +515,28 @@ var RendezVoxPlaylists = (function() {
       btn.disabled = true;
       btn.textContent = 'Deleting…';
 
-      var ids = selected.map(function(s) { return s.id; });
+      var items = selected.slice();
       var done = 0;
-      var failed = 0;
+      var failedNames = [];
 
       function deleteNext() {
-        if (ids.length === 0) {
+        if (items.length === 0) {
           btn.disabled = false;
           btn.textContent = 'Delete Selected';
           hideBulkBar();
           var msg = done + ' playlist' + (done !== 1 ? 's' : '') + ' deleted';
-          if (failed > 0) msg += ', ' + failed + ' failed';
-          showToast(msg, failed > 0 ? 'error' : 'success');
+          if (failedNames.length > 0) msg += '. Failed: ' + failedNames.join(', ');
+          showToast(msg, failedNames.length > 0 ? 'error' : 'success');
           loadPlaylists();
+          if (done > 0) RendezVoxAPI.post('/admin/schedules/reload', {}).catch(function() {});
           return;
         }
-        var id = ids.shift();
-        RendezVoxAPI.del('/admin/playlists/' + id).then(function() {
+        var item = items.shift();
+        RendezVoxAPI.del('/admin/playlists/' + item.id).then(function() {
           done++;
           deleteNext();
-        }).catch(function() {
-          failed++;
+        }).catch(function(err) {
+          failedNames.push(item.name + ' (' + ((err && err.error) || 'error') + ')');
           deleteNext();
         });
       }
@@ -575,6 +576,7 @@ var RendezVoxPlaylists = (function() {
     document.getElementById('playlistForm').reset();
     document.getElementById('plActive').checked = true;
     document.getElementById('plTypeSelect').value = 'manual';
+    document.getElementById('plTypeSelect').disabled = false;
     document.getElementById('typeSelectWrap').style.display = '';
     document.getElementById('autoMinWeight').value = '0';
     var nextColor = pickRandomColor();
@@ -602,13 +604,15 @@ var RendezVoxPlaylists = (function() {
       // Hide type selector and color picker for emergency playlists
       var typeWrap = document.getElementById('typeSelectWrap');
       var colorWrap = document.getElementById('colorPickerWrap');
+      var typeSelect = document.getElementById('plTypeSelect');
       if (p.type === 'emergency') {
         typeWrap.style.display = 'none';
         colorWrap.style.display = 'none';
       } else {
         typeWrap.style.display = '';
         colorWrap.style.display = '';
-        document.getElementById('plTypeSelect').value = p.type;
+        typeSelect.value = p.type;
+        typeSelect.disabled = true; // type is locked after creation
       }
 
       var rules = p.rules || {};
@@ -675,6 +679,7 @@ var RendezVoxPlaylists = (function() {
           activePlaylistType = null;
         }
         loadPlaylists();
+        RendezVoxAPI.post('/admin/schedules/reload', {}).catch(function() {});
       }).catch(function(err) {
         showToast((err && err.error) || 'Delete failed', 'error');
       });
@@ -1061,7 +1066,7 @@ var RendezVoxPlaylists = (function() {
     RendezVoxConfirm('Add ' + filterDesc + ' to this playlist?', { title: 'Add Songs', okLabel: 'Add', okClass: 'btn-primary' }).then(function(ok) {
       if (!ok) return;
 
-      var q = '?per_page=500&active=true';
+      var q = '?per_page=5000&active=true';
       if (search)   q += '&search='      + encodeURIComponent(search);
       if (artistId) q += '&artist_id='   + artistId;
       if (catId)    q += '&category_id=' + catId;

@@ -217,7 +217,7 @@ class NextTrackHandler
                     current_position    = :position,
                     current_cycle       = :cycle,
                     is_emergency        = :is_emergency,
-                    songs_since_jingle  = songs_since_jingle + 1,
+                    songs_since_station_id  = songs_since_station_id + 1,
                     last_artist_ids     = :artist_ids,
                     next_song_id        = :next_song_id,
                     next_schedule_id    = :next_schedule_id,
@@ -572,7 +572,7 @@ class NextTrackHandler
             // Update rotation state — store source for TrackStartedHandler
             $db->prepare('
                 UPDATE rotation_state
-                SET songs_since_jingle  = songs_since_jingle + 1,
+                SET songs_since_station_id  = songs_since_station_id + 1,
                     last_artist_ids     = :artist_ids,
                     next_playlist_id    = :next_playlist_id,
                     next_song_id        = :next_song_id,

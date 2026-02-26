@@ -13,7 +13,13 @@ class Router
         foreach (self::INTERNAL_ROUTES as $r) {
             if ($path === $r) {
                 $expected = getenv('RENDEZVOX_INTERNAL_SECRET') ?: '';
-                if ($expected === '') return; // not configured = allow (dev mode)
+                if ($expected === '') {
+                    $appEnv = getenv('RENDEZVOX_APP_ENV') ?: 'production';
+                    if ($appEnv !== 'development') {
+                        Response::error('Internal secret not configured', 500);
+                    }
+                    return;
+                }
                 $provided = $_SERVER['HTTP_X_INTERNAL_SECRET'] ?? '';
                 if (!hash_equals($expected, $provided)) {
                     Response::error('Forbidden', 403);

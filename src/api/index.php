@@ -54,11 +54,11 @@ require __DIR__ . '/handlers/StatsListenersHandler.php';
 require __DIR__ . '/handlers/StatsPopularSongsHandler.php';
 require __DIR__ . '/handlers/StatsPopularRequestsHandler.php';
 require __DIR__ . '/handlers/StationConfigHandler.php';
-require __DIR__ . '/handlers/JingleListHandler.php';
-require __DIR__ . '/handlers/JingleUploadHandler.php';
-require __DIR__ . '/handlers/JingleDeleteHandler.php';
-require __DIR__ . '/handlers/JingleStreamHandler.php';
-require __DIR__ . '/handlers/JingleRenameHandler.php';
+require __DIR__ . '/handlers/StationIdListHandler.php';
+require __DIR__ . '/handlers/StationIdUploadHandler.php';
+require __DIR__ . '/handlers/StationIdDeleteHandler.php';
+require __DIR__ . '/handlers/StationIdStreamHandler.php';
+require __DIR__ . '/handlers/StationIdRenameHandler.php';
 require __DIR__ . '/handlers/SongYearsHandler.php';
 require __DIR__ . '/handlers/RandomSongsHandler.php';
 require __DIR__ . '/handlers/MediaBrowseHandler.php';
@@ -106,6 +106,7 @@ require __DIR__ . '/handlers/LogoUploadHandler.php';
 require __DIR__ . '/handlers/LogoServeHandler.php';
 require __DIR__ . '/handlers/CoverArtHandler.php';
 require __DIR__ . '/handlers/SetupHandler.php';
+require __DIR__ . '/handlers/SystemInfoHandler.php';
 
 // -- Route definitions --
 Router::get('/health',       [HealthHandler::class,      'handle']);
@@ -196,12 +197,12 @@ Router::post('/admin/schedules',        [ScheduleCreateHandler::class, 'handle']
 Router::put('/admin/schedules/:id',     [ScheduleUpdateHandler::class, 'handle']);
 Router::delete('/admin/schedules/:id',  [ScheduleDeleteHandler::class, 'handle']);
 
-// -- Jingles --
-Router::get('/admin/jingles',              [JingleListHandler::class,   'handle']);
-Router::post('/admin/jingles',             [JingleUploadHandler::class, 'handle']);
-Router::delete('/admin/jingles/:filename', [JingleDeleteHandler::class, 'handle']);
-Router::put('/admin/jingles/:filename/rename', [JingleRenameHandler::class, 'handle']);
-Router::get('/admin/jingles/:filename/stream', [JingleStreamHandler::class, 'handle']);
+// -- Station IDs --
+Router::get('/admin/station-ids',              [StationIdListHandler::class,   'handle']);
+Router::post('/admin/station-ids',             [StationIdUploadHandler::class, 'handle']);
+Router::delete('/admin/station-ids/:filename', [StationIdDeleteHandler::class, 'handle']);
+Router::put('/admin/station-ids/:filename/rename', [StationIdRenameHandler::class, 'handle']);
+Router::get('/admin/station-ids/:filename/stream', [StationIdStreamHandler::class, 'handle']);
 
 // -- Media file manager --
 Router::get('/admin/media/pending-count', [MediaPendingCountHandler::class, 'handle']);
@@ -242,6 +243,7 @@ Router::get('/admin/library-stats',    [LibraryStatsHandler::class,   'handle'])
 Router::get('/admin/disk-space',       [DiskSpaceHandler::class,      'handle']);
 Router::put('/admin/settings/:key',    [SettingsUpdateHandler::class, 'handle']);
 Router::post('/admin/test-email',      [TestEmailHandler::class,      'handle']);
+Router::get('/admin/system-info',      [SystemInfoHandler::class,     'handle']);
 
 // -- Geo (PH location picker) --
 Router::get('/admin/geo/provinces',    [GeoHandler::class, 'provinces']);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-class JingleDeleteHandler
+class StationIdDeleteHandler
 {
     public function handle(): void
     {
@@ -21,20 +21,20 @@ class JingleDeleteHandler
             return;
         }
 
-        $dir = '/var/lib/rendezvox/jingles';
+        $dir = '/var/lib/rendezvox/stationids';
         $path = $dir . '/' . $filename;
 
         $realPath = realpath($path);
         if ($realPath === false || !str_starts_with($realPath, $dir . '/')) {
-            Response::error('Jingle not found', 404);
+            Response::error('Station ID not found', 404);
             return;
         }
 
         if (!unlink($realPath)) {
-            Response::error('Failed to delete jingle', 500);
+            Response::error('Failed to delete station ID', 500);
             return;
         }
 
-        Response::json(['message' => 'Jingle deleted']);
+        Response::json(['message' => 'Station ID deleted']);
     }
 }

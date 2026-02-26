@@ -185,7 +185,7 @@ ADMIN_PASS=$(openssl rand -base64 12 | tr -d '/+=' | head -c 12)
 # ==========================================================
 log "Step 7/9: Creating directories and configuration..."
 
-mkdir -p "$RENDEZVOX_DIR"/{data/postgres,data/avatars,data/logs,music,jingles}
+mkdir -p "$RENDEZVOX_DIR"/{data/postgres,data/avatars,data/logs,music,stationids}
 chown -R "${SUDO_USER:-1000}":"${SUDO_USER:-1000}" "$RENDEZVOX_DIR"/data 2>/dev/null || true
 chown -R 1000:1000 "$RENDEZVOX_DIR"/data/postgres 2>/dev/null || true
 

@@ -35,7 +35,7 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - **Icecast 2** streaming server with configurable mount points
 - Smart rotation engine with artist/song repeat blocking
 - Crossfade support with configurable duration
-- Jingle/sweeper/liner insertion at configurable intervals
+- Station ID/sweeper/liner insertion at configurable intervals
 - Emergency mode with dedicated fallback playlist
 - EBU R128 loudness normalization
 
@@ -76,7 +76,7 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - Role-based access control (Super Admin, Admin, Editor, Viewer)
 - User management (create, edit, disable, delete)
 - Analytics: listener stats, popular songs, popular requests
-- Station settings panel (jingle interval, repeat blocks, request limits, etc.)
+- Station settings panel (station ID interval, repeat blocks, request limits, etc.)
 - Weather widget integration
 
 ### Public Listener Page (Web)
@@ -477,7 +477,7 @@ RendezVox/
 │   │           │       └── SettingsScreen.kt
 │   │           └── res/
 ├── music/                       # Music library (not tracked)
-├── jingles/                     # Jingle files
+├── stationids/                  # Station ID files
 └── README.md                    # This file
 ```
 
@@ -509,7 +509,7 @@ PostgreSQL 16 with 15 tables:
 
 - `users` — Admin accounts with roles, avatars, display name, login IP tracking
 - `artists` — Normalized artist names with trigram search
-- `categories` — Music/jingle/sweeper/liner/emergency types
+- `categories` — Music/station_id/sweeper/liner/emergency types
 - `songs` — Full metadata, rotation weights, loudness data
 - `playlists` — Manual, auto, emergency with JSONB rules
 - `playlist_songs` — Ordered songs with cycle tracking
@@ -598,7 +598,7 @@ Nginx rate limits on sensitive endpoints:
 - Liquidsoap audio engine with API-driven track selection and crossfade
 - Icecast 2 streaming server proxied through Nginx at `/stream/live`
 - Smart rotation engine with artist/song repeat blocking and full cycle tracking
-- Jingle/sweeper/liner insertion at configurable intervals
+- Station ID/sweeper/liner insertion at configurable intervals
 - Emergency mode with dedicated fallback playlist
 - EBU R128 loudness normalization
 

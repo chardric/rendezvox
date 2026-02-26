@@ -395,10 +395,17 @@ var RendezVoxUsers = (function() {
       '<div style="margin-bottom:6px"><strong>User created with temporary password:</strong></div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         '<code style="background:rgba(0,0,0,.1);padding:4px 8px;border-radius:4px;font-size:.85rem;user-select:all">' + escHtml(tempPw) + '</code>' +
-        '<button type="button" onclick="navigator.clipboard.writeText(\'' + escHtml(tempPw).replace(/'/g, "\\'") + '\');this.textContent=\'Copied!\'" ' +
+        '<button type="button" class="pw-copy-btn" ' +
           'style="background:none;border:1px solid rgba(255,255,255,.3);color:inherit;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:.78rem">Copy</button>' +
       '</div>' +
       '<div style="font-size:.78rem;margin-top:6px;opacity:.8">Share this password securely with the user.</div>';
+    var copyBtn = t.querySelector('.pw-copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(tempPw);
+        this.textContent = 'Copied!';
+      });
+    }
     c.appendChild(t);
     setTimeout(function() { t.remove(); }, 15000);
   }

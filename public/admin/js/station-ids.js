@@ -1,13 +1,13 @@
 /* ============================================================
-   RendezVox Admin — Jingle Manager
+   RendezVox Admin — Station ID Manager
    ============================================================ */
-var RendezVoxJingles = (function() {
+var RendezVoxStationIds = (function() {
 
-  var currentlyPlaying = null; // filename of currently playing jingle
+  var currentlyPlaying = null; // filename of currently playing station ID
   var renameTarget = null;     // filename being renamed
 
   function init() {
-    loadJingles();
+    loadStationIds();
 
     var fileInput = document.getElementById('fileInput');
     var btnBrowse = document.getElementById('btnBrowse');
@@ -41,13 +41,13 @@ var RendezVoxJingles = (function() {
     });
 
     // Audio element events
-    var audio = document.getElementById('jingleAudio');
+    var audio = document.getElementById('stationIdAudio');
     audio.addEventListener('ended', function() {
-      stopJingle();
+      stopPlayback();
     });
     audio.addEventListener('error', function() {
-      showToast('Failed to play jingle', 'error');
-      stopJingle();
+      showToast('Failed to play station ID', 'error');
+      stopPlayback();
     });
 
     // Rename modal
@@ -63,39 +63,39 @@ var RendezVoxJingles = (function() {
 
   // ── Load & render ──────────────────────────────────────
 
-  function loadJingles() {
-    RendezVoxAPI.get('/admin/jingles').then(function(data) {
-      renderTable(data.jingles);
-      renderSummary(data.jingles);
+  function loadStationIds() {
+    RendezVoxAPI.get('/admin/station-ids').then(function(data) {
+      renderTable(data.station_ids);
+      renderSummary(data.station_ids);
     }).catch(function(err) {
-      console.error('Jingles load error:', err);
-      showToast('Failed to load jingles', 'error');
+      console.error('Station IDs load error:', err);
+      showToast('Failed to load station IDs', 'error');
     });
   }
 
-  function renderSummary(jingles) {
-    var el = document.getElementById('jingleSummary');
-    if (!jingles || jingles.length === 0) {
+  function renderSummary(files) {
+    var el = document.getElementById('stationIdSummary');
+    if (!files || files.length === 0) {
       el.textContent = '';
       return;
     }
     var totalSize = 0;
-    for (var i = 0; i < jingles.length; i++) {
-      totalSize += jingles[i].size || 0;
+    for (var i = 0; i < files.length; i++) {
+      totalSize += files[i].size || 0;
     }
-    el.textContent = jingles.length + ' jingle' + (jingles.length !== 1 ? 's' : '') +
+    el.textContent = files.length + ' station ID' + (files.length !== 1 ? 's' : '') +
       ' \u2014 ' + formatSize(totalSize);
   }
 
-  function renderTable(jingles) {
-    var tbody = document.getElementById('jingleTable');
-    if (!jingles || jingles.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty">No jingles uploaded yet</td></tr>';
+  function renderTable(files) {
+    var tbody = document.getElementById('stationIdTable');
+    if (!files || files.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No station IDs uploaded yet</td></tr>';
       return;
     }
 
     var html = '';
-    jingles.forEach(function(j) {
+    files.forEach(function(j) {
       var size = formatSize(j.size);
       var dur = formatDuration(j.duration_ms);
       var date = new Date(j.created_at).toLocaleDateString('en-US', Object.assign({ day: 'numeric', month: 'short', year: 'numeric' }, RendezVoxAPI.tzOpts()));
@@ -111,9 +111,9 @@ var RendezVoxJingles = (function() {
         '<td class="file-size">' + size + '</td>' +
         '<td>' + date + '</td>' +
         '<td style="white-space:nowrap">' +
-          '<button type="button" class="btn-play' + playClass + '" title="' + (isPlaying ? 'Stop' : 'Play') + '" onclick="RendezVoxJingles.togglePlay(\'' + escAttr(j.filename) + '\')">' + playIcon + '</button> ' +
-          '<button type="button" class="icon-btn" title="Rename" onclick="RendezVoxJingles.renameJingle(\'' + escAttr(j.filename) + '\')">' + RendezVoxIcons.edit + '</button> ' +
-          '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxJingles.deleteJingle(\'' + escAttr(j.filename) + '\')">' + RendezVoxIcons.del + '</button>' +
+          '<button type="button" class="btn-play' + playClass + '" title="' + (isPlaying ? 'Stop' : 'Play') + '" onclick="RendezVoxStationIds.togglePlay(\'' + escAttr(j.filename) + '\')">' + playIcon + '</button> ' +
+          '<button type="button" class="icon-btn" title="Rename" onclick="RendezVoxStationIds.renameFile(\'' + escAttr(j.filename) + '\')">' + RendezVoxIcons.edit + '</button> ' +
+          '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxStationIds.deleteFile(\'' + escAttr(j.filename) + '\')">' + RendezVoxIcons.del + '</button>' +
         '</td>' +
         '</tr>';
     });
@@ -124,14 +124,14 @@ var RendezVoxJingles = (function() {
 
   function togglePlay(filename) {
     if (currentlyPlaying === filename) {
-      stopJingle();
+      stopPlayback();
     } else {
-      playJingle(filename);
+      startPlayback(filename);
     }
   }
 
-  function playJingle(filename) {
-    var audio = document.getElementById('jingleAudio');
+  function startPlayback(filename) {
+    var audio = document.getElementById('stationIdAudio');
     // Stop any current playback first
     if (currentlyPlaying) {
       audio.pause();
@@ -144,7 +144,7 @@ var RendezVoxJingles = (function() {
 
     // Fetch with auth header, create blob URL for audio element
     // (<audio> elements cannot send Authorization headers natively)
-    fetch('/api/admin/jingles/' + encodeURIComponent(filename) + '/stream', {
+    fetch('/api/admin/station-ids/' + encodeURIComponent(filename) + '/stream', {
       headers: { 'Authorization': 'Bearer ' + localStorage.getItem('rendezvox_token') }
     })
     .then(function(res) {
@@ -158,13 +158,13 @@ var RendezVoxJingles = (function() {
       return audio.play();
     })
     .catch(function() {
-      showToast('Failed to play jingle', 'error');
-      stopJingle();
+      showToast('Failed to play station ID', 'error');
+      stopPlayback();
     });
   }
 
-  function stopJingle() {
-    var audio = document.getElementById('jingleAudio');
+  function stopPlayback() {
+    var audio = document.getElementById('stationIdAudio');
     audio.pause();
     if (audio.src && audio.src.startsWith('blob:')) {
       URL.revokeObjectURL(audio.src);
@@ -215,8 +215,8 @@ var RendezVoxJingles = (function() {
       if (finished >= totalFiles) {
         hideProgress();
         var ok = totalFiles - errors;
-        showToast(ok + ' jingle(s) uploaded' + (errors > 0 ? ', ' + errors + ' failed' : ''));
-        loadJingles();
+        showToast(ok + ' station ID(s) uploaded' + (errors > 0 ? ', ' + errors + ' failed' : ''));
+        loadStationIds();
         return;
       }
       startNext();
@@ -229,7 +229,7 @@ var RendezVoxJingles = (function() {
       var formData = new FormData();
       formData.append('file', file);
 
-      RendezVoxAPI.upload('/admin/jingles', formData, function() {})
+      RendezVoxAPI.upload('/admin/station-ids', formData, function() {})
         .then(function() { onFileComplete(); })
         .catch(function(err) {
           errors++;
@@ -250,13 +250,13 @@ var RendezVoxJingles = (function() {
 
     showProgress('Uploading...', 0);
 
-    RendezVoxAPI.upload('/admin/jingles', formData, function(p) {
+    RendezVoxAPI.upload('/admin/station-ids', formData, function(p) {
       var label = p.pct < 100 ? 'Uploading...' : 'Processing...';
       showProgress(label, p.pct);
     }).then(function() {
       hideProgress();
-      showToast('Jingle uploaded');
-      loadJingles();
+      showToast('Station ID uploaded');
+      loadStationIds();
     }).catch(function(err) {
       hideProgress();
       showToast((err && err.error) || 'Upload failed', 'error');
@@ -266,22 +266,22 @@ var RendezVoxJingles = (function() {
   // ── Progress UI ────────────────────────────────────────
 
   function showProgress(label, pct) {
-    var wrap = document.getElementById('jingleProgress');
+    var wrap = document.getElementById('stationIdProgress');
     wrap.style.display = '';
-    document.getElementById('jingleProgressLabel').textContent = label;
-    document.getElementById('jingleProgressPct').textContent = pct + '%';
-    document.getElementById('jingleProgressBar').style.width = pct + '%';
+    document.getElementById('stationIdProgressLabel').textContent = label;
+    document.getElementById('stationIdProgressPct').textContent = pct + '%';
+    document.getElementById('stationIdProgressBar').style.width = pct + '%';
   }
 
   function hideProgress() {
-    var wrap = document.getElementById('jingleProgress');
+    var wrap = document.getElementById('stationIdProgress');
     wrap.style.display = 'none';
-    document.getElementById('jingleProgressBar').style.width = '0';
+    document.getElementById('stationIdProgressBar').style.width = '0';
   }
 
   // ── Rename (modal) ─────────────────────────────────────
 
-  function renameJingle(filename) {
+  function renameFile(filename) {
     renameTarget = filename;
     var input = document.getElementById('renameInput');
     input.value = filename;
@@ -311,14 +311,14 @@ var RendezVoxJingles = (function() {
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
-    RendezVoxAPI.put('/admin/jingles/' + encodeURIComponent(filename) + '/rename', { filename: newName })
+    RendezVoxAPI.put('/admin/station-ids/' + encodeURIComponent(filename) + '/rename', { filename: newName })
       .then(function(data) {
         showToast('Renamed to ' + data.filename);
         if (currentlyPlaying === filename) {
           currentlyPlaying = data.filename;
         }
         closeRename();
-        loadJingles();
+        loadStationIds();
       })
       .catch(function(err) {
         showToast((err && err.error) || 'Rename failed', 'error');
@@ -331,13 +331,13 @@ var RendezVoxJingles = (function() {
 
   // ── Delete ─────────────────────────────────────────────
 
-  function deleteJingle(filename) {
-    RendezVoxConfirm('Delete jingle "' + filename + '"?', { title: 'Delete Jingle', okLabel: 'Delete' })
+  function deleteFile(filename) {
+    RendezVoxConfirm('Delete station ID "' + filename + '"?', { title: 'Delete Station ID', okLabel: 'Delete' })
       .then(function(ok) {
         if (!ok) return;
-        if (currentlyPlaying === filename) stopJingle();
-        RendezVoxAPI.del('/admin/jingles/' + encodeURIComponent(filename))
-          .then(function() { showToast('Jingle deleted'); loadJingles(); })
+        if (currentlyPlaying === filename) stopPlayback();
+        RendezVoxAPI.del('/admin/station-ids/' + encodeURIComponent(filename))
+          .then(function() { showToast('Station ID deleted'); loadStationIds(); })
           .catch(function(err) { showToast((err && err.error) || 'Delete failed', 'error'); });
       });
   }
@@ -381,7 +381,7 @@ var RendezVoxJingles = (function() {
   return {
     init: init,
     togglePlay: togglePlay,
-    renameJingle: renameJingle,
-    deleteJingle: deleteJingle
+    renameFile: renameFile,
+    deleteFile: deleteFile
   };
 })();

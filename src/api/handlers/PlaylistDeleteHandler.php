@@ -6,6 +6,8 @@ class PlaylistDeleteHandler
 {
     public function handle(): void
     {
+        Auth::requireRole('super_admin', 'dj');
+
         $db = Database::get();
         $id = (int) ($_GET['id'] ?? 0);
 

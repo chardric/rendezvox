@@ -58,6 +58,7 @@ var RendezVoxSettings = (function() {
       loadAutoRename();
       initLocationPicker();
       initAppearanceTab();
+      initSystemTab();
       initTabs();
     });
   }
@@ -89,20 +90,7 @@ var RendezVoxSettings = (function() {
     history.replaceState(null, '', '#' + name);
   }
 
-  // ── Toggle visibility (eye icon) ───────────────────────
-  var EYE_OPEN  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
-  var EYE_SHUT  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M1 1l22 22"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/></svg>';
-
-  function toggleVis(inputId, el) {
-    var inp = document.getElementById(inputId);
-    if (!inp) return;
-    var btn = el.closest ? el.closest('.eye-toggle') : el;
-    if (!btn) btn = el;
-    var show = inp.type === 'password';
-    inp.type = show ? 'text' : 'password';
-    if (show) { btn.classList.add('active'); } else { btn.classList.remove('active'); }
-    btn.innerHTML = show ? EYE_SHUT : EYE_OPEN;
-  }
+  // toggleVis is now a global function defined in theme.js
 
   function loadTimezoneDisplay() {
     RendezVoxAPI.getTimezone().then(function(tz) {
@@ -1695,6 +1683,109 @@ var RendezVoxSettings = (function() {
   }
 
 
+
+  // ── System Info tab ─────────────────────────────────
+
+  function initSystemTab() {
+    var btn = document.getElementById('btnRefreshSystem');
+    if (btn) btn.addEventListener('click', loadSystemInfo);
+    loadSystemInfo();
+  }
+
+  function loadSystemInfo() {
+    var container = document.getElementById('systemInfoContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="spinner"></div>';
+
+    RendezVoxAPI.get('/admin/system-info').then(function(data) {
+      renderSystemInfo(data);
+    }).catch(function() {
+      container.innerHTML = '<span style="color:var(--text-dim)">Could not load system information</span>';
+    });
+  }
+
+  function renderSystemInfo(d) {
+    var container = document.getElementById('systemInfoContainer');
+    if (!container) return;
+
+    var cpuPct = d.cpu_cores > 0 ? Math.min(100, Math.round(d.cpu_load[0] / d.cpu_cores * 100)) : 0;
+    var memPct = Math.round(d.memory_percent);
+    var diskFreeMb = Math.round(d.disk_free_bytes / (1024 * 1024));
+    var diskTotalMb = Math.round(d.disk_total_bytes / (1024 * 1024));
+    var diskUsedMb = diskTotalMb - diskFreeMb;
+    var diskPct = diskTotalMb > 0 ? Math.round(diskUsedMb / diskTotalMb * 100) : 0;
+
+    var html = '';
+
+    // Services
+    html += '<h4 class="si-heading">Services</h4>';
+    html += '<div class="si-services">';
+    var svcOrder = ['nginx', 'php', 'icecast', 'liquidsoap'];
+    var svcLabels = { nginx: 'Nginx', php: 'PHP-FPM', icecast: 'Icecast', liquidsoap: 'Liquidsoap' };
+    for (var i = 0; i < svcOrder.length; i++) {
+      var key = svcOrder[i];
+      var status = d.services[key] || 'unknown';
+      var running = status === 'running';
+      html += '<div class="si-svc">' +
+        '<span class="si-svc-dot" style="background:' + (running ? '#4ade80' : '#f87171') + '"></span>' +
+        '<span class="si-svc-name">' + escHtml(svcLabels[key] || key) + '</span>' +
+        '<span class="si-svc-status" style="color:' + (running ? '#4ade80' : '#f87171') + '">' + escHtml(status) + '</span>' +
+        '</div>';
+    }
+    html += '</div>';
+
+    // Resource meters
+    html += '<h4 class="si-heading">Resources</h4>';
+    html += '<div class="si-meters">';
+    html += siMeter('CPU', cpuPct, d.cpu_load[0].toFixed(2) + ' / ' + d.cpu_cores + ' cores');
+    html += siMeter('RAM', memPct, fmtMb(d.memory_used_mb) + ' / ' + fmtMb(d.memory_total_mb));
+    html += siMeter('Disk', diskPct, fmtMb(diskUsedMb) + ' / ' + fmtMb(diskTotalMb));
+    html += '</div>';
+
+    // Software versions
+    html += '<h4 class="si-heading">Software</h4>';
+    html += '<div class="si-table">';
+    html += siRow('PHP', d.php_version);
+    html += siRow('PostgreSQL', d.pg_version);
+    html += '</div>';
+
+    // Host info
+    html += '<h4 class="si-heading">Host</h4>';
+    html += '<div class="si-table">';
+    html += siRow('Hostname', d.hostname);
+    html += siRow('OS', d.os);
+    html += siRow('Architecture', d.arch);
+    html += siRow('Uptime', d.uptime);
+    html += '</div>';
+
+    container.innerHTML = html;
+  }
+
+  function siMeter(label, pct, detail) {
+    var color = pct < 60 ? '#4ade80' : (pct < 85 ? '#f59e0b' : '#f87171');
+    return '<div class="si-meter">' +
+      '<div class="si-meter-head">' +
+        '<span class="si-meter-label">' + escHtml(label) + '</span>' +
+        '<span class="si-meter-pct">' + pct + '%</span>' +
+      '</div>' +
+      '<div class="si-meter-track">' +
+        '<div class="si-meter-fill" style="width:' + pct + '%;background:' + color + '"></div>' +
+      '</div>' +
+      '<div class="si-meter-detail">' + escHtml(detail) + '</div>' +
+      '</div>';
+  }
+
+  function siRow(label, value) {
+    return '<div class="si-row">' +
+      '<span class="si-row-label">' + escHtml(label) + '</span>' +
+      '<span class="si-row-value">' + escHtml(value || '—') + '</span>' +
+      '</div>';
+  }
+
+  function fmtMb(mb) {
+    if (mb >= 1024) return (mb / 1024).toFixed(1) + ' GB';
+    return Math.round(mb) + ' MB';
+  }
 
   // ── Helpers ──────────────────────────────────────────
 
