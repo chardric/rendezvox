@@ -2,7 +2,8 @@ package net.downstreamtech.rendezvox.data
 
 data class StationConfig(
     val station_name: String = "RendezVox",
-    val tagline: String = "Online Radio"
+    val tagline: String = "Online Radio",
+    val accent_color: String = "#ff7800"
 )
 
 data class SongInfo(
@@ -70,7 +71,8 @@ data class NowPlayingState(
     val isBuffering: Boolean = false,
     val isOffline: Boolean = false,
     val volume: Float = 0.8f,
-    val baseUrl: String = ServerPrefs.DEFAULT_URL
+    val baseUrl: String = ServerPrefs.DEFAULT_URL,
+    val accentColor: String = "#ff7800"
 ) {
     val coverArtUrl: String
         get() = if (hasCoverArt && songId > 0) "$baseUrl/api/cover?id=$songId" else ""

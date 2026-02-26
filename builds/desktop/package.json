@@ -12,9 +12,9 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "build:linux": "electron-builder --linux deb",
+    "build:linux": "electron-builder --linux deb AppImage",
     "build:win": "electron-builder --win nsis",
-    "build:all": "electron-builder --linux deb --win nsis"
+    "build:all": "electron-builder --linux deb AppImage --win nsis"
   },
   "dependencies": {},
   "devDependencies": {
@@ -32,7 +32,8 @@
     ],
     "linux": {
       "target": [
-        { "target": "deb", "arch": ["x64", "arm64"] }
+        { "target": "deb", "arch": ["x64", "arm64"] },
+        { "target": "AppImage", "arch": ["x64", "arm64"] }
       ],
       "category": "AudioVideo",
       "icon": "build/icons",

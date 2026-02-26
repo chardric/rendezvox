@@ -31,7 +31,8 @@ class RadioApi(private val baseUrl: String) {
         get() = "$baseUrl/stream"
 
     suspend fun fetchConfig(): StationConfig = withContext(Dispatchers.IO) {
-        val request = Request.Builder().url("$baseUrl/api/config").build()
+        val request = Request.Builder().url("$baseUrl/api/config")
+            .cacheControl(CacheControl.FORCE_NETWORK).build()
         try {
             val response = client.newCall(request).await()
             val body = response.body?.string() ?: "{}"

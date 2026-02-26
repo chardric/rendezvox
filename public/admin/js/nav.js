@@ -267,12 +267,12 @@ var RendezVoxNav = (function() {
         '<div class="compact-form">' +
           '<h4 style="color:var(--text-heading);margin-bottom:10px;font-size:.95rem">Change Password</h4>' +
           '<label>Current Password</label>' +
-          '<div style="position:relative">' +
+          '<div class="eye-wrap">' +
             '<input type="password" id="pwCurrent" style="padding-right:36px">' +
             '<button type="button" class="eye-toggle" onclick="toggleVis(\'pwCurrent\',this)" aria-label="Toggle password visibility">' + EYE_OPEN + '</button>' +
           '</div>' +
           '<label>New Password</label>' +
-          '<div style="position:relative">' +
+          '<div class="eye-wrap">' +
             '<input type="password" id="pwNew" style="padding-right:36px">' +
             '<button type="button" class="eye-toggle" onclick="toggleVis(\'pwNew\',this)" aria-label="Toggle password visibility">' + EYE_OPEN + '</button>' +
           '</div>' +
@@ -286,7 +286,7 @@ var RendezVoxNav = (function() {
             '<span id="pwNewStrengthLabel" style="font-size:.78rem"></span>' +
           '</div>' +
           '<label>Confirm New Password</label>' +
-          '<div style="position:relative">' +
+          '<div class="eye-wrap">' +
             '<input type="password" id="pwConfirm" style="padding-right:36px">' +
             '<button type="button" class="eye-toggle" onclick="toggleVis(\'pwConfirm\',this)" aria-label="Toggle password visibility">' + EYE_OPEN + '</button>' +
           '</div>' +

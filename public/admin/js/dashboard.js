@@ -9,7 +9,6 @@ var RendezVoxDashboard = (function() {
   // SVG icons for the play/stop button
   var ICON_PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
   var ICON_STOP = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>';
-  var ICON_DISC = '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" opacity=".3"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3"/></svg>';
   var lastCoverId = null;
 
   function init() {
@@ -204,16 +203,17 @@ var RendezVoxDashboard = (function() {
   }
 
   function setCoverArt(el, songId) {
-    if (!el) return;
-    if (songId === lastCoverId) return; // no change
+    var label = document.getElementById('djCoverLabel');
+    if (!label) return;
+    if (songId === lastCoverId) return;
     lastCoverId = songId;
     if (!songId) {
-      el.innerHTML = ICON_DISC;
+      label.innerHTML = '';
       return;
     }
     var img = new Image();
-    img.onload = function() { el.innerHTML = ''; el.appendChild(img); };
-    img.onerror = function() { el.innerHTML = ICON_DISC; };
+    img.onload = function() { label.innerHTML = ''; label.appendChild(img); };
+    img.onerror = function() { label.innerHTML = ''; };
     img.src = '/api/cover?id=' + songId;
     img.alt = 'Cover art';
   }
@@ -238,11 +238,13 @@ var RendezVoxDashboard = (function() {
       fillEl.style.width   = '0%';
       elapsedEl.textContent = '0:00';
       remEl.textContent     = '—';
+      coverEl.classList.remove('spinning');
       setCoverArt(coverEl, null);
       return;
     }
 
     liveEl.classList.add('on');
+    coverEl.classList.add('spinning');
     labelEl.textContent  = 'LIVE';
     titleEl.textContent  = np.title;
     artistEl.textContent = np.artist;

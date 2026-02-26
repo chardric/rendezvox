@@ -1609,21 +1609,53 @@ var RendezVoxSettings = (function() {
     var reset = document.getElementById('btnResetAccent');
     if (!picker || !hex || !reset) return;
 
+    // Load server accent into local state on init
+    var serverAccent = settings.accent_color ? settings.accent_color.value : '';
+    if (serverAccent && /^#[0-9a-fA-F]{6}$/.test(serverAccent)) {
+      RendezVoxTheme.setAccent(serverAccent);
+    }
+
     // Initialize with current accent or theme default
     syncAccentPicker();
 
-    // Color picker → hex field
+    // Check role — only super_admin can modify accent color
+    var user = RendezVoxAuth.getUser();
+    var isSuperAdmin = user && user.role === 'super_admin';
+
+    if (!isSuperAdmin) {
+      picker.disabled = true;
+      hex.disabled = true;
+      reset.disabled = true;
+      reset.style.opacity = '0.4';
+      reset.style.cursor = 'default';
+      var note = document.createElement('div');
+      note.style.cssText = 'font-size:12px;color:var(--text-dim);margin-top:8px;font-style:italic';
+      note.textContent = 'Only super admins can change the station accent color';
+      reset.parentNode.appendChild(note);
+      return;
+    }
+
+    // Color picker → hex field (debounced save, immediate on change)
+    var accentSaveTimer = null;
     picker.addEventListener('input', function() {
       hex.value = picker.value;
       RendezVoxTheme.setAccent(picker.value);
+      clearTimeout(accentSaveTimer);
+      accentSaveTimer = setTimeout(function() { saveAccentToServer(picker.value); }, 500);
+    });
+    picker.addEventListener('change', function() {
+      clearTimeout(accentSaveTimer);
+      saveAccentToServer(picker.value);
     });
 
-    // Hex field → color picker
+    // Hex field → color picker + save to server
     hex.addEventListener('input', function() {
       var val = hex.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(val)) {
         picker.value = val;
         RendezVoxTheme.setAccent(val);
+        clearTimeout(accentSaveTimer);
+        accentSaveTimer = setTimeout(function() { saveAccentToServer(val); }, 500);
       }
     });
 
@@ -1631,8 +1663,15 @@ var RendezVoxSettings = (function() {
     reset.addEventListener('click', function() {
       RendezVoxTheme.clearAccent();
       syncAccentPicker();
+      saveAccentToServer('');
       showToast('Accent color reset to theme default');
     });
+  }
+
+  function saveAccentToServer(hex) {
+    RendezVoxAPI.put('/admin/settings/accent_color', { value: hex })
+      .then(function() { showToast('Accent color saved'); })
+      .catch(function(err) { showToast((err && err.error) || 'Failed to save accent color', 'error'); });
   }
 
   function syncAccentPicker() {

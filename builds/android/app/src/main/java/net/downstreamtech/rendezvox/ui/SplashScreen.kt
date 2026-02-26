@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -86,32 +85,6 @@ fun SplashScreen(onFinished: () -> Unit) {
                 color = TextDim,
                 fontSize = 13.sp,
                 modifier = Modifier.alpha(textAlpha)
-            )
-        }
-
-        // Bottom credits
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 36.dp)
-                .alpha(textAlpha),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "Developed by",
-                color = TextDim.copy(alpha = 0.5f),
-                fontSize = 10.sp
-            )
-            Text(
-                "Engr. Richard R. Ayuyang, PhD",
-                color = TextDim.copy(alpha = 0.6f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "Professor II, CSU",
-                color = TextDim.copy(alpha = 0.5f),
-                fontSize = 10.sp
             )
         }
     }

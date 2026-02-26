@@ -101,6 +101,23 @@ var RendezVoxTheme = (function () {
   // Auto-apply on load (synchronous, before paint)
   apply(localStorage.getItem('rendezvox_theme') || 'dark');
 
+  // Dynamic favicon — use station logo if available, fallback to default icon
+  (function() {
+    var img = new Image();
+    img.onload = function() {
+      var link = document.querySelector('link[rel="icon"]');
+      if (link) {
+        link.href = '/api/logo?v=' + Date.now();
+      } else {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        link.href = '/api/logo?v=' + Date.now();
+        document.head.appendChild(link);
+      }
+    };
+    img.src = '/api/logo?v=check';
+  })();
+
   return {
     apply:       apply,
     setAccent:   setAccent,

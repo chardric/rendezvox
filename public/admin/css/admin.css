@@ -339,6 +339,8 @@ td .icon-btn + .icon-btn { margin-left: 1px; }
 }
 
 /* ── Eye toggle (password visibility) ──────────────────── */
+.eye-wrap { position: relative; margin-bottom: 14px; }
+.eye-wrap input { margin-bottom: 0; }
 .eye-toggle {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
   background: none; border: none; padding: 4px; cursor: pointer;
