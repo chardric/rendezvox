@@ -23,6 +23,7 @@
       <button class="tab" data-tab="appearance">Appearance</button>
       <button class="tab" data-tab="tools">Library Tools</button>
       <button class="tab" data-tab="email">Email</button>
+      <button class="tab" data-tab="system">System</button>
       <button class="tab" data-tab="about">About</button>
     </div>
 
@@ -362,6 +363,19 @@
           <button class="btn btn-ghost btn-sm" onclick="RendezVoxSettings.sendTestEmail()">Send Test Email</button>
         </div>
         <div id="smtpTestStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+      </div>
+    </div>
+
+    <!-- ── System tab ────────────────────────────────── -->
+    <div class="tab-panel" id="tab-system">
+      <div class="card" style="padding:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 class="settings-section-title" style="margin-bottom:0">System Information</h3>
+          <button class="btn btn-ghost btn-sm" id="btnRefreshSystem" style="font-size:.75rem">Refresh</button>
+        </div>
+        <div id="systemInfoContainer">
+          <div class="spinner"></div>
+        </div>
       </div>
     </div>
 

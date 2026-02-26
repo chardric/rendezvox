@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-class JingleStreamHandler
+class StationIdStreamHandler
 {
     public function handle(): void
     {
@@ -21,13 +21,13 @@ class JingleStreamHandler
             return;
         }
 
-        $dir = '/var/lib/rendezvox/jingles';
+        $dir = '/var/lib/rendezvox/stationids';
         $filePath = $dir . '/' . $filename;
 
-        // Verify resolved path stays within jingles directory
+        // Verify resolved path stays within station IDs directory
         $realPath = realpath($filePath);
         if ($realPath === false || !str_starts_with($realPath, $dir . '/')) {
-            Response::error('Jingle not found', 404);
+            Response::error('Station ID not found', 404);
             return;
         }
         $filePath = $realPath;

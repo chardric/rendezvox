@@ -45,6 +45,10 @@ class PlaylistUpdateHandler
                 if ($field === 'is_active') {
                     $val = $val ? 'true' : 'false';
                 }
+                if ($field === 'color' && !preg_match('/^#[0-9a-fA-F]{6}$/', (string) $val)) {
+                    Response::error('Invalid color format', 400);
+                    return;
+                }
                 $sets[]         = "{$field} = :{$field}";
                 $params[$field] = $val;
             }

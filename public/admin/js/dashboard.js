@@ -5,11 +5,6 @@ var RendezVoxDashboard = (function() {
 
   var pollTimer    = null;
   var progressTimer = null;
-  var sse          = null;
-  var djAudio      = null;
-  var djStreaming  = false;
-  var djStopping   = false;   // true while we're intentionally disconnecting
-  var streamUrl    = '';
 
   // SVG icons for the play/stop button
   var ICON_PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
@@ -18,23 +13,20 @@ var RendezVoxDashboard = (function() {
   var lastCoverId = null;
 
   function init() {
-    djAudio = document.getElementById('djAudio');
     initTabs();
 
-    // Load config, then start polling + SSE
-    RendezVoxAPI.get('/config').then(function(cfg) {
-      streamUrl = '/stream/live';
-      initDJBooth();
-      fetchStats();
-      pollTimer = setInterval(fetchStats, 30000);  // slower fallback poll
-      connectSSE();
-    }).catch(function() {
-      streamUrl = '/stream/live';
-      initDJBooth();
-      fetchStats();
-      pollTimer = setInterval(fetchStats, 30000);
-      connectSSE();
-    });
+    // Init DJ Booth, stats polling, and mini-player integration
+    initDJBooth();
+    fetchStats();
+    pollTimer = setInterval(fetchStats, 30000);
+
+    // Register with mini-player for real-time updates (replaces connectSSE).
+    // Mini-player is loaded asynchronously by nav.js, so wait for the ready event.
+    if (window.RendezVoxMiniPlayer) {
+      connectMiniPlayer();
+    } else {
+      document.addEventListener('miniplayer:ready', connectMiniPlayer);
+    }
 
     document.getElementById('emergencyToggle').addEventListener('change', toggleEmergency);
     document.getElementById('streamToggle').addEventListener('click', toggleStreamBroadcast);
@@ -119,58 +111,67 @@ var RendezVoxDashboard = (function() {
     }
   }
 
+  // ── Mini-player integration ─────────────────────────
+
+  function connectMiniPlayer() {
+    if (!window.RendezVoxMiniPlayer) return;
+    RendezVoxMiniPlayer.onTrackChange(function(data) {
+      if (data.song) {
+        renderNowPlaying({
+          song_id:     data.song.id,
+          title:       data.song.title,
+          artist:      data.song.artist,
+          category:    data.song.category,
+          playlist:    data.song.playlist,
+          duration_ms: data.song.duration_ms,
+          source:      data.song.source,
+          started_at:  data.song.started_at,
+          is_playing:  true
+        });
+        updateDJBooth({
+          song_id:       data.song.id,
+          title:         data.song.title,
+          artist:        data.song.artist,
+          duration_ms:   data.song.duration_ms,
+          has_cover_art: data.song.has_cover_art,
+          started_at:    data.song.started_at,
+          is_playing:    true
+        });
+        renderEmergency(data.is_emergency);
+      }
+      renderUpNext(data.next_track);
+      fetchStats();
+    });
+    RendezVoxMiniPlayer.onStateChange(function() {
+      updatePlayBtn();
+    });
+    // Sync DJ Booth volume and play state now that mini-player is available
+    var volSlider = document.getElementById('djVolume');
+    if (volSlider) volSlider.value = RendezVoxMiniPlayer.getVolume();
+    updatePlayBtn();
+
+    // Auto-play stream on dashboard load (restores old autoPlayMonitor behaviour)
+    if (!RendezVoxMiniPlayer.isStreaming()) {
+      RendezVoxMiniPlayer.play();
+    }
+  }
+
   // ── DJ Booth ─────────────────────────────────────────
 
   function initDJBooth() {
-    document.getElementById('djPlayBtn').addEventListener('click', toggleMonitor);
+    document.getElementById('djPlayBtn').addEventListener('click', function() {
+      if (window.RendezVoxMiniPlayer) RendezVoxMiniPlayer.toggle();
+    });
     document.getElementById('djSkipBtn').addEventListener('click', skipTrack);
     document.getElementById('djVolume').addEventListener('input', function() {
-      if (djAudio) djAudio.volume = this.value / 100;
+      if (window.RendezVoxMiniPlayer) RendezVoxMiniPlayer.setVolume(parseInt(this.value, 10));
     });
-
-    djAudio.volume = document.getElementById('djVolume').value / 100;
-
-    djAudio.addEventListener('playing', function() {
-      djStreaming = true;
-      updatePlayBtn();
-    });
-    djAudio.addEventListener('pause', function() {
-      djStreaming = false;
-      updatePlayBtn();
-    });
-    djAudio.addEventListener('ended', function() {
-      djStreaming = false;
-      updatePlayBtn();
-    });
-    djAudio.addEventListener('error', function() {
-      if (djStopping) { djStopping = false; return; }
-      djStreaming = false;
-      updatePlayBtn();
-      showToast('Stream connection lost', 'error');
-    });
-  }
-
-  function toggleMonitor() {
-    if (djStreaming) {
-      djStopping = true;
-      djAudio.pause();
-      djAudio.removeAttribute('src');
-      djAudio.load();
-      djStreaming = false;
-      updatePlayBtn();
-    } else {
-      djAudio.src = streamUrl + '?_=' + Date.now();
-      djAudio.play().catch(function() {
-        showToast('Could not connect to stream. Check that the station is broadcasting.', 'error');
-        djStreaming = false;
-        updatePlayBtn();
-      });
-    }
   }
 
   function updatePlayBtn() {
     var btn = document.getElementById('djPlayBtn');
-    if (djStreaming) {
+    var streaming = window.RendezVoxMiniPlayer && RendezVoxMiniPlayer.isStreaming();
+    if (streaming) {
       btn.innerHTML = ICON_STOP;
       btn.title     = 'Stop monitoring';
       btn.classList.add('active');
@@ -186,15 +187,10 @@ var RendezVoxDashboard = (function() {
     btn.disabled = true;
     RendezVoxAPI.post('/admin/skip-track', {}).then(function() {
       showToast('Skipped to next track');
-      if (djStreaming) {
-        djStopping = true;
-        djAudio.pause();
-        djAudio.removeAttribute('src');
-        djAudio.load();
+      if (window.RendezVoxMiniPlayer && RendezVoxMiniPlayer.isStreaming()) {
+        RendezVoxMiniPlayer.stop();
         setTimeout(function() {
-          djStopping = false;
-          djAudio.src = streamUrl + '?_=' + Date.now();
-          djAudio.play().catch(function() {});
+          RendezVoxMiniPlayer.play();
         }, 1500);
       }
       setTimeout(function() {
@@ -340,37 +336,53 @@ var RendezVoxDashboard = (function() {
   }
 
   function renderNowPlaying(np) {
-    var titleEl  = document.getElementById('npTitle');
-    var artistEl = document.getElementById('npArtist');
-    var badgeEl  = document.getElementById('npBadge');
+    var titleEl    = document.getElementById('npTitle');
+    var artistEl   = document.getElementById('npArtist');
+    var badgeEl    = document.getElementById('npBadge');
+    var playlistEl = document.getElementById('npPlaylist');
 
     if (!np) {
       titleEl.textContent  = '— Idle —';
       artistEl.textContent = '';
+      if (playlistEl) playlistEl.textContent = '';
       badgeEl.innerHTML    = '';
       return;
     }
 
     titleEl.textContent  = np.title;
     artistEl.textContent = np.artist;
-    badgeEl.innerHTML    = sourceBadge(np.source);
+    if (playlistEl) {
+      var parts = [];
+      if (np.playlist) parts.push(np.playlist);
+      if (np.category) parts.push(np.category);
+      playlistEl.textContent = parts.length ? parts.join(' \u00B7 ') : '';
+    }
+    badgeEl.innerHTML = sourceBadge(np.source);
   }
 
   function renderUpNext(nt) {
-    var titleEl  = document.getElementById('ntTitle');
-    var artistEl = document.getElementById('ntArtist');
-    var badgeEl  = document.getElementById('ntBadge');
+    var titleEl    = document.getElementById('ntTitle');
+    var artistEl   = document.getElementById('ntArtist');
+    var badgeEl    = document.getElementById('ntBadge');
+    var playlistEl = document.getElementById('ntPlaylist');
 
     if (!nt) {
       titleEl.textContent  = '—';
       artistEl.textContent = '';
+      if (playlistEl) playlistEl.textContent = '';
       badgeEl.innerHTML    = '';
       return;
     }
 
     titleEl.textContent  = nt.title;
     artistEl.textContent = nt.artist;
-    badgeEl.innerHTML    = sourceBadge(nt.source);
+    if (playlistEl) {
+      var parts = [];
+      if (nt.playlist) parts.push(nt.playlist);
+      if (nt.category) parts.push(nt.category);
+      playlistEl.textContent = parts.length ? parts.join(' \u00B7 ') : '';
+    }
+    badgeEl.innerHTML = sourceBadge(nt.source);
   }
 
   function renderListeners(current, peak) {
@@ -636,51 +648,6 @@ var RendezVoxDashboard = (function() {
     toast.textContent = msg;
     container.appendChild(toast);
     setTimeout(function() { toast.remove(); }, 4000);
-  }
-
-  // ── SSE real-time connection ──────────────────────────
-
-  function connectSSE() {
-    if (typeof EventSource === 'undefined') return; // browser doesn't support SSE
-
-    sse = new EventSource('/api/sse/now-playing');
-
-    sse.addEventListener('now-playing', function(e) {
-      try {
-        var data = JSON.parse(e.data);
-        if (data.song) {
-          renderNowPlaying({
-            song_id:     data.song.id,
-            title:       data.song.title,
-            artist:      data.song.artist,
-            category:    data.song.category,
-            duration_ms: data.song.duration_ms,
-            source:      data.song.source,
-            started_at:  data.song.started_at,
-            is_playing:  true
-          });
-          updateDJBooth({
-            song_id:       data.song.id,
-            title:         data.song.title,
-            artist:        data.song.artist,
-            duration_ms:   data.song.duration_ms,
-            has_cover_art: data.song.has_cover_art,
-            started_at:    data.song.started_at,
-            is_playing:    true
-          });
-          renderEmergency(data.is_emergency);
-        }
-        renderUpNext(data.next_track);
-        // Also fetch full stats to update listeners, recent plays, etc.
-        fetchStats();
-      } catch (err) {
-        console.error('SSE parse error:', err);
-      }
-    });
-
-    sse.onerror = function() {
-      // EventSource auto-reconnects; no action needed
-    };
   }
 
   return { init: init };

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-class JingleRenameHandler
+class StationIdRenameHandler
 {
     public function handle(): void
     {
@@ -47,13 +47,13 @@ class JingleRenameHandler
             return;
         }
 
-        $dir = '/var/lib/rendezvox/jingles';
+        $dir = '/var/lib/rendezvox/stationids';
         $oldPath = $dir . '/' . $oldFilename;
 
-        // Verify old file exists and is within jingles dir
+        // Verify old file exists and is within station IDs dir
         $oldReal = realpath($oldPath);
         if ($oldReal === false || !str_starts_with($oldReal, $dir . '/')) {
-            Response::error('Jingle not found', 404);
+            Response::error('Station ID not found', 404);
             return;
         }
 
@@ -75,15 +75,15 @@ class JingleRenameHandler
 
         // Prevent overwriting existing files
         if (file_exists($newPath)) {
-            Response::error('A jingle with that name already exists', 409);
+            Response::error('A station ID with that name already exists', 409);
             return;
         }
 
         if (!rename($oldReal, $newPath)) {
-            Response::error('Failed to rename jingle', 500);
+            Response::error('Failed to rename station ID', 500);
             return;
         }
 
-        Response::json(['filename' => $newFilename, 'message' => 'Jingle renamed']);
+        Response::json(['filename' => $newFilename, 'message' => 'Station ID renamed']);
     }
 }

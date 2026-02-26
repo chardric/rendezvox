@@ -56,10 +56,6 @@ RUN mkdir -p \
 # Placed in /opt/rendezvox/ (not /etc/liquidsoap/ which is a bind mount).
 COPY --from=silence-gen /silence.mp3 /opt/rendezvox/silence.mp3
 
-# ── Runtime configuration ──────────────────────────────
-# Expose the telnet control port for admin commands
-EXPOSE 1234
-
 # Drop back to non-root
 USER liquidsoap
 

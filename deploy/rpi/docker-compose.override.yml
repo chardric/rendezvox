@@ -48,7 +48,7 @@ services:
       - ../src:/var/www/html/src
       - ../public:/var/www/html/public
       - ../music:/var/lib/rendezvox/music
-      - ../jingles:/var/lib/rendezvox/jingles
+      - ../stationids:/var/lib/rendezvox/stationids
       - ../data/avatars:/var/lib/rendezvox/avatars
       - ../data/logos:/var/lib/rendezvox/logos
       - ../data/logs:/var/log/rendezvox

@@ -22,9 +22,9 @@ Thumbs.db
 
 # Music library (large binary files)
 music/
-jingles/*.mp3
-jingles/*.ogg
-jingles/*.flac
+stationids/*.mp3
+stationids/*.ogg
+stationids/*.flac
 
 # Android build artifacts
 builds/android/.gradle/

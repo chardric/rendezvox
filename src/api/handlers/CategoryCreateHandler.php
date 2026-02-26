@@ -18,7 +18,7 @@ class CategoryCreateHandler
             return;
         }
 
-        $validTypes = ['music', 'jingle', 'sweeper', 'liner', 'emergency'];
+        $validTypes = ['music', 'station_id', 'sweeper', 'liner', 'emergency'];
         if (!in_array($type, $validTypes)) {
             Response::error('type must be one of: ' . implode(', ', $validTypes), 400);
             return;

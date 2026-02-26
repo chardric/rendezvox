@@ -15,7 +15,7 @@ settings.server.socket       := true
 settings.server.socket.path  := "/run/liquidsoap/main.sock"
 settings.server.telnet            := true
 settings.server.telnet.port       := 1234
-settings.server.telnet.bind_addr  := "0.0.0.0"
+settings.server.telnet.bind_addr  := "127.0.0.1"
 
 # ── Logging ─────────────────────────────────────────────
 
@@ -29,11 +29,17 @@ settings.log.level     := 3
 icecast_host     = environment.get("RENDEZVOX_ICECAST_HOST",            default="icecast")
 icecast_port     = int_of_string(environment.get("RENDEZVOX_ICECAST_PORT", default="8000"))
 icecast_mount    = environment.get("RENDEZVOX_ICECAST_MOUNT",           default="/live")
-icecast_password = environment.get("RENDEZVOX_ICECAST_SOURCE_PASSWORD", default="changeme_source")
+icecast_password = environment.get("RENDEZVOX_ICECAST_SOURCE_PASSWORD", default="")
 api_base         = environment.get("RENDEZVOX_API_URL",                 default="http://rendezvox-nginx/api")
 music_dir        = "/var/lib/rendezvox/music"
 silence_file     = "/opt/rendezvox/silence.mp3"
 internal_secret  = environment.get("RENDEZVOX_INTERNAL_SECRET", default="")
+
+# ── Startup security checks ────────────────────────────
+if icecast_password == "" then
+  log.critical("RENDEZVOX_ICECAST_SOURCE_PASSWORD is not set — refusing to start")
+  shutdown()
+end
 
 # ── Station config (fetched from API at startup) ──────────
 
@@ -139,34 +145,34 @@ end)
 # Fallback to silence if source fails entirely
 radio = mksafe(radio)
 
-# ── Jingle overlay (exactly one per hour at minute 0) ───
-jingles_dir = "/var/lib/rendezvox/jingles"
-jingle_state = "/var/lib/rendezvox/jingles/.last_index"
+# ── Station ID overlay (exactly one per hour at minute 0) ───
+stationids_dir = "/var/lib/rendezvox/stationids"
+stationid_state = "/var/lib/rendezvox/stationids/.last_index"
 
 # Fires true exactly once when the clock enters minute 0 each hour
 hourly_activate = predicate.activates({0m})
 
-def pick_jingle() =
+def pick_station_id() =
     if hourly_activate() then
         # Sequential round-robin: list files sorted alphabetically,
         # read last-played index from state file, pick the next one.
         path = string.trim(process.read(
-            "files=$(find '#{jingles_dir}' -maxdepth 1 -type f " ^
+            "files=$(find '#{stationids_dir}' -maxdepth 1 -type f " ^
             "\\( -iname '*.mp3' -o -iname '*.ogg' -o -iname '*.wav' " ^
             "-o -iname '*.flac' -o -iname '*.aac' -o -iname '*.m4a' \\) " ^
             "2>/dev/null | sort) && " ^
             "count=$(echo \"$files\" | grep -c . 2>/dev/null || echo 0) && " ^
             "[ \"$count\" -gt 0 ] || exit 0 && " ^
-            "last=$(cat '#{jingle_state}' 2>/dev/null || echo -1) && " ^
+            "last=$(cat '#{stationid_state}' 2>/dev/null || echo -1) && " ^
             "next=$(( (last + 1) % count )) && " ^
-            "echo \"$next\" > '#{jingle_state}' && " ^
+            "echo \"$next\" > '#{stationid_state}' && " ^
             "echo \"$files\" | sed -n \"$((next + 1))p\""
         ))
         if path == "" then
-            log.info("Hourly jingle: no files found, skipping")
+            log.info("Hourly station ID: no files found, skipping")
             []
         else
-            log.important("Hourly jingle (sequential): #{path}")
+            log.important("Hourly station ID (sequential): #{path}")
             [request.create(path)]
         end
     else
@@ -174,15 +180,15 @@ def pick_jingle() =
     end
 end
 
-# Plays exactly one jingle per hourly activation, then goes silent
-jingles = request.dynamic.list(pick_jingle, retry_delay=30.0)
+# Plays exactly one station ID per hourly activation, then goes silent
+station_ids = request.dynamic.list(pick_station_id, retry_delay=30.0)
 
-# Duck main audio to 15% while jingle plays, fade over 0.5s
+# Duck main audio to 15% while station ID plays, fade over 0.5s
 radio = smooth_add(
     duration=0.5,
     p=0.15,
     normal=radio,
-    special=jingles
+    special=station_ids
 )
 
 # ── Stream on/off control ─────────────────────────────

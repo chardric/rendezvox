@@ -58,7 +58,7 @@ class TrackStartedHandler
         $requestId = (int) ($input['request_id'] ?? 0);
 
         // Validate source value
-        $validSources = ['rotation', 'request', 'manual', 'emergency', 'jingle'];
+        $validSources = ['rotation', 'request', 'manual', 'emergency', 'station_id'];
         if (!in_array($source, $validSources, true)) {
             $source = 'rotation';
         }

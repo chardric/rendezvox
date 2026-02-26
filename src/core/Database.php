@@ -35,7 +35,7 @@ class Database
     public static function ensureRotationState(): void
     {
         self::get()->exec("
-            INSERT INTO rotation_state (id, is_playing, is_emergency, current_position, current_cycle, playback_offset_ms, songs_since_jingle, last_artist_ids)
+            INSERT INTO rotation_state (id, is_playing, is_emergency, current_position, current_cycle, playback_offset_ms, songs_since_station_id, last_artist_ids)
             VALUES (1, false, false, 0, 0, 0, 0, '{}')
             ON CONFLICT (id) DO NOTHING
         ");

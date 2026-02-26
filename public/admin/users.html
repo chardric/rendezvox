@@ -77,7 +77,12 @@
         <div class="form-row">
           <div style="flex:1">
             <label id="userPasswordLabel">Password</label>
-            <input type="password" id="userPassword" autocomplete="new-password">
+            <div style="position:relative">
+              <input type="password" id="userPassword" autocomplete="new-password" style="padding-right:36px">
+              <button type="button" class="eye-toggle" onclick="toggleVis('userPassword',this)" aria-label="Toggle password visibility">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
             <div id="pwStrength" style="margin-top:-4px;display:none">
               <div style="display:flex;gap:3px;margin-bottom:4px">
                 <div class="pw-bar" id="pwBar1"></div>
@@ -114,6 +119,7 @@
 <script src="/admin/js/auth.js?v=20260225"></script>
 <script src="/admin/js/theme.js?v=20260225"></script>
 <script src="/admin/js/nav.js?v=20260225e"></script>
+<script src="/admin/js/confirm.js?v=20260225"></script>
 <script src="/admin/js/users.js?v=20260225"></script>
 <script>
   if (RendezVoxAuth.requireRole('super_admin')) {

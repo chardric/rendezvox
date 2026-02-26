@@ -95,8 +95,9 @@ class UserCreateHandler
                 $nameStmt->execute();
                 $stationName = $nameStmt->fetchColumn() ?: 'RendezVox';
 
-                $html = $this->buildInviteEmail($stationName, $activateUrl, $displayName ?: $username);
-                $mailer->send($email, "{$stationName} — You're Invited", $html);
+                $logoUrl = "{$scheme}://{$host}/api/logo";
+                $html = $this->buildInviteEmail($stationName, $activateUrl, $displayName ?: $username, $logoUrl);
+                $mailer->send($email, "Welcome to {$stationName}! Activate Your Account", $html);
             } catch (Throwable $e) {
                 error_log('UserCreate invite email failed: ' . $e->getMessage());
             }
@@ -166,24 +167,33 @@ class UserCreateHandler
         return $password;
     }
 
-    private function buildInviteEmail(string $stationName, string $activateUrl, string $userName): string
+    private function buildInviteEmail(string $stationName, string $activateUrl, string $userName, string $logoUrl): string
     {
         $escapedUrl  = htmlspecialchars($activateUrl, ENT_QUOTES, 'UTF-8');
         $escapedName = htmlspecialchars($stationName, ENT_QUOTES, 'UTF-8');
         $escapedUser = htmlspecialchars($userName, ENT_QUOTES, 'UTF-8');
+        $escapedLogo = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
+        $year = date('Y');
 
         return <<<HTML
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:480px;margin:0 auto;padding:32px">
-          <h2 style="color:#6c63ff;margin:0 0 16px">{$escapedName}</h2>
-          <p style="color:#333;line-height:1.6">Hi {$escapedUser},</p>
-          <p style="color:#333;line-height:1.6">You've been invited to join the <strong>{$escapedName}</strong> admin panel. Click the button below to set your password and activate your account:</p>
-          <div style="text-align:center;margin:28px 0">
-            <a href="{$escapedUrl}" style="display:inline-block;background:#6c63ff;color:#fff;text-decoration:none;padding:12px 32px;border-radius:6px;font-weight:600;font-size:14px">Activate Account</a>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;background:#ffffff">
+          <div style="background:#1a1a2e;padding:28px 32px;text-align:center;border-radius:8px 8px 0 0">
+            <img src="{$escapedLogo}" alt="{$escapedName}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;margin-bottom:10px" />
+            <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:.5px">{$escapedName}</div>
+            <div style="color:#9ca3af;font-size:12px;margin-top:4px">Online FM Radio</div>
           </div>
-          <p style="color:#666;font-size:13px;line-height:1.5">This link expires in <strong>72 hours</strong>. If you didn't expect this invitation, you can safely ignore this email.</p>
-          <p style="color:#999;font-size:12px;word-break:break-all;margin-top:16px">Or copy this URL: {$escapedUrl}</p>
-          <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-          <p style="color:#999;font-size:12px">Sent from {$escapedName} Admin</p>
+          <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+            <p style="color:#333;font-size:15px;line-height:1.6;margin:0 0 12px">Hi <strong>{$escapedUser}</strong>,</p>
+            <p style="color:#333;font-size:15px;line-height:1.6;margin:0 0 24px">You've been invited to join the <strong>{$escapedName}</strong> admin panel. Click the button below to set your password and activate your account:</p>
+            <div style="text-align:center;margin:0 0 24px">
+              <a href="{$escapedUrl}" style="display:inline-block;background:#00c8a0;color:#fff;text-decoration:none;padding:14px 40px;border-radius:6px;font-weight:600;font-size:15px">Activate Account</a>
+            </div>
+            <p style="color:#666;font-size:13px;line-height:1.5;margin:0 0 16px">This link expires in <strong>72 hours</strong>. If you didn't expect this invitation, you can safely ignore this email.</p>
+            <p style="color:#9ca3af;font-size:12px;word-break:break-all;margin:0">Or copy this URL: <a href="{$escapedUrl}" style="color:#00c8a0">{$escapedUrl}</a></p>
+          </div>
+          <div style="text-align:center;padding:16px 32px">
+            <p style="color:#9ca3af;font-size:11px;margin:0">&copy; {$year} {$escapedName}. All rights reserved.</p>
+          </div>
         </div>
         HTML;
     }

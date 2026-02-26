@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-class JingleUploadHandler
+class StationIdUploadHandler
 {
     public function handle(): void
     {
@@ -46,7 +46,7 @@ class JingleUploadHandler
             return;
         }
 
-        $dir = '/var/lib/rendezvox/jingles';
+        $dir = '/var/lib/rendezvox/stationids';
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
@@ -70,7 +70,7 @@ class JingleUploadHandler
 
         Response::json([
             'filename' => $filename,
-            'message'  => 'Jingle uploaded successfully',
+            'message'  => 'Station ID uploaded successfully',
         ], 201);
     }
 }
