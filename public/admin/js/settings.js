@@ -42,7 +42,6 @@ var RendezVoxSettings = (function() {
       loadTimezoneDisplay();
       loadApiKey();
       loadTheAudioDbKey();
-      loadReservedKeywords();
       loadSmtp();
       loadAutoTag();
       loadAutoSync();
@@ -124,34 +123,6 @@ var RendezVoxSettings = (function() {
       .then(function() {
         btn.disabled = false;
         btn.textContent = 'Save Blocked Words';
-      });
-  }
-
-  // ── Reserved Keywords ────────────────────────────────────
-  function loadReservedKeywords() {
-    var s = settings['schedule_reserved_keywords'];
-    var el = document.getElementById('reservedKeywords');
-    if (s && el) el.value = s.value || '';
-  }
-
-  function saveReservedKeywords() {
-    var el = document.getElementById('reservedKeywords');
-    var val = el ? el.value.trim() : '';
-    var btn = document.getElementById('btnSaveReservedKeywords');
-    btn.disabled = true;
-    btn.textContent = 'Saving…';
-
-    RendezVoxAPI.put('/admin/settings/schedule_reserved_keywords', { value: val })
-      .then(function() {
-        if (settings['schedule_reserved_keywords']) settings['schedule_reserved_keywords'].value = val;
-        showToast('Reserved keywords saved');
-      })
-      .catch(function(err) {
-        showToast((err && err.error) || 'Save failed', 'error');
-      })
-      .then(function() {
-        btn.disabled = false;
-        btn.textContent = 'Save Keywords';
       });
   }
 
@@ -1829,7 +1800,6 @@ var RendezVoxSettings = (function() {
     startRenamePaths: startRenamePaths,
     stopRenamePaths: stopRenamePaths,
     saveBlockedWords: saveBlockedWords,
-    saveReservedKeywords: saveReservedKeywords,
     toggleVis: toggleVis
   };
 })();

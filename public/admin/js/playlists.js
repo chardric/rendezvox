@@ -11,6 +11,11 @@ var RendezVoxPlaylists = (function() {
   var nextSongId         = null;
   var searchTimer = null;
   var autoShuffledOrder  = null;  // stored song_id order after client-side shuffle
+  var detailShowLimit    = 10;   // songs per page (0 = all)
+  var detailCurrentPage  = 1;
+  var tableShowLimit     = 10;  // playlists per page (0 = all)
+  var tableCurrentPage   = 1;
+  var tableRegularList   = [];  // cached filtered playlists for pagination
 
   // ── Emergency playlist state ──
   var emergencyPlaylist = null;  // null = not loaded yet, false = none exists
@@ -40,6 +45,10 @@ var RendezVoxPlaylists = (function() {
   var currentStreamingPlaylistId = null;
   var colorsFixed = false;
 
+  // ── Special playlists state ──
+  var specialPlaylistIds = [];
+  var specialSlots = [{ start: 4, end: 6 }, { start: 11, end: 13 }]; // hours
+
   function init() {
     loadPlaylists();
 
@@ -63,6 +72,33 @@ var RendezVoxPlaylists = (function() {
       activePlaylistName = null;
       activePlaylistType = null;
       autoShuffledOrder  = null;
+    });
+
+    document.getElementById('detailShowCount').addEventListener('change', function() {
+      detailShowLimit = parseInt(this.value) || 0;
+      detailCurrentPage = 1;
+      if (activeDetailSongs.length > 0) renderDetailSongs(activeDetailSongs, activePlaylistType);
+    });
+    document.getElementById('btnPagePrev').addEventListener('click', function() {
+      if (detailCurrentPage > 1) { detailCurrentPage--; renderDetailSongs(activeDetailSongs, activePlaylistType); }
+    });
+    document.getElementById('btnPageNext').addEventListener('click', function() {
+      var totalPages = detailShowLimit > 0 ? Math.ceil(activeDetailSongs.length / detailShowLimit) : 1;
+      if (detailCurrentPage < totalPages) { detailCurrentPage++; renderDetailSongs(activeDetailSongs, activePlaylistType); }
+    });
+
+    // ── Playlists table pagination ──
+    document.getElementById('tableShowCount').addEventListener('change', function() {
+      tableShowLimit = parseInt(this.value) || 0;
+      tableCurrentPage = 1;
+      renderTable(tableRegularList);
+    });
+    document.getElementById('btnTablePrev').addEventListener('click', function() {
+      if (tableCurrentPage > 1) { tableCurrentPage--; renderTable(tableRegularList); }
+    });
+    document.getElementById('btnTableNext').addEventListener('click', function() {
+      var totalPages = tableShowLimit > 0 ? Math.ceil(tableRegularList.length / tableShowLimit) : 1;
+      if (tableCurrentPage < totalPages) { tableCurrentPage++; renderTable(tableRegularList); }
     });
 
     document.getElementById('btnShuffle').addEventListener('click', shufflePlaylist);
@@ -129,6 +165,11 @@ var RendezVoxPlaylists = (function() {
     document.getElementById('btnImportSelectAll').addEventListener('click', importSelectAll);
     document.getElementById('btnImportSelectNone').addEventListener('click', importSelectNone);
 
+    // ── Special Playlists ──
+    populateSlotDropdowns();
+    loadSpecialConfig();
+    document.getElementById('btnSaveSpecial').addEventListener('click', saveSpecialConfig);
+
     // Auto-refresh every 5 seconds (picks up changes from other windows/tabs)
     setInterval(function() {
       loadPlaylists();
@@ -165,6 +206,187 @@ var RendezVoxPlaylists = (function() {
         '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + ep.id + ')">' + RendezVoxIcons.edit + '</button> ' +
         '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + ep.id + ')">' + RendezVoxIcons.del + '</button>';
     }
+  }
+
+  // ── Special Playlists Card ────────────────────────────
+
+  function formatHourLabel(h) {
+    if (h === 0 || h === 24) return '12 AM';
+    if (h === 12) return '12 PM';
+    return (h % 12) + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+
+  function populateSlotDropdowns() {
+    ['specialSlot1Start', 'specialSlot2Start'].forEach(function(id) {
+      var sel = document.getElementById(id);
+      sel.innerHTML = '<option value="">\u2014 Off \u2014</option>';
+      for (var h = 0; h < 24; h++) {
+        var opt = document.createElement('option');
+        opt.value = h;
+        opt.textContent = formatHourLabel(h);
+        sel.appendChild(opt);
+      }
+    });
+    ['specialSlot1End', 'specialSlot2End'].forEach(function(id) {
+      var sel = document.getElementById(id);
+      sel.innerHTML = '';
+      for (var h = 1; h <= 24; h++) {
+        var opt = document.createElement('option');
+        opt.value = h;
+        opt.textContent = formatHourLabel(h);
+        sel.appendChild(opt);
+      }
+    });
+    applySlotValues();
+  }
+
+  function applySlotValues() {
+    if (specialSlots[0]) {
+      document.getElementById('specialSlot1Start').value = specialSlots[0].start;
+      document.getElementById('specialSlot1End').value   = specialSlots[0].end;
+    } else {
+      document.getElementById('specialSlot1Start').value = '';
+    }
+    if (specialSlots[1]) {
+      document.getElementById('specialSlot2Start').value = specialSlots[1].start;
+      document.getElementById('specialSlot2End').value   = specialSlots[1].end;
+    } else {
+      document.getElementById('specialSlot2Start').value = '';
+    }
+  }
+
+  function loadSpecialConfig() {
+    RendezVoxAPI.get('/admin/settings').then(function(result) {
+      (result.settings || []).forEach(function(s) {
+        if (s.key === 'schedule_special_playlists') {
+          try { specialPlaylistIds = JSON.parse(s.value || '[]'); } catch(e) { specialPlaylistIds = []; }
+        }
+        if (s.key === 'schedule_special_slots') {
+          try { specialSlots = JSON.parse(s.value || '[]'); } catch(e) { specialSlots = []; }
+        }
+      });
+      // Strip out any emergency playlist IDs that may be in the setting
+      var emergencyIds = allPlaylists.filter(function(p) { return p.type === 'emergency'; }).map(function(p) { return p.id; });
+      specialPlaylistIds = specialPlaylistIds.filter(function(id) { return emergencyIds.indexOf(id) === -1; });
+      applySlotValues();
+      renderSpecialCard(allPlaylists);
+    });
+  }
+
+  function renderSpecialCard(playlists) {
+    var container = document.getElementById('specialChips');
+    if (!container) return;
+    var candidates = playlists.filter(function(p) { return p.type !== 'emergency' && p.is_active; });
+    if (candidates.length === 0) {
+      container.innerHTML = '<span class="text-dim" style="font-size:.8rem">No active playlists</span>';
+      return;
+    }
+    container.innerHTML = '';
+    candidates.forEach(function(p) {
+      var isSelected = specialPlaylistIds.indexOf(p.id) !== -1;
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:16px;font-size:.8rem;cursor:pointer;border:2px solid ' + (isSelected ? 'var(--accent)' : 'transparent') + ';background:' + (p.color || '#666') + '22;color:var(--text);transition:all .15s;line-height:1';
+      chip.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:' + escHtml(p.color || '#666') + ';flex-shrink:0"></span>' +
+        escHtml(p.name) +
+        (isSelected ? ' <svg viewBox="0 0 16 16" width="12" height="12" fill="var(--accent)" style="flex-shrink:0"><path d="M6.5 12.5l-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg>' : '');
+      chip.addEventListener('click', function() {
+        var idx = specialPlaylistIds.indexOf(p.id);
+        if (idx !== -1) specialPlaylistIds.splice(idx, 1);
+        else specialPlaylistIds.push(p.id);
+        renderSpecialCard(allPlaylists);
+      });
+      container.appendChild(chip);
+    });
+  }
+
+  function readSlotValues() {
+    specialSlots = [];
+    var s1 = document.getElementById('specialSlot1Start').value;
+    if (s1 !== '') {
+      specialSlots.push({ start: parseInt(s1), end: parseInt(document.getElementById('specialSlot1End').value) });
+    }
+    var s2 = document.getElementById('specialSlot2Start').value;
+    if (s2 !== '') {
+      specialSlots.push({ start: parseInt(s2), end: parseInt(document.getElementById('specialSlot2End').value) });
+    }
+  }
+
+  function fmtHHMM(totalMin) {
+    if (totalMin === 1440) return '24:00';
+    var h = Math.floor(totalMin / 60) % 24;
+    var m = totalMin % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+
+  function saveSpecialConfig() {
+    readSlotValues();
+    for (var i = 0; i < specialSlots.length; i++) {
+      if (specialSlots[i].end <= specialSlots[i].start) {
+        showToast('Slot ' + (i + 1) + ': end must be after start', 'error');
+        return;
+      }
+    }
+    var btn = document.getElementById('btnSaveSpecial');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    // Save settings
+    Promise.all([
+      RendezVoxAPI.put('/admin/settings/schedule_special_playlists', { value: JSON.stringify(specialPlaylistIds) }),
+      RendezVoxAPI.put('/admin/settings/schedule_special_slots', { value: JSON.stringify(specialSlots) })
+    ]).then(function() {
+      // Sync actual schedule entries: clear old special, create new ones
+      // Each slot gets ONE playlist per day. No same playlist repeats in a day.
+      // If more playlists than slots, rotate daily so all get airtime.
+      var entries = [];
+      if (specialPlaylistIds.length > 0 && specialSlots.length > 0) {
+        var pool = allPlaylists.filter(function(p) {
+          return specialPlaylistIds.indexOf(p.id) !== -1 && p.is_active && p.type !== 'emergency';
+        });
+        if (pool.length > 0) {
+          if (pool.length <= specialSlots.length) {
+            // Fixed assignment — same playlist per slot every day
+            var allDays = [0, 1, 2, 3, 4, 5, 6];
+            for (var si = 0; si < specialSlots.length; si++) {
+              entries.push({
+                playlist_id: pool[si % pool.length].id,
+                days_of_week: allDays,
+                start_time: fmtHHMM(specialSlots[si].start * 60),
+                end_time: fmtHHMM(specialSlots[si].end * 60),
+                priority: 99
+              });
+            }
+          } else {
+            // More playlists than slots — rotate daily
+            for (var d = 0; d < 7; d++) {
+              for (var si2 = 0; si2 < specialSlots.length; si2++) {
+                var pick = pool[(si2 + d) % pool.length];
+                entries.push({
+                  playlist_id: pick.id,
+                  days_of_week: [d],
+                  start_time: fmtHHMM(specialSlots[si2].start * 60),
+                  end_time: fmtHHMM(specialSlots[si2].end * 60),
+                  priority: 99
+                });
+              }
+            }
+          }
+        }
+      }
+      return RendezVoxAPI.post('/admin/schedules/bulk', {
+        clear_existing: true,
+        clear_special: true,
+        schedules: entries
+      });
+    }).then(function() {
+      showToast('Special playlists saved');
+    }).catch(function(err) {
+      showToast((err && err.error) || 'Save failed', 'error');
+    }).then(function() {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    });
   }
 
   function createEmergency() {
@@ -338,6 +560,7 @@ var RendezVoxPlaylists = (function() {
   function fixDuplicateColors() {
     var render = function() {
       renderEmergencyCard(allPlaylists);
+      renderSpecialCard(allPlaylists);
       var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
       renderTable(regular);
     };
@@ -419,15 +642,23 @@ var RendezVoxPlaylists = (function() {
   }
 
   function renderTable(playlists) {
+    tableRegularList = playlists || [];
     var tbody = document.getElementById('playlistTable');
-    if (!playlists || playlists.length === 0) {
+    if (tableRegularList.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" class="empty">No playlists</td></tr>';
       hideBulkBar();
+      document.getElementById('tablePager').classList.add('hidden');
       return;
     }
 
+    var totalCount = tableRegularList.length;
+    var totalPages = (tableShowLimit > 0) ? Math.ceil(totalCount / tableShowLimit) : 1;
+    if (tableCurrentPage > totalPages) tableCurrentPage = totalPages || 1;
+    var startIdx = (tableShowLimit > 0) ? (tableCurrentPage - 1) * tableShowLimit : 0;
+    var visible = (tableShowLimit > 0) ? tableRegularList.slice(startIdx, startIdx + tableShowLimit) : tableRegularList;
+
     var html = '';
-    playlists.forEach(function(p, idx) {
+    visible.forEach(function(p, idx) {
       var typeCls = p.type === 'auto' ? 'badge-request' : 'badge-rotation';
       var typeLabel = p.type.charAt(0).toUpperCase() + p.type.slice(1);
       var songCount = p.song_count !== null ? p.song_count : '<span title="Dynamic">&mdash;</span>';
@@ -442,7 +673,7 @@ var RendezVoxPlaylists = (function() {
         : '';
       html += '<tr' + trAttr + '>' +
         '<td><input type="checkbox" class="pl-row-check" data-id="' + p.id + '" data-name="' + escHtml(p.name) + '"' + (isStreaming ? ' disabled title="Currently streaming"' : '') + ' style="width:16px;height:16px;cursor:' + (isStreaming ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent)"></td>' +
-        '<td>' + (idx + 1) + '</td>' +
+        '<td>' + (startIdx + idx + 1) + '</td>' +
         '<td>' + swatch + escHtml(p.name) + streamingBadge + '</td>' +
         '<td><span class="badge ' + typeCls + '">' + typeLabel + '</span></td>' +
         '<td>' + songCount + '</td>' +
@@ -465,6 +696,17 @@ var RendezVoxPlaylists = (function() {
     });
     document.getElementById('plSelectAll').checked = false;
     hideBulkBar();
+
+    // Update pagination bar
+    var pager = document.getElementById('tablePager');
+    if (tableShowLimit > 0 && totalPages > 1) {
+      pager.classList.remove('hidden');
+      document.getElementById('tablePageInfo').textContent = 'Page ' + tableCurrentPage + ' of ' + totalPages;
+      document.getElementById('btnTablePrev').disabled = (tableCurrentPage <= 1);
+      document.getElementById('btnTableNext').disabled = (tableCurrentPage >= totalPages);
+    } else {
+      pager.classList.add('hidden');
+    }
   }
 
   function getSelectedPlaylists() {
@@ -690,7 +932,8 @@ var RendezVoxPlaylists = (function() {
 
   function viewDetail(id) {
     if (activePlaylistId !== id) {
-      autoShuffledOrder = null;  // clear shuffle order when switching playlists
+      autoShuffledOrder = null;
+      detailCurrentPage = 1;
     }
     activePlaylistId = id;
     loadDetail(id);
@@ -707,8 +950,9 @@ var RendezVoxPlaylists = (function() {
       currentSongId = data.current_song_id || null;
       nextSongId    = data.next_song_id || null;
 
+      var songCount = (data.songs || []).length;
       document.getElementById('detailTitle').textContent =
-        pl.name + (isAuto ? ' — Matching Songs (dynamic)' : ' — Songs');
+        pl.name + (isAuto ? ' — ' + songCount + ' Matching Songs (dynamic)' : ' — ' + songCount + ' Songs');
 
       // Show/hide controls
       document.getElementById('btnShuffle').style.display     = '';
@@ -721,7 +965,9 @@ var RendezVoxPlaylists = (function() {
 
       activeDetailSongs = data.songs || [];
       renderDetailSongs(activeDetailSongs, pl.type);
-      document.getElementById('detailPanel').classList.remove('hidden');
+      var panel = document.getElementById('detailPanel');
+      panel.classList.remove('hidden');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
   }
 
@@ -771,8 +1017,14 @@ var RendezVoxPlaylists = (function() {
       songs[p] = Object.assign({}, songs[p], { position: p + 1 });
     }
 
+    var totalCount = songs.length;
+    var totalPages = (detailShowLimit > 0) ? Math.ceil(totalCount / detailShowLimit) : 1;
+    if (detailCurrentPage > totalPages) detailCurrentPage = totalPages || 1;
+    var startIdx = (detailShowLimit > 0) ? (detailCurrentPage - 1) * detailShowLimit : 0;
+    var visible = (detailShowLimit > 0) ? songs.slice(startIdx, startIdx + detailShowLimit) : songs;
+
     var html = '';
-    songs.forEach(function(s, idx) {
+    visible.forEach(function(s, idx) {
       var rowNum = s.position;
       var playedCol;
       if (s.song_id === currentSongId) {
@@ -800,6 +1052,17 @@ var RendezVoxPlaylists = (function() {
         '</tr>';
     });
     tbody.innerHTML = html;
+
+    // Update pagination bar
+    var pager = document.getElementById('detailPager');
+    if (detailShowLimit > 0 && totalPages > 1) {
+      pager.classList.remove('hidden');
+      document.getElementById('pageInfo').textContent = 'Page ' + detailCurrentPage + ' of ' + totalPages;
+      document.getElementById('btnPagePrev').disabled = (detailCurrentPage <= 1);
+      document.getElementById('btnPageNext').disabled = (detailCurrentPage >= totalPages);
+    } else {
+      pager.classList.add('hidden');
+    }
 
     if (!isAuto) {
       setupDragDrop();

@@ -25,6 +25,13 @@ var RendezVoxSchedules = (function() {
   // ── Bulk operation guard (pauses auto-refresh) ────
   var bulkBusy = false;
 
+  // ── Special playlists config (loaded from settings) ──
+  var specialIds = [];
+  var specialSlots = [];
+
+  // ── Multi-select state ────────────────────────────
+  var selectedIds = {}; // schedule IDs selected for bulk delete
+
   // ── Timezone helpers ────────────────────────────────
   function getCurrentDay() {
     var now = new Date();
@@ -91,10 +98,29 @@ var RendezVoxSchedules = (function() {
   }
 
   // ── Init ────────────────────────────────────────────
+  function loadSpecialConfig() {
+    RendezVoxAPI.get('/admin/settings').then(function(result) {
+      (result.settings || []).forEach(function(s) {
+        if (s.key === 'schedule_special_playlists') {
+          try { specialIds = JSON.parse(s.value || '[]'); } catch(e) { specialIds = []; }
+        }
+        if (s.key === 'schedule_special_slots') {
+          try { specialSlots = JSON.parse(s.value || '[]'); } catch(e) { specialSlots = []; }
+        }
+      });
+      renderCalendar();
+    });
+  }
+
+  function isSpecialSchedule(s) {
+    return s.priority === 99;
+  }
+
   function init() {
     RendezVoxAPI.getTimezone();
     loadPlaylists();
     loadSchedules();
+    loadSpecialConfig();
 
     // Global mouse events for drag operations
     document.addEventListener('mousemove', onMouseMove);
@@ -127,6 +153,14 @@ var RendezVoxSchedules = (function() {
     });
     document.getElementById('btnGoSurpriseSchedule').addEventListener('click', handleSurpriseScheduleGo);
     document.getElementById('btnClearSchedules').addEventListener('click', handleClearSchedules);
+    document.getElementById('btnDeleteSelected').addEventListener('click', deleteSelected);
+
+    // Escape clears selection
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && Object.keys(selectedIds).length > 0) {
+        clearSelection();
+      }
+    });
 
     // Auto-refresh every 5 seconds (picks up changes from other windows/tabs)
     setInterval(function() { if (!bulkBusy) { loadPlaylists(); loadSchedules(); } }, 5000);
@@ -404,18 +438,22 @@ var RendezVoxSchedules = (function() {
         var opacity = s.is_active ? 1 : 0.4;
 
         var displayH = Math.max(15, heightPx - 4); // 4px gap between adjacent blocks
-        html += '<div class="cal-block' + (isNow ? ' now' : '') + '" ' +
+        var selClass = selectedIds[s.id] ? ' selected' : '';
+        var isLocked = isSpecialSchedule(s);
+        html += '<div class="cal-block' + (isNow ? ' now' : '') + selClass + (isLocked ? ' locked' : '') + '" ' +
           'data-schedule-id="' + s.id + '" data-day="' + d + '" ' +
           'style="top:' + topPx + 'px;height:' + displayH + 'px;' +
           'background:' + hexToRgba(color, 0.85) + ';' +
           'border-left:3px solid ' + color + ';' +
           'opacity:' + opacity + '">';
-        html += '<div class="resize-top"></div>';
-        html += '<div class="block-title">' + escHtml(s.playlist_name) + '</div>';
+        if (!isLocked) html += '<div class="resize-top"></div>';
+        html += '<div class="block-title">' + escHtml(s.playlist_name) +
+          (isLocked ? ' <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" style="opacity:.7;vertical-align:-1px"><path d="M12 7h-1V5a3 3 0 00-6 0v2H4a1 1 0 00-1 1v5a1 1 0 001 1h8a1 1 0 001-1V8a1 1 0 00-1-1zM6 5a2 2 0 014 0v2H6V5z"/></svg>' : '') +
+          '</div>';
         if (displayH >= 32) {
           html += '<div class="block-time">' + formatTime12(s.start_time) + ' – ' + formatTime12(s.end_time) + '</div>';
         }
-        html += '<div class="resize-bottom"></div>';
+        if (!isLocked) html += '<div class="resize-bottom"></div>';
         html += '</div>';
       });
 
@@ -450,6 +488,8 @@ var RendezVoxSchedules = (function() {
       calWrap.scrollTop = scrollTarget;
       calWrap._scrolled = true;
     }
+
+    updateSelectionUI();
   }
 
   function playlistColorFallback(playlistId) {
@@ -481,6 +521,9 @@ var RendezVoxSchedules = (function() {
       var schedId = parseInt(block.getAttribute('data-schedule-id'));
       var schedule = schedules.find(function(s) { return s.id === schedId; });
       if (!schedule) return;
+
+      // Special (locked) blocks cannot be moved/resized/selected
+      if (isSpecialSchedule(schedule)) return;
 
       var isResizeTop = e.target.classList.contains('resize-top');
       var isResizeBottom = e.target.classList.contains('resize-bottom');
@@ -656,12 +699,16 @@ var RendezVoxSchedules = (function() {
     dragging.forEach(function(b) { b.classList.remove('dragging'); });
 
     if (state.type === 'create') {
-      // No-op: use the playlist palette to drag-create schedules
+      // Click on empty area (no drag) → clear selection
+      if (state.anchorMin === state.currentMin) {
+        clearSelection();
+      }
       return;
 
     } else if (state.type === 'move') {
       if (!state.hasMoved) {
-        // Click without move — no action needed
+        // Click without move → toggle selection
+        toggleSelection(state.schedule.id);
         return;
       }
       var newStart = formatTimeHHMM(state.startMin);
@@ -851,11 +898,16 @@ var RendezVoxSchedules = (function() {
     var isBlockMenu = (schedId !== null && schedId !== undefined);
 
     // Show/hide buttons based on context
-    ctxToggleBtn.style.display = isBlockMenu ? 'block' : 'none';
+    var isLocked = false;
+    if (isBlockMenu) {
+      var sched = schedules.find(function(x) { return x.id === schedId; });
+      isLocked = sched && isSpecialSchedule(sched);
+    }
+    ctxToggleBtn.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none';
     ctxCopyBtn.style.display = isBlockMenu ? 'block' : 'none';
-    ctxApplyLabel.style.display = isBlockMenu ? 'block' : 'none';
-    ctxApplyBtns.forEach(function(item) { item.btn.style.display = isBlockMenu ? 'block' : 'none'; });
-    ctxDeleteBtn.style.display = isBlockMenu ? 'block' : 'none';
+    ctxApplyLabel.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none';
+    ctxApplyBtns.forEach(function(item) { item.btn.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none'; });
+    ctxDeleteBtn.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none';
     ctxPasteBtn.style.display = !isBlockMenu ? 'block' : 'none';
 
     // Update toggle label based on current state
@@ -1071,7 +1123,62 @@ var RendezVoxSchedules = (function() {
     });
   }
 
+  // ── Multi-select helpers ─────────────────────────
+  function toggleSelection(id) {
+    if (selectedIds[id]) delete selectedIds[id];
+    else selectedIds[id] = true;
+    renderCalendar();
+  }
+
+  function clearSelection() {
+    selectedIds = {};
+    renderCalendar();
+  }
+
+  function updateSelectionUI() {
+    var ids = Object.keys(selectedIds);
+    var btn = document.getElementById('btnDeleteSelected');
+    if (!btn) return;
+    if (ids.length > 0) {
+      btn.style.display = '';
+      btn.textContent = 'Delete Selected (' + ids.length + ')';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  function deleteSelected() {
+    var ids = Object.keys(selectedIds).filter(function(id) {
+      var s = schedules.find(function(x) { return x.id === parseInt(id); });
+      return !s || !isSpecialSchedule(s);
+    });
+    if (!ids.length) return;
+    RendezVoxConfirm('Delete ' + ids.length + ' selected schedule(s)?', {
+      title: 'Delete Selected',
+      okLabel: 'Delete'
+    }).then(function(ok) {
+      if (!ok) return;
+      var promises = ids.map(function(id) {
+        return RendezVoxAPI.del('/admin/schedules/' + id);
+      });
+      Promise.all(promises).then(function() {
+        selectedIds = {};
+        showToast(ids.length + ' schedules deleted');
+        loadSchedules();
+        notifyStreamReload();
+      }).catch(function(err) {
+        showToast((err && err.error) || 'Delete failed', 'error');
+        loadSchedules();
+      });
+    });
+  }
+
   function deleteSchedule(id) {
+    var s = schedules.find(function(x) { return x.id === id; });
+    if (s && isSpecialSchedule(s)) {
+      showToast('Special playlists are managed from the Playlists page', 'error');
+      return;
+    }
     RendezVoxConfirm('Delete this schedule?', { title: 'Delete Schedule', okLabel: 'Delete' }).then(function(ok) {
       if (!ok) return;
       RendezVoxAPI.del('/admin/schedules/' + id).then(function() {
@@ -1147,221 +1254,80 @@ var RendezVoxSchedules = (function() {
     document.getElementById('surpriseScheduleModal').classList.add('hidden');
     bulkBusy = true;
 
-    // Fetch reserved keywords setting, then generate schedule
+    // Re-fetch special config before generating (may have changed on Playlists page)
     RendezVoxAPI.get('/admin/settings').then(function(result) {
-      var keywordsRaw = '';
       (result.settings || []).forEach(function(s) {
-        if (s.key === 'schedule_reserved_keywords') keywordsRaw = s.value || '';
+        if (s.key === 'schedule_special_playlists') {
+          try { specialIds = JSON.parse(s.value || '[]'); } catch(e) { specialIds = []; }
+        }
+        if (s.key === 'schedule_special_slots') {
+          try { specialSlots = JSON.parse(s.value || '[]'); } catch(e) { specialSlots = []; }
+        }
       });
-      generateSurpriseSchedule(startHour, endHour, blockMin, active, keywordsRaw);
+      generateSurpriseSchedule(startHour, endHour, blockMin, active);
     }).catch(function() {
-      // If settings fetch fails, proceed without reserved keywords
-      generateSurpriseSchedule(startHour, endHour, blockMin, active, '');
+      generateSurpriseSchedule(startHour, endHour, blockMin, active);
     });
   }
 
-  function generateSurpriseSchedule(startHour, endHour, blockMin, active, keywordsRaw) {
-    // Parse keywords
-    var keywords = keywordsRaw.split(',')
-      .map(function(k) { return k.trim().toLowerCase(); })
-      .filter(function(k) { return k.length > 0; });
-
-    // Split playlists into reserved and regular
-    var reserved = [];
-    var regular = [];
-    if (keywords.length > 0) {
-      active.forEach(function(p) {
-        var nameLower = p.name.toLowerCase();
-        var isReserved = keywords.some(function(kw) { return nameLower.indexOf(kw) !== -1; });
-        if (isReserved) reserved.push(p);
-        else regular.push(p);
-      });
-    }
-
-    // If no reserved playlists found, treat all as regular
-    var hasReserved = reserved.length > 0 && keywords.length > 0;
-    if (!hasReserved) {
-      regular = active;
-    }
+  function generateSurpriseSchedule(startHour, endHour, blockMin, active) {
+    // Exclude special playlists from the rotation pool
+    var pool = active.filter(function(p) {
+      return specialIds.indexOf(p.id) === -1;
+    });
+    if (pool.length === 0) pool = active; // fallback if all are special
 
     var schedStart = startHour * 60;
     var schedEnd = endHour * 60;
     var bulkSchedules = [];
 
-    // ── Reserved slots: own full-duration entries, independent of blockMin ──
-    // reservedSlots[d] = array of {start, end} for that day
-    var reservedSlots = [];
-    for (var d = 0; d < 7; d++) reservedSlots[d] = [];
-
-    if (hasReserved) {
-      // 4 AM – 6 AM daily (all 7 days), clipped to user's range
-      var earlyStart = Math.max(4 * 60, schedStart);
-      var earlyEnd = Math.min(6 * 60, schedEnd);
-      if (earlyStart < earlyEnd) {
-        for (var d = 0; d < 7; d++) {
-          reservedSlots[d].push({ start: earlyStart, end: earlyEnd });
-        }
-      }
-
-      // 11 AM – 1 PM on 2-3 random weekdays (Mon–Fri = days 0-4)
-      var weekdays = [0, 1, 2, 3, 4];
-      for (var i = weekdays.length - 1; i > 0; i--) {
-        var j = Math.floor(Math.random() * (i + 1));
-        var tmp = weekdays[i]; weekdays[i] = weekdays[j]; weekdays[j] = tmp;
-      }
-      var midDayCount = 2 + Math.floor(Math.random() * 2); // 2 or 3
-      var midDayDays = weekdays.slice(0, midDayCount);
-
-      var midStart = Math.max(11 * 60, schedStart);
-      var midEnd = Math.min(13 * 60, schedEnd);
-      if (midStart < midEnd) {
-        for (var i = 0; i < midDayDays.length; i++) {
-          reservedSlots[midDayDays[i]].push({ start: midStart, end: midEnd });
-        }
-      }
-
-      // Create one schedule entry per reserved slot, rotating playlists
-      var lastPicked = null;
-      for (var d = 0; d < 7; d++) {
-        for (var si = 0; si < reservedSlots[d].length; si++) {
-          var slot = reservedSlots[d][si];
-          var candidates = reserved.filter(function(p) { return p.id !== lastPicked; });
-          if (candidates.length === 0) candidates = reserved;
-          var pick = candidates[Math.floor(Math.random() * candidates.length)];
-          lastPicked = pick.id;
-          bulkSchedules.push({
-            playlist_id: pick.id,
-            days_of_week: [d],
-            start_time: formatTimeHHMM(slot.start),
-            end_time: formatTimeHHMM(slot.end),
-            priority: 0
-          });
-        }
-      }
+    // Build reserved ranges from special slots (clipped to schedule window)
+    var reserved = [];
+    for (var i = 0; i < specialSlots.length; i++) {
+      var rStart = Math.max(specialSlots[i].start * 60, schedStart);
+      var rEnd   = Math.min(specialSlots[i].end * 60, schedEnd);
+      if (rStart < rEnd) reserved.push({ start: rStart, end: rEnd });
     }
+    var sorted = reserved.slice().sort(function(a, b) { return a.start - b.start; });
 
-    // ── Regular blocks: split around reserved slots per day ──
-    // Compute free (non-reserved) time ranges for each day
-    var fillPool = hasReserved ? regular : active;
-    // allBlocks[d] = [{start, end, playlist}] — includes BOTH reserved and regular
-    // for accurate cross-day adjacency checks
-    var allBlocks = [];
+    // Shuffle pool
+    var shuffled = pool.slice();
+    for (var fi = shuffled.length - 1; fi > 0; fi--) {
+      var fj = Math.floor(Math.random() * (fi + 1));
+      var ftmp = shuffled[fi]; shuffled[fi] = shuffled[fj]; shuffled[fj] = ftmp;
+    }
+    var N = shuffled.length;
 
+    // Fill free ranges around reserved slots with regular playlists
     for (var d = 0; d < 7; d++) {
-      // Sort reserved slots for this day by start time
-      var sorted = reservedSlots[d].slice().sort(function(a, b) { return a.start - b.start; });
-
-      // Build free ranges by subtracting reserved slots
       var freeRanges = [];
       var cursor = schedStart;
       for (var si = 0; si < sorted.length; si++) {
-        if (cursor < sorted[si].start) {
-          freeRanges.push({ start: cursor, end: sorted[si].start });
-        }
+        if (cursor < sorted[si].start) freeRanges.push({ start: cursor, end: sorted[si].start });
         cursor = Math.max(cursor, sorted[si].end);
       }
-      if (cursor < schedEnd) {
-        freeRanges.push({ start: cursor, end: schedEnd });
-      }
+      if (cursor < schedEnd) freeRanges.push({ start: cursor, end: schedEnd });
 
-      // Divide each free range into blocks of blockMin
-      var blocks = [];
-      for (var ri = 0; ri < freeRanges.length; ri++) {
-        var range = freeRanges[ri];
-        var c = range.start;
-        while (c < range.end) {
-          var blockEnd = Math.min(c + blockMin, range.end);
-          blocks.push({ start: c, end: blockEnd });
+      var bi = 0;
+      for (var fri = 0; fri < freeRanges.length; fri++) {
+        var c = freeRanges[fri].start;
+        while (c < freeRanges[fri].end) {
+          var blockEnd = Math.min(c + blockMin, freeRanges[fri].end);
+          var pick = shuffled[(bi + d) % N];
+          bulkSchedules.push({
+            playlist_id: pick.id,
+            days_of_week: [d],
+            start_time: formatTimeHHMM(c),
+            end_time: formatTimeHHMM(blockEnd),
+            priority: 0
+          });
           c = blockEnd;
+          bi++;
         }
       }
-
-      // Build lookup of reserved entries for this day (from bulkSchedules)
-      var reservedEntries = [];
-      for (var si = 0; si < reservedSlots[d].length; si++) {
-        // Find the matching bulkSchedule entry for this reserved slot + day
-        var slot = reservedSlots[d][si];
-        for (var bsi = 0; bsi < bulkSchedules.length; bsi++) {
-          var bs = bulkSchedules[bsi];
-          if (bs.days_of_week[0] === d &&
-              bs.start_time === formatTimeHHMM(slot.start) &&
-              bs.end_time === formatTimeHHMM(slot.end)) {
-            var rp = null;
-            for (var ri2 = 0; ri2 < reserved.length; ri2++) {
-              if (reserved[ri2].id === bs.playlist_id) { rp = reserved[ri2]; break; }
-            }
-            if (rp) reservedEntries.push({ start: slot.start, end: slot.end, playlist: rp });
-            break;
-          }
-        }
-      }
-
-      // Assign playlists — no same playlist adjacent on same day,
-      // and avoid matching the overlapping block on previous day
-      var prevId = null;
-      // If the first regular block starts right after a reserved slot,
-      // seed prevId with that reserved playlist
-      if (blocks.length > 0 && reservedEntries.length > 0) {
-        for (var ri3 = 0; ri3 < reservedEntries.length; ri3++) {
-          if (reservedEntries[ri3].end === blocks[0].start) {
-            prevId = reservedEntries[ri3].playlist.id;
-            break;
-          }
-        }
-      }
-
-      for (var bi = 0; bi < blocks.length; bi++) {
-        var exclude = {};
-        if (prevId) exclude[prevId] = true;
-
-        // Check if a reserved slot follows this block — exclude its playlist too
-        for (var ri4 = 0; ri4 < reservedEntries.length; ri4++) {
-          if (reservedEntries[ri4].start === blocks[bi].end) {
-            exclude[reservedEntries[ri4].playlist.id] = true;
-          }
-        }
-
-        // Cross-day: find previous day's block (regular OR reserved) that overlaps
-        if (d > 0 && allBlocks[d - 1]) {
-          for (var pi = 0; pi < allBlocks[d - 1].length; pi++) {
-            var prev = allBlocks[d - 1][pi];
-            if (prev.start < blocks[bi].end && prev.end > blocks[bi].start) {
-              exclude[prev.playlist.id] = true;
-              break;
-            }
-          }
-        }
-
-        var candidates = fillPool.filter(function(p) { return !exclude[p.id]; });
-        if (candidates.length === 0) candidates = fillPool;
-        if (candidates.length === 0) candidates = active;
-        var pick = candidates[Math.floor(Math.random() * candidates.length)];
-
-        blocks[bi].playlist = pick;
-        prevId = pick.id;
-
-        // If a reserved slot follows, update prevId to the reserved playlist
-        for (var ri5 = 0; ri5 < reservedEntries.length; ri5++) {
-          if (reservedEntries[ri5].start === blocks[bi].end) {
-            prevId = reservedEntries[ri5].playlist.id;
-          }
-        }
-
-        bulkSchedules.push({
-          playlist_id: pick.id,
-          days_of_week: [d],
-          start_time: formatTimeHHMM(blocks[bi].start),
-          end_time: formatTimeHHMM(blocks[bi].end),
-          priority: 0
-        });
-      }
-
-      // Merge regular + reserved into allBlocks for cross-day checks
-      allBlocks[d] = blocks.concat(reservedEntries);
-      allBlocks[d].sort(function(a, b) { return a.start - b.start; });
     }
 
-    // Single bulk request: clears existing + creates all new schedules
+    // Clears regular schedules (preserves special priority-99), then creates new ones
     RendezVoxAPI.post('/admin/schedules/bulk', {
       clear_existing: true,
       schedules: bulkSchedules
@@ -1378,17 +1344,21 @@ var RendezVoxSchedules = (function() {
   }
 
   function handleClearSchedules() {
-    if (!schedules.length) {
+    var regularCount = schedules.filter(function(s) { return !isSpecialSchedule(s); }).length;
+    if (!regularCount) {
       showToast('No schedules to clear');
       return;
     }
-    RendezVoxConfirm('Delete all ' + schedules.length + ' schedules?', { title: 'Clear All Schedules', okLabel: 'Clear All' }).then(function(ok) {
+    var msg = 'Delete ' + regularCount + ' schedule(s)?';
+    var specialCount = schedules.length - regularCount;
+    if (specialCount > 0) msg += ' (' + specialCount + ' special entries will be kept)';
+    RendezVoxConfirm(msg, { title: 'Clear Schedules', okLabel: 'Clear' }).then(function(ok) {
       if (!ok) return;
       RendezVoxAPI.post('/admin/schedules/bulk', {
         clear_existing: true,
         schedules: []
       }).then(function() {
-        showToast('All schedules cleared');
+        showToast('Schedules cleared');
         loadSchedules();
         RendezVoxAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
       }).catch(function(err) {

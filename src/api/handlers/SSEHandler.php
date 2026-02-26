@@ -18,7 +18,6 @@ class SSEHandler
     private const SNAPSHOT   = '/tmp/rendezvox_now.json';
     private const MAX_TIME   = 60;   // seconds before closing (client reconnects)
     private const CHECK_MS   = 1500; // poll file every 1.5 s
-    private const HEARTBEAT  = 15;   // seconds between keep-alive comments
 
     public function handle(): void
     {
@@ -45,7 +44,6 @@ class SSEHandler
 
         $startTime     = time();
         $lastMtime     = 0;
-        $lastHeartbeat = time();
         $lastData      = '';
 
         // Send initial data immediately if snapshot exists
@@ -81,12 +79,11 @@ class SSEHandler
                 $lastMtime = $currentMtime;
             }
 
-            // Heartbeat to keep connection alive
-            if ((time() - $lastHeartbeat) >= self::HEARTBEAT) {
-                echo ": heartbeat\n\n";
-                $this->flush();
-                $lastHeartbeat = time();
-            }
+            // Flush a comment every iteration so PHP detects disconnects promptly
+            // (connection_aborted() only updates after output)
+            echo ": ping\n\n";
+            $this->flush();
+            if (connection_aborted()) break;
 
             // Sleep between checks (in milliseconds)
             usleep(self::CHECK_MS * 1000);

@@ -15,7 +15,7 @@ settings.server.socket       := true
 settings.server.socket.path  := "/run/liquidsoap/main.sock"
 settings.server.telnet            := true
 settings.server.telnet.port       := 1234
-settings.server.telnet.bind_addr  := "127.0.0.1"
+settings.server.telnet.bind_addr  := "0.0.0.0"
 
 # ── Logging ─────────────────────────────────────────────
 
@@ -147,7 +147,7 @@ radio = mksafe(radio)
 
 # ── Station ID overlay (exactly one per hour at minute 0) ───
 stationids_dir = "/var/lib/rendezvox/stationids"
-stationid_state = "/var/lib/rendezvox/stationids/.last_index"
+stationid_state = "/tmp/stationid_last_index"
 
 # Fires true exactly once when the clock enters minute 0 each hour
 hourly_activate = predicate.activates({0m})
