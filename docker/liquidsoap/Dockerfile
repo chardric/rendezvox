@@ -19,7 +19,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # ── Stage 2: Liquidsoap runtime ──────────────────────────
-FROM savonet/liquidsoap:v2.3.1
+FROM savonet/liquidsoap:v2.4.2
 
 LABEL maintainer="RendezVox Project"
 LABEL description="Liquidsoap audio engine for RendezVox automation"
