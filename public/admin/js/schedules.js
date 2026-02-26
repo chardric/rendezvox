@@ -162,8 +162,7 @@ var RendezVoxSchedules = (function() {
       }
     });
 
-    // Auto-refresh every 5 seconds (picks up changes from other windows/tabs)
-    setInterval(function() { if (!bulkBusy) { loadPlaylists(); loadSchedules(); } }, 5000);
+    // No auto-refresh — user actions already reload data where needed
   }
 
   /**

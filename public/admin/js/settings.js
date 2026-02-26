@@ -46,10 +46,12 @@ var RendezVoxSettings = (function() {
       loadAutoTag();
       loadAutoSync();
       loadAutoDedup();
+      loadAutoDedupSongs();
       loadBlockedWords();
       checkInitialScanStatus();
       checkInitialSyncStatus();
       checkInitialDedupStatus();
+      checkInitialDedupSongsStatus();
       checkInitialNormStatus();
       checkInitialRenameStatus();
       loadNormTarget();
@@ -147,7 +149,7 @@ var RendezVoxSettings = (function() {
         var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
                       d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
         el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
-          data.total + ' songs checked, ' + (data.missing || 0) + ' missing, ' + (data.deactivated || 0) + ' deactivated';
+          data.total + ' songs checked, ' + (data.missing || 0) + ' missing, ' + (data.purged || 0) + ' purged';
       }
     }).catch(function() {
       var el = document.getElementById('autoSyncStatus');
@@ -205,6 +207,48 @@ var RendezVoxSettings = (function() {
       .then(function() {
         if (settings['auto_artist_dedup_enabled']) settings['auto_artist_dedup_enabled'].value = val;
         showToast('Auto-dedup ' + (el.checked ? 'enabled' : 'disabled'));
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+        el.checked = !el.checked;
+      });
+  }
+
+  // ── Auto Dedup Songs ────────────────────────────────────
+  function loadAutoDedupSongs() {
+    var s = settings['auto_dedup_songs_enabled'];
+    var el = document.getElementById('autoDedupSongsEnabled');
+    if (s && el) el.checked = (s.value === 'true');
+    if (el) el.addEventListener('change', saveAutoDedupSongs);
+    loadAutoDedupSongsStatus();
+  }
+
+  function loadAutoDedupSongsStatus() {
+    RendezVoxAPI.get('/admin/auto-dedup-songs-status').then(function(data) {
+      var el = document.getElementById('autoDedupSongsStatus');
+      if (!el) return;
+      if (!data.has_run) {
+        el.innerHTML = '<span style="opacity:.6">No auto-dedup runs yet</span>';
+      } else {
+        var d = new Date(data.ran_at);
+        var opts = RendezVoxAPI.tzOpts();
+        var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
+                      d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
+        el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' + (data.message || 'No duplicates');
+      }
+    }).catch(function() {
+      var el = document.getElementById('autoDedupSongsStatus');
+      if (el) el.innerHTML = '<span style="opacity:.6">Could not load status</span>';
+    });
+  }
+
+  function saveAutoDedupSongs() {
+    var el = document.getElementById('autoDedupSongsEnabled');
+    var val = el.checked ? 'true' : 'false';
+    RendezVoxAPI.put('/admin/settings/auto_dedup_songs_enabled', { value: val })
+      .then(function() {
+        if (settings['auto_dedup_songs_enabled']) settings['auto_dedup_songs_enabled'].value = val;
+        showToast('Auto-dedup songs ' + (el.checked ? 'enabled' : 'disabled'));
       })
       .catch(function(err) {
         showToast((err && err.error) || 'Save failed', 'error');
@@ -777,7 +821,7 @@ var RendezVoxSettings = (function() {
             setSyncButtons(false);
 
             if (data.status === 'done') {
-              showToast('Sync complete — ' + (data.missing || 0) + ' missing, ' + (data.deactivated || 0) + ' deactivated');
+              showToast('Sync complete — ' + (data.missing || 0) + ' missing, ' + (data.purged || 0) + ' purged');
             } else if (data.status === 'stopped') {
               showToast('Sync stopped — ' + (data.deactivated || 0) + ' deactivated so far');
             }
@@ -810,7 +854,7 @@ var RendezVoxSettings = (function() {
     document.getElementById('librarySyncBar').style.width = pct + '%';
     document.getElementById('librarySyncDetails').textContent =
       processed + ' / ' + total + ' songs — ' +
-      (p.missing || 0) + ' missing, ' + (p.deactivated || 0) + ' deactivated';
+      (p.missing || 0) + ' missing, ' + (p.purged || 0) + ' purged';
   }
 
   function checkInitialSyncStatus() {
@@ -933,6 +977,122 @@ var RendezVoxSettings = (function() {
           showDedupProgress(data);
           setDedupButtons(true);
           pollDedupStatus();
+        }
+      })
+      .catch(function() { /* ignore */ });
+  }
+
+  // ── Song Dedup ──────────────────────────────────────
+  var dedupSongsPollTimer = null;
+  var dedupSongsWasAutoEnabled = false;
+
+  function setDedupSongsButtons(running) {
+    var btnStart = document.getElementById('btnDedupSongs');
+    var btnStop  = document.getElementById('btnStopDedupSongs');
+    if (running) {
+      btnStart.disabled = true;
+      btnStart.textContent = 'Deduplicating…';
+      btnStop.classList.remove('hidden');
+    } else {
+      btnStart.disabled = false;
+      btnStart.textContent = 'Deduplicate Songs';
+      btnStop.classList.add('hidden');
+    }
+  }
+
+  function startDedupSongs() {
+    setDedupSongsButtons(true);
+
+    RendezVoxAPI.post('/admin/dedup-songs', {})
+      .then(function(res) {
+        var msg = res.message || 'Dedup started';
+        var isBlocked = msg.indexOf('already running') !== -1;
+        showToast(msg, isBlocked ? 'error' : 'success');
+        if (res.auto_dedup_songs_disabled) {
+          dedupSongsWasAutoEnabled = true;
+          var el = document.getElementById('autoDedupSongsEnabled');
+          if (el) el.checked = false;
+          if (settings['auto_dedup_songs_enabled']) settings['auto_dedup_songs_enabled'].value = 'false';
+        }
+        if (res.progress) {
+          showDedupSongsProgress(res.progress);
+          pollDedupSongsStatus();
+        }
+      })
+      .catch(function(err) {
+        setDedupSongsButtons(false);
+        showToast((err && err.error) || 'Failed to start dedup', 'error');
+      });
+  }
+
+  function stopDedupSongs() {
+    RendezVoxAPI.del('/admin/dedup-songs')
+      .then(function(res) {
+        showToast(res.message || 'Stopping…');
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Failed to stop', 'error');
+      });
+  }
+
+  function pollDedupSongsStatus() {
+    if (dedupSongsPollTimer) clearInterval(dedupSongsPollTimer);
+    dedupSongsPollTimer = setInterval(function() {
+      RendezVoxAPI.get('/admin/dedup-songs')
+        .then(function(data) {
+          showDedupSongsProgress(data);
+          if (data.status !== 'running') {
+            clearInterval(dedupSongsPollTimer);
+            dedupSongsPollTimer = null;
+            setDedupSongsButtons(false);
+
+            if (data.status === 'done') {
+              showToast('Dedup complete — ' + (data.deleted || 0) + ' duplicates deleted');
+            } else if (data.status === 'stopped') {
+              showToast('Dedup stopped — ' + (data.deleted || 0) + ' deleted so far');
+            }
+            if (dedupSongsWasAutoEnabled) restoreAuto('auto_dedup_songs_enabled', 'autoDedupSongsEnabled');
+            dedupSongsWasAutoEnabled = false;
+            loadAutoDedupSongsStatus();
+            setTimeout(function() { document.getElementById('dedupSongsStatus').style.display = 'none'; }, 3000);
+          }
+        });
+    }, 2000);
+  }
+
+  function showDedupSongsProgress(p) {
+    var wrap = document.getElementById('dedupSongsStatus');
+    if (!p || p.status === 'idle') {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    var total = p.total_groups || 1;
+    var processed = p.processed || 0;
+    var pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+    var label = p.phase === 'scanning' ? 'Scanning for duplicates…' : 'Deleting duplicates…';
+    if (p.status === 'done') label = 'Dedup complete';
+    else if (p.status === 'stopped') label = 'Dedup stopped';
+
+    document.getElementById('dedupSongsLabel').textContent = label;
+    document.getElementById('dedupSongsPct').textContent = pct + '%';
+    document.getElementById('dedupSongsBar').style.width = pct + '%';
+
+    var freedMB = ((p.freed_bytes || 0) / 1048576).toFixed(1);
+    document.getElementById('dedupSongsDetails').textContent =
+      processed + ' / ' + total + ' groups — ' +
+      (p.deleted || 0) + ' deleted, ' + freedMB + ' MB freed';
+  }
+
+  function checkInitialDedupSongsStatus() {
+    RendezVoxAPI.get('/admin/dedup-songs')
+      .then(function(data) {
+        if (data.status === 'running') {
+          showDedupSongsProgress(data);
+          setDedupSongsButtons(true);
+          pollDedupSongsStatus();
         }
       })
       .catch(function() { /* ignore */ });
@@ -1834,6 +1994,8 @@ var RendezVoxSettings = (function() {
     stopLibrarySync: stopLibrarySync,
     startArtistDedup: startArtistDedup,
     stopArtistDedup: stopArtistDedup,
+    startDedupSongs: startDedupSongs,
+    stopDedupSongs: stopDedupSongs,
     startNormalize: startNormalize,
     stopNormalize: stopNormalize,
     startRenamePaths: startRenamePaths,

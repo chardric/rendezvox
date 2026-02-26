@@ -5,3 +5,4 @@
 */15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/library_sync.php --auto >> /var/log/rendezvox/auto-sync.log 2>&1
 */15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/artist_dedup.php --auto >> /var/log/rendezvox/auto-dedup.log 2>&1
 */15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/rename_paths.php --auto >> /var/log/rendezvox/auto-rename.log 2>&1
+*/15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/dedup_songs.php --auto >> /var/log/rendezvox/auto-dedup-songs.log 2>&1

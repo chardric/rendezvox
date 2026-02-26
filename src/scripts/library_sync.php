@@ -162,11 +162,29 @@ if (!empty($missingIds)) {
        ->execute($missingIds);
 }
 
+// ── Auto-purge: delete inactive songs whose files are missing ──
+$purgeStmt = $db->query("SELECT id, file_path FROM songs WHERE is_active = false");
+$purgeIds  = [];
+foreach ($purgeStmt->fetchAll() as $row) {
+    $abs = $musicDir . '/' . $row['file_path'];
+    if (!file_exists($abs)) {
+        $purgeIds[] = (int) $row['id'];
+    }
+}
+$progress['purged'] = 0;
+if (!empty($purgeIds)) {
+    // ON DELETE CASCADE handles playlist_songs, play_history, song_requests, request_queue
+    $placeholders = implode(',', array_fill(0, count($purgeIds), '?'));
+    $db->prepare("DELETE FROM songs WHERE id IN ($placeholders)")->execute($purgeIds);
+    $progress['purged'] = count($purgeIds);
+    logMsg('Purged ' . count($purgeIds) . ' inactive songs with missing files', $autoMode);
+}
+
 $progress['status']      = 'done';
 $progress['finished_at'] = date('c');
 writeProgress($progress);
 
-logMsg('Sync complete — ' . $progress['missing'] . ' missing, ' . $progress['deactivated'] . ' deactivated out of ' . $progress['total'], $autoMode);
+logMsg('Sync complete — ' . $progress['missing'] . ' missing, ' . $progress['deactivated'] . ' deactivated, ' . $progress['purged'] . ' purged out of ' . $progress['total'], $autoMode);
 
 // Write auto-sync summary for the Settings UI
 if ($autoMode) {
@@ -175,7 +193,8 @@ if ($autoMode) {
         'total'       => $progress['total'],
         'missing'     => $progress['missing'],
         'deactivated' => $progress['deactivated'],
-        'message'     => $progress['missing'] . ' missing, ' . $progress['deactivated'] . ' deactivated',
+        'purged'      => $progress['purged'],
+        'message'     => $progress['missing'] . ' missing, ' . $progress['deactivated'] . ' deactivated, ' . $progress['purged'] . ' purged',
     ]), LOCK_EX);
     @chmod('/tmp/rendezvox_auto_sync_last.json', 0666);
 }

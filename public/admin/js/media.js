@@ -8,6 +8,7 @@ var RendezVoxMedia = (function () {
     edit: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
     del:  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
     restore: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+    activate: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
   };
 
   // ── State ─────────────────────────────────────────────
@@ -78,6 +79,7 @@ var RendezVoxMedia = (function () {
     document.getElementById('showInactive').addEventListener('change', function () {
       currentPage = 1;
       document.getElementById('btnPurgeInactive').classList.toggle('hidden', !this.checked);
+      document.getElementById('inactiveBanner').classList.toggle('hidden', !this.checked);
       loadSongs();
     });
 
@@ -125,6 +127,7 @@ var RendezVoxMedia = (function () {
     document.getElementById('btnBulkTrash').addEventListener('click', bulkTrash);
     document.getElementById('btnBulkRestore').addEventListener('click', bulkRestore);
     document.getElementById('btnBulkPurge').addEventListener('click', bulkPurge);
+    document.getElementById('btnBulkReactivate').addEventListener('click', bulkReactivate);
     document.getElementById('btnBulkPurgeInactive').addEventListener('click', bulkPurgeInactive);
     document.getElementById('btnClearSel').addEventListener('click', function () {
       selectedIds.clear();
@@ -164,6 +167,7 @@ var RendezVoxMedia = (function () {
     loadSongs();
     loadPendingCount();
     loadTrashCount();
+    loadInactiveCount();
   }
 
   // ── View switching ──────────────────────────────────────
@@ -197,6 +201,7 @@ var RendezVoxMedia = (function () {
     btnUpload.classList.add('hidden');
     songSection.classList.remove('hidden');
     bulkBar.classList.add('hidden');
+    document.getElementById('inactiveBanner').classList.add('hidden');
 
     if (view === 'trash') {
       tabTrash.classList.add('active');
@@ -437,7 +442,7 @@ var RendezVoxMedia = (function () {
     var url = '/admin/songs?' + params.join('&');
 
     document.getElementById('songTable').innerHTML =
-      '<tr><td colspan="7" class="empty">Loading...</td></tr>';
+      '<tr><td colspan="8" class="empty">Loading...</td></tr>';
 
     RendezVoxAPI.get(url)
       .then(function (data) {
@@ -460,7 +465,7 @@ var RendezVoxMedia = (function () {
       })
       .catch(function (err) {
         document.getElementById('songTable').innerHTML =
-          '<tr><td colspan="7" class="empty">Failed to load songs</td></tr>';
+          '<tr><td colspan="8" class="empty">Failed to load songs</td></tr>';
         showToast((err && err.error) || 'Failed to load', 'error');
       });
   }
@@ -472,7 +477,7 @@ var RendezVoxMedia = (function () {
 
     if (!songs || songs.length === 0) {
       var emptyMsg = isTrash ? 'Trash is empty' : 'No songs found';
-      tbody.innerHTML = '<tr><td colspan="7" class="empty">' + emptyMsg + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">' + emptyMsg + '</td></tr>';
       updateCheckAllState();
       return;
     }
@@ -496,6 +501,7 @@ var RendezVoxMedia = (function () {
         dateCol   = s.created_at ? formatDate(s.created_at) : '-';
         dateLabel = 'Added';
         actions =
+          '<button type="button" class="icon-btn" title="Reactivate" onclick="RendezVoxMedia.reactivateSong(' + s.id + ')">' + IC.activate + '</button>' +
           '<button type="button" class="icon-btn danger" title="Delete permanently" onclick="RendezVoxMedia.purgeInactiveSong(' + s.id + ')">' + IC.del + '</button>';
       } else {
         dateCol   = s.created_at ? formatDate(s.created_at) : '-';
@@ -514,6 +520,7 @@ var RendezVoxMedia = (function () {
           '<td>' + title + (!s.is_active && !isTrash && !isInactiveView() ? '<span class="badge-inactive">(off)</span>' : '') + '</td>' +
           '<td>' + artist + '</td>' +
           '<td>' + genre  + '</td>' +
+          '<td style="white-space:nowrap;font-size:0.82rem;opacity:0.5">' + formatDuration(s.duration_ms) + '</td>' +
           '<td style="white-space:nowrap;font-size:0.82rem">' + dateCol + '</td>' +
           '<td style="white-space:nowrap;padding-left:4px;padding-right:4px">' + actions + '</td>' +
         '</tr>';
@@ -641,6 +648,54 @@ var RendezVoxMedia = (function () {
         }
       })
       .catch(function () {});
+  }
+
+  // ── Inactive count (badge) ─────────────────────────────
+
+  function loadInactiveCount() {
+    RendezVoxAPI.get('/admin/songs?active=false&per_page=1')
+      .then(function (data) {
+        var count = data.total || 0;
+        var badge = document.getElementById('inactiveBadge');
+        if (count > 0) {
+          badge.textContent = count > 99 ? '99+' : count;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      })
+      .catch(function () {});
+  }
+
+  // ── Reactivate operations ───────────────────────────────
+
+  function reactivateSong(id) {
+    RendezVoxAPI.patch('/admin/songs/' + id + '/toggle')
+      .then(function (data) {
+        showToast(data.message || 'Song reactivated');
+        loadSongs();
+        loadInactiveCount();
+      })
+      .catch(function (err) {
+        showToast((err && err.error) || 'Failed to reactivate song', 'error');
+      });
+  }
+
+  function bulkReactivate() {
+    var count = selectedIds.size;
+    var promises = Array.from(selectedIds).map(function (id) {
+      return RendezVoxAPI.patch('/admin/songs/' + id + '/toggle');
+    });
+    Promise.all(promises)
+      .then(function () {
+        selectedIds.clear();
+        showToast(count + ' song(s) reactivated');
+        loadSongs();
+        loadInactiveCount();
+      })
+      .catch(function (err) {
+        showToast((err && err.error) || 'Failed to reactivate songs', 'error');
+      });
   }
 
   // ── Bulk selection ────────────────────────────────────
@@ -805,6 +860,7 @@ var RendezVoxMedia = (function () {
           loadSongs();
           loadArtists();
           loadCategories();
+          loadInactiveCount();
         })
         .catch(function (err) {
           showToast((err && err.error) || 'Failed to purge inactive songs', 'error');
@@ -820,6 +876,7 @@ var RendezVoxMedia = (function () {
           showToast('Song permanently deleted');
           loadSongs();
           loadArtists();
+          loadInactiveCount();
         })
         .catch(function (err) {
           showToast((err && err.error) || 'Failed to delete song', 'error');
@@ -839,6 +896,7 @@ var RendezVoxMedia = (function () {
           loadSongs();
           loadArtists();
           loadCategories();
+          loadInactiveCount();
         })
         .catch(function (err) {
           showToast((err && err.error) || 'Failed to delete songs', 'error');
@@ -1491,6 +1549,7 @@ var RendezVoxMedia = (function () {
     restoreSong:       restoreSong,
     purgeSong:         purgeSong,
     purgeInactiveSong: purgeInactiveSong,
+    reactivateSong:    reactivateSong,
     goToPage:          goToPage,
     dupResolveGroup:   dupResolveGroup,
   };

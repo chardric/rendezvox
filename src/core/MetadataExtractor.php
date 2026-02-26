@@ -23,6 +23,15 @@ class MetadataExtractor
         $filePaths = array_values(array_filter($filePaths, fn($p) => !isset(self::$cache[$p])));
         if (empty($filePaths)) return;
 
+        // Fallback: if proc_open is disabled, pre-fill cache sequentially via shell_exec
+        if (!function_exists('proc_open')) {
+            foreach ($filePaths as $path) {
+                $cmd = sprintf('ffprobe -v quiet -print_format json -show_format %s 2>/dev/null', escapeshellarg($path));
+                self::$cache[$path] = (string) shell_exec($cmd);
+            }
+            return;
+        }
+
         $workers = [];
         $fileIdx = 0;
         $total   = count($filePaths);

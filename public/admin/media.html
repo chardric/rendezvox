@@ -288,6 +288,12 @@
       <!-- Notice banner (pending uploads) -->
       <div id="noticeBanner" class="notice-banner hidden"></div>
 
+      <!-- Inactive info banner -->
+      <div id="inactiveBanner" class="notice-banner hidden" style="background:rgba(248,113,113,0.06);border-color:rgba(248,113,113,0.2);color:#f87171">
+        <span class="notice-icon">&#9888;</span>
+        <span>Inactive songs are excluded from rotation and requests. They can be reactivated or permanently deleted.</span>
+      </div>
+
       <!-- Trash toolbar (shown in trash view) -->
       <div id="trashToolbar" class="trash-toolbar hidden">
         <span id="trashInfo">0 songs in trash</span>
@@ -316,9 +322,14 @@
         <select id="filterArtist">
           <option value="">All Artists</option>
         </select>
-        <label style="display:flex;align-items:center;gap:5px;font-size:0.82rem;opacity:0.6;margin-left:8px;cursor:pointer">
-          <input type="checkbox" id="showInactive"> Show inactive
-        </label>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:12px">
+          <span style="font-size:0.82rem;opacity:0.5">Inactive</span>
+          <label class="toggle toggle-sm" style="margin:0" title="Show inactive songs">
+            <input type="checkbox" id="showInactive">
+            <span class="slider"></span>
+          </label>
+          <span class="trash-badge hidden" id="inactiveBadge" style="background:#f87171">0</span>
+        </div>
         <button class="btn btn-ghost btn-sm hidden" style="color:#f87171;margin-left:4px" id="btnPurgeInactive">Purge All Inactive</button>
       </div>
 
@@ -335,6 +346,7 @@
           <button class="btn btn-ghost btn-sm" style="color:#f87171" id="btnBulkTrash">Move to Trash</button>
         </span>
         <span id="bulkInactiveActions" class="hidden">
+          <button class="btn btn-ghost btn-sm" id="btnBulkReactivate">Reactivate</button>
           <button class="btn btn-ghost btn-sm" style="color:#f87171" id="btnBulkPurgeInactive">Delete Selected</button>
         </span>
         <span id="bulkTrashActions" class="hidden">
@@ -373,12 +385,13 @@
                 <th>Title</th>
                 <th>Artist</th>
                 <th>Genre</th>
+                <th style="white-space:nowrap">Duration</th>
                 <th style="white-space:nowrap">Date Added</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="songTable">
-              <tr><td colspan="7" class="empty">Loading...</td></tr>
+              <tr><td colspan="8" class="empty">Loading...</td></tr>
             </tbody>
           </table>
         </div>
@@ -553,14 +566,14 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js?v=20260225"></script>
-<script src="/admin/js/api.js?v=20260225"></script>
-<script src="/admin/js/auth.js?v=20260225"></script>
-<script src="/admin/js/theme.js?v=20260225"></script>
-<script src="/admin/js/nav.js?v=20260225e"></script>
-<script src="/admin/js/icons.js?v=20260225"></script>
-<script src="/admin/js/confirm.js?v=20260225"></script>
-<script src="/admin/js/media.js?v=20260225"></script>
+<script src="/assets/scroll-controls.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260226"></script>
+<script src="/admin/js/auth.js?v=20260226"></script>
+<script src="/admin/js/theme.js?v=20260226"></script>
+<script src="/admin/js/nav.js?v=20260226"></script>
+<script src="/admin/js/icons.js?v=20260226"></script>
+<script src="/admin/js/confirm.js?v=20260226"></script>
+<script src="/admin/js/media.js?v=20260226"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();
