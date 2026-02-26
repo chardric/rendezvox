@@ -57,7 +57,8 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
             _state.update {
                 it.copy(
                     stationName = config.station_name.ifBlank { "RendezVox" },
-                    tagline = config.tagline
+                    tagline = config.tagline,
+                    accentColor = config.accent_color.ifBlank { "#ff7800" }
                 )
             }
         }

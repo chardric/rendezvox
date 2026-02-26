@@ -13,6 +13,7 @@ const songArtist     = $('song-artist');
 const connectingMsg  = $('connecting-msg');
 const connectingBar  = $('connecting-bar');
 const coverArt       = $('cover-art');
+const coverWrap      = $('cover-wrap');
 const vinyl          = $('vinyl');
 const upNext         = $('up-next');
 const listenerCount  = $('listener-count');
@@ -121,9 +122,9 @@ function setPlayState(playing) {
   }
 
   if (playing) {
-    vinyl.classList.add('spin');
+    coverWrap.classList.add('spin');
   } else if (!isBuffering) {
-    vinyl.classList.remove('spin');
+    coverWrap.classList.remove('spin');
   }
   setConnecting(false);
 }
@@ -166,16 +167,13 @@ function loadCoverArt(songId, hasCoverArt) {
     img.onload = () => {
       coverArt.src = url;
       coverArt.classList.add('visible');
-      vinyl.classList.add('hidden');
     };
     img.onerror = () => {
       coverArt.classList.remove('visible');
-      vinyl.classList.remove('hidden');
     };
     img.src = url;
   } else {
     coverArt.classList.remove('visible');
-    vinyl.classList.remove('hidden');
   }
 }
 
@@ -318,14 +316,37 @@ async function fetchListeners() {
 
 async function fetchConfig() {
   try {
-    const r = await fetch(`${BASE_URL}/api/config`);
+    const r = await fetch(`${BASE_URL}/api/config`, {cache: 'no-store'});
     if (r.ok) {
       const cfg = await r.json();
       stationName.textContent    = cfg.station_name || 'RendezVox';
       stationTagline.textContent = cfg.tagline       || 'Online Radio';
       document.title = cfg.station_name || 'RendezVox';
+      applyAccentColor(cfg.accent_color || '#ff7800');
     }
   } catch (_) {}
+}
+
+function applyAccentColor(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  const root = document.documentElement;
+  root.style.setProperty('--accent', hex);
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  // Lighten by 18% for --accent-light
+  const lr = Math.min(255, Math.round(r + (255 - r) * 0.18));
+  const lg = Math.min(255, Math.round(g + (255 - g) * 0.18));
+  const lb = Math.min(255, Math.round(b + (255 - b) * 0.18));
+  root.style.setProperty('--accent-light', '#' + ((1 << 24) + (lr << 16) + (lg << 8) + lb).toString(16).slice(1));
+  // Update dedication colors to match accent
+  root.style.setProperty('--dedication-bg', `rgba(${r},${g},${b},0.10)`);
+  root.style.setProperty('--dedication-border', `rgba(${r},${g},${b},0.28)`);
+  // Lighten by 50% for dedication text
+  const tr = Math.min(255, Math.round(r + (255 - r) * 0.5));
+  const tg = Math.min(255, Math.round(g + (255 - g) * 0.5));
+  const tb = Math.min(255, Math.round(b + (255 - b) * 0.5));
+  root.style.setProperty('--dedication-text', '#' + ((1 << 24) + (tr << 16) + (tg << 8) + tb).toString(16).slice(1));
 }
 
 // ── Song Request Modal ────────────────────────────────────
@@ -546,7 +567,7 @@ async function connectToServer(url) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const r = await fetch(`${url}/api/config`, { signal: controller.signal });
+    const r = await fetch(`${url}/api/config`, { signal: controller.signal, cache: 'no-store' });
     clearTimeout(timeout);
 
     if (!r.ok) throw new Error('Server returned an error');

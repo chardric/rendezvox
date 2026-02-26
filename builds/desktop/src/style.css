@@ -2,16 +2,16 @@
   --bg-dark:     #0F0F0F;
   --bg-card:     #1A1A2E;
   --bg-elevated: #2D2D44;
-  --accent:      #6C63FF;
-  --accent-light:#7C74FF;
+  --accent:      #ff7800;
+  --accent-light:#ff8c1a;
   --text-primary:#E0E0E0;
   --text-secondary:#9CA3AF;
   --text-dim:    #555555;
   --success:     #4ADE80;
   --error:       #F87171;
-  --dedication-bg: rgba(108,99,255,0.10);
-  --dedication-border: rgba(108,99,255,0.28);
-  --dedication-text:#C4B5FD;
+  --dedication-bg: rgba(255,120,0,0.10);
+  --dedication-border: rgba(255,120,0,0.28);
+  --dedication-text:#ffc894;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -67,63 +67,66 @@ html, body {
   margin-bottom: 14px;
 }
 
-/* ── Cover Art ───────────────────────────────────── */
+/* ── Vinyl Record ────────────────────────────────── */
 #cover-wrap {
   position: relative;
   width: 180px;
   height: 180px;
   flex-shrink: 0;
   margin-bottom: 12px;
+  border-radius: 50%;
 }
-#cover-art {
-  width: 180px; height: 180px;
-  border-radius: 14px;
-  object-fit: cover;
-  display: none;
-  box-shadow: 0 12px 36px rgba(108,99,255,0.25), 0 4px 12px rgba(0,0,0,0.5);
-}
-#cover-art.visible { display: block; }
+#cover-wrap.spin { animation: vinyl-spin 4s linear infinite; }
+@keyframes vinyl-spin { to { transform: rotate(360deg); } }
 
-/* Vinyl fallback */
 #vinyl {
   width: 180px; height: 180px;
   border-radius: 50%;
-  background: radial-gradient(circle at center, #1C1C30 0%, #0F0F1A 50%, #1C1C30 100%);
+  background:
+    radial-gradient(circle, transparent 21%, rgba(255,255,255,.04) 21.3%, transparent 21.6%,
+    transparent 30%, rgba(255,255,255,.03) 30.3%, transparent 30.6%,
+    transparent 39%, rgba(255,255,255,.04) 39.3%, transparent 39.6%,
+    transparent 55%, rgba(255,255,255,.03) 55.3%, transparent 55.6%,
+    transparent 65%, rgba(255,255,255,.04) 65.3%, transparent 65.6%,
+    transparent 75%, rgba(255,255,255,.03) 75.3%, transparent 75.6%,
+    transparent 85%, rgba(255,255,255,.04) 85.3%, transparent 85.6%,
+    transparent 93%, rgba(255,255,255,.03) 93.3%, transparent 93.6%),
+    radial-gradient(circle, #1a1a1a 22%, #111 50%, #0d0d0d 80%, #080808);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(108,99,255,0.15), 0 4px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4), inset 0 0 3px rgba(255,255,255,0.03);
   position: absolute;
   top: 0; left: 0;
 }
-#vinyl.spin { animation: vinyl-spin 4s linear infinite; }
-@keyframes vinyl-spin { to { transform: rotate(360deg); } }
-
-.vinyl-groove {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.06);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-.groove-outer { width: 88%; height: 88%; }
-.groove-mid   { width: 72%; height: 72%; }
-.groove-inner { width: 56%; height: 56%; }
 
 #vinyl-center {
-  width: 56px; height: 56px;
+  width: 80px; height: 80px;
   border-radius: 50%;
   background: radial-gradient(circle at center, var(--accent-light), var(--accent));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1;
+  overflow: hidden;
+  position: relative;
 }
-#vinyl-hole {
-  width: 12px; height: 12px;
+#cover-art {
+  width: 100%; height: 100%;
   border-radius: 50%;
-  background: var(--bg-dark);
+  object-fit: cover;
+  display: none;
+  position: absolute;
+  top: 0; left: 0;
+}
+#cover-art.visible { display: block; }
+#vinyl-hole {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #000;
+  position: relative;
+  z-index: 2;
+  box-shadow: inset 0 0 1px rgba(255,255,255,0.15);
 }
 
 /* ── Song info ───────────────────────────────────── */

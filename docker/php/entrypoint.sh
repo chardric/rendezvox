@@ -43,5 +43,19 @@ rm -f /tmp/media-organizer.lock /tmp/media-organizer.lock.stop
   sleep 5
 done) &
 
+# Fix PostgreSQL sequences (self-heal after backup restores / data imports)
+php -r '
+$dsn = sprintf("pgsql:host=%s;port=5432;dbname=%s", getenv("RENDEZVOX_DB_HOST") ?: "postgres", getenv("RENDEZVOX_DB_NAME") ?: "rendezvox");
+try {
+    $db = new PDO($dsn, getenv("RENDEZVOX_DB_USER") ?: "rendezvox", getenv("RENDEZVOX_DB_PASSWORD"), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $tables = ["playlists","songs","artists","categories","users","schedules","song_requests"];
+    foreach ($tables as $t) {
+        $db->exec("SELECT setval(pg_get_serial_sequence('\''$t'\'','\''id'\''), COALESCE((SELECT MAX(id) FROM $t), 1))");
+    }
+} catch (Exception $e) {
+    echo "[entrypoint] sequence fix skipped: " . $e->getMessage() . "\n";
+}
+' 2>&1 || true
+
 # Start PHP-FPM in foreground (PID 1)
 exec php-fpm

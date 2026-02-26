@@ -16,7 +16,7 @@ class StationConfigHandler
 
         $stmt = $db->query("
             SELECT key, value FROM settings
-            WHERE key IN ('crossfade_ms', 'station_name', 'station_timezone', 'station_logo_path')
+            WHERE key IN ('crossfade_ms', 'station_name', 'station_timezone', 'station_logo_path', 'accent_color')
         ");
 
         $config = [];
@@ -32,6 +32,7 @@ class StationConfigHandler
             'station_name'     => $config['station_name'] ?? 'RendezVox',
             'station_timezone' => $serverTz,
             'has_logo'         => !empty($config['station_logo_path'] ?? ''),
+            'accent_color'     => !empty($config['accent_color'] ?? '') ? $config['accent_color'] : '#ff7800',
         ]);
     }
 }

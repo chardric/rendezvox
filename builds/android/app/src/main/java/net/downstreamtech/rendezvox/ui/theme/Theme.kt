@@ -14,9 +14,27 @@ val TextDim = Color(0xFF555555)
 val SurfaceElevated = Color(0xFF2D2D44)
 val SuccessGreen = Color(0xFF4ADE80)
 val ErrorRed = Color(0xFFF87171)
-val DedicationBg = Color(0x1A6C63FF)
-val DedicationBorder = Color(0x406C63FF)
 val DedicationText = Color(0xFFC4B5FD)
+
+fun parseHexColor(hex: String): Color {
+    val cleaned = hex.removePrefix("#")
+    if (cleaned.length != 6) return Accent
+    return try {
+        Color(0xFF000000 or cleaned.toLong(16))
+    } catch (_: Exception) {
+        Accent
+    }
+}
+
+fun lightenColor(color: Color, pct: Float): Color {
+    val r = (color.red + (1f - color.red) * pct).coerceIn(0f, 1f)
+    val g = (color.green + (1f - color.green) * pct).coerceIn(0f, 1f)
+    val b = (color.blue + (1f - color.blue) * pct).coerceIn(0f, 1f)
+    return Color(r, g, b, color.alpha)
+}
+
+fun dedicationBg(accent: Color): Color = accent.copy(alpha = 0.10f)
+fun dedicationBorder(accent: Color): Color = accent.copy(alpha = 0.25f)
 
 private val DarkColorScheme = darkColorScheme(
     primary = Accent,

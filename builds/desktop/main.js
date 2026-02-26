@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, Tray, Menu, shell, nativeTheme, nativeImage, globalShortcut, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 // Single instance lock — prevent duplicate windows
 const gotLock = app.requestSingleInstanceLock();
@@ -14,6 +15,7 @@ nativeTheme.themeSource = 'dark';
 let win = null;
 let tray = null;
 let isQuitting = false;
+const startHidden = process.argv.includes('--hidden');
 
 const iconPath = path.join(__dirname, 'src', 'icons', 'icon.png');
 
@@ -97,7 +99,7 @@ function updateTrayMenu() {
     {
       label: isVisible ? 'Hide RendezVox' : 'Show RendezVox',
       click: () => {
-        if (win) {
+        if (isVisible) {
           hideWindow();
         } else {
           showWindow();
@@ -116,14 +118,60 @@ function updateTrayMenu() {
   tray.setContextMenu(menu);
 }
 
-// ── Autostart IPC ────────────────────────────────────────
-ipcMain.handle('get-autostart', () => {
+// ── Autostart IPC (platform-specific) ────────────────────
+function getAutostartDesktopPath() {
+  const dir = path.join(app.getPath('home'), '.config', 'autostart');
+  return path.join(dir, 'rendezvox.desktop');
+}
+
+function getAutostartEnabled() {
+  if (process.platform === 'linux') {
+    return fs.existsSync(getAutostartDesktopPath());
+  }
+  // Windows: Electron's built-in API works reliably
   return app.getLoginItemSettings().openAtLogin;
+}
+
+function setAutostartEnabled(enabled) {
+  if (process.platform === 'linux') {
+    const desktopPath = getAutostartDesktopPath();
+    if (enabled) {
+      const dir = path.dirname(desktopPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      // Use process.execPath for both DEB and AppImage installs
+      const execPath = process.execPath;
+      const content = [
+        '[Desktop Entry]',
+        'Type=Application',
+        'Name=RendezVox',
+        'Comment=RendezVox — Online FM Radio Player',
+        `Exec="${execPath}" --hidden`,
+        'Icon=rendezvox',
+        'Terminal=false',
+        'Categories=AudioVideo;',
+        'X-GNOME-Autostart-enabled=true',
+        ''
+      ].join('\n');
+      fs.writeFileSync(desktopPath, content);
+    } else {
+      try { fs.unlinkSync(desktopPath); } catch (_) {}
+    }
+    return enabled;
+  }
+  // Windows
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    args: enabled ? ['--hidden'] : []
+  });
+  return app.getLoginItemSettings().openAtLogin;
+}
+
+ipcMain.handle('get-autostart', () => {
+  return getAutostartEnabled();
 });
 
 ipcMain.handle('set-autostart', (_event, enabled) => {
-  app.setLoginItemSettings({ openAtLogin: enabled });
-  return app.getLoginItemSettings().openAtLogin;
+  return setAutostartEnabled(enabled);
 });
 
 // ── Second instance handler — show window if user launches again ──
@@ -131,7 +179,12 @@ app.on('second-instance', () => showWindow());
 
 app.whenReady().then(() => {
   createTray();
-  createWindow();
+
+  if (startHidden) {
+    // Launched at login — stay in tray, don't show window
+  } else {
+    createWindow();
+  }
 
   // Media key bindings (silently skip if DE already owns them)
   try { globalShortcut.register('MediaPlayPause', () => { if (win) win.webContents.send('media-key', 'toggle'); }); } catch (_) {}

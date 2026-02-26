@@ -52,6 +52,8 @@ fun PlayerScreen(
     onRequestSong: () -> Unit,
     onChangeServer: () -> Unit = {}
 ) {
+    val accent = parseHexColor(state.accentColor)
+    val accentLight = lightenColor(accent, 0.18f)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -114,7 +116,7 @@ fun PlayerScreen(
             )
 
             // Cover art / vinyl
-            CoverArtOrVinyl(coverArtUrl = state.coverArtUrl, isPlaying = state.isPlaying)
+            CoverArtOrVinyl(coverArtUrl = state.coverArtUrl, isPlaying = state.isPlaying, accentColor = accent, accentLight = accentLight)
 
             Spacer(Modifier.height(14.dp))
 
@@ -127,7 +129,7 @@ fun PlayerScreen(
                         .padding(top = 4.dp)
                         .height(2.dp)
                         .clip(RoundedCornerShape(1.dp)),
-                    color = Accent
+                    color = accent
                 )
             } else {
                 Text(
@@ -143,7 +145,7 @@ fun PlayerScreen(
                 if (state.songArtist.isNotBlank()) {
                     Text(
                         state.songArtist,
-                        color = AccentLight,
+                        color = accentLight,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
@@ -158,6 +160,7 @@ fun PlayerScreen(
                 ProgressSection(
                     startedAtMs = state.startedAtMs,
                     durationMs = state.durationMs,
+                    accentColor = accent,
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
@@ -182,8 +185,8 @@ fun PlayerScreen(
                     onValueChange = onVolumeChange,
                     modifier = Modifier.weight(1f),
                     colors = SliderDefaults.colors(
-                        thumbColor = Accent,
-                        activeTrackColor = Accent,
+                        thumbColor = accent,
+                        activeTrackColor = accent,
                         inactiveTrackColor = Color(0xFF333355)
                     )
                 )
@@ -194,9 +197,9 @@ fun PlayerScreen(
                 Box(
                     modifier = Modifier
                         .size(60.dp)
-                        .shadow(12.dp, CircleShape, ambientColor = Accent.copy(alpha = 0.35f))
+                        .shadow(12.dp, CircleShape, ambientColor = accent.copy(alpha = 0.35f))
                         .clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(AccentLight, Accent))),
+                        .background(Brush.radialGradient(listOf(accentLight, accent))),
                     contentAlignment = Alignment.Center
                 ) {
                     IconButton(onClick = onTogglePlayback, modifier = Modifier.fillMaxSize()) {
@@ -228,13 +231,13 @@ fun PlayerScreen(
                         .clip(CircleShape)
                         .background(
                             if (state.isEmergency) Color(0xFF222233)
-                            else Accent.copy(alpha = 0.12f)
+                            else accent.copy(alpha = 0.12f)
                         )
                 ) {
                     Icon(
                         Icons.Default.MusicNote,
                         contentDescription = "Request a Song",
-                        tint = if (state.isEmergency) TextDim else Accent,
+                        tint = if (state.isEmergency) TextDim else accent,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -280,6 +283,7 @@ fun PlayerScreen(
                 DedicationCard(
                     name = state.dedicationName,
                     message = state.dedicationMessage,
+                    accentColor = accent,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
@@ -318,7 +322,7 @@ fun PlayerScreen(
                     modifier = Modifier
                         .size(20.dp)
                         .clip(CircleShape)
-                        .background(Accent)
+                        .background(accent)
                         .clickable { showAbout = true }
                 ) {
                     Text("i", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
@@ -328,6 +332,7 @@ fun PlayerScreen(
             if (showAbout) {
                 AboutDialog(
                     baseUrl = state.baseUrl,
+                    accentColor = accent,
                     onDismiss = { showAbout = false },
                     onChangeServer = {
                         showAbout = false
@@ -342,6 +347,7 @@ fun PlayerScreen(
 @Composable
 fun AboutDialog(
     baseUrl: String,
+    accentColor: Color = Accent,
     onDismiss: () -> Unit,
     onChangeServer: () -> Unit
 ) {
@@ -375,9 +381,9 @@ fun AboutDialog(
                     // Links
                     Text("LINKS", color = TextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
-                    Text("downstreamtech.net", color = Accent, fontSize = 13.sp,
+                    Text("downstreamtech.net", color = accentColor, fontSize = 13.sp,
                         modifier = Modifier.clickable { uriHandler.openUri("https://downstreamtech.net") })
-                    Text("radio.chadlinuxtech.net", color = Accent, fontSize = 13.sp,
+                    Text("radio.chadlinuxtech.net", color = accentColor, fontSize = 13.sp,
                         modifier = Modifier.clickable { uriHandler.openUri("https://radio.chadlinuxtech.net") })
                     Spacer(Modifier.height(12.dp))
 
@@ -401,7 +407,7 @@ fun AboutDialog(
                     Text(baseUrl, color = TextSecondary, fontSize = 13.sp)
                     Text(
                         "Change Server",
-                        color = Accent,
+                        color = accentColor,
                         fontSize = 13.sp,
                         modifier = Modifier
                             .clickable(onClick = onChangeServer)
@@ -420,73 +426,81 @@ fun AboutDialog(
 }
 
 @Composable
-fun CoverArtOrVinyl(coverArtUrl: String, isPlaying: Boolean) {
-    val artSize = 180.dp
-    val corner = 16.dp
+fun CoverArtOrVinyl(coverArtUrl: String, isPlaying: Boolean, accentColor: Color = Accent, accentLight: Color = AccentLight) {
+    val size = 180
     var loaded by remember(coverArtUrl) { mutableStateOf(false) }
     var failed by remember(coverArtUrl) { mutableStateOf(false) }
 
-    Box(modifier = Modifier.size(artSize), contentAlignment = Alignment.Center) {
-        if (coverArtUrl.isEmpty() || failed || !loaded) {
-            VinylDisc(isPlaying = isPlaying, size = artSize.value.toInt())
-        }
-        if (coverArtUrl.isNotEmpty()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(coverArtUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "Cover Art",
-                contentScale = ContentScale.Crop,
-                onSuccess = { loaded = true; failed = false },
-                onError = { failed = true; loaded = false },
-                modifier = Modifier
-                    .size(artSize)
-                    .shadow(20.dp, RoundedCornerShape(corner))
-                    .clip(RoundedCornerShape(corner))
-                    .then(if (loaded && !failed) Modifier else Modifier.size(0.dp))
-            )
-        }
-    }
-}
+    val rotation by rememberInfiniteTransition(label = "cv")
+        .animateFloat(0f, 360f, infiniteRepeatable(tween(4000, easing = LinearEasing)), label = "cr")
 
-@Composable
-fun VinylDisc(isPlaying: Boolean, size: Int = 180) {
-    val rotation by rememberInfiniteTransition(label = "v")
-        .animateFloat(0f, 360f, infiniteRepeatable(tween(4000, easing = LinearEasing)), label = "r")
+    val labelSize = (size * 0.44f).dp
+    val holeSize = (size * 0.055f).dp
 
     Box(
         modifier = Modifier
             .size(size.dp)
-            .shadow(12.dp, CircleShape, ambientColor = Accent.copy(alpha = 0.15f))
+            .shadow(12.dp, CircleShape, ambientColor = accentColor.copy(alpha = 0.15f))
             .clip(CircleShape)
-            .background(Brush.radialGradient(listOf(Color(0xFF1C1C30), Color(0xFF0F0F1A), Color(0xFF1C1C30))))
+            .background(
+                Brush.radialGradient(
+                    listOf(Color(0xFF1A1A1A), Color(0xFF111111), Color(0xFF0D0D0D), Color(0xFF080808))
+                )
+            )
             .rotate(if (isPlaying) rotation else 0f),
         contentAlignment = Alignment.Center
     ) {
+        // Groove rings
         for ((ring, a) in listOf(
-            (size * 0.85f).toInt() to 0.07f,
-            (size * 0.68f).toInt() to 0.05f,
-            (size * 0.52f).toInt() to 0.04f
+            (size * 0.93f).toInt() to 0.04f,
+            (size * 0.85f).toInt() to 0.04f,
+            (size * 0.75f).toInt() to 0.03f,
+            (size * 0.65f).toInt() to 0.04f,
+            (size * 0.55f).toInt() to 0.03f
         )) {
             Canvas(modifier = Modifier.size(ring.dp).align(Alignment.Center)) {
                 drawCircle(Color.White.copy(alpha = a), style = Stroke(width = 1f))
             }
         }
+
+        // Center label (cover art or accent gradient)
         Box(
             modifier = Modifier
-                .size((size * 0.30f).dp)
+                .size(labelSize)
                 .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(AccentLight, Accent))),
+                .background(Brush.radialGradient(listOf(accentLight, accentColor))),
             contentAlignment = Alignment.Center
         ) {
-            Box(Modifier.size((size * 0.06f).dp).clip(CircleShape).background(BgDark))
+            if (coverArtUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(coverArtUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Cover Art",
+                    contentScale = ContentScale.Crop,
+                    onSuccess = { loaded = true; failed = false },
+                    onError = { failed = true; loaded = false },
+                    modifier = Modifier
+                        .size(labelSize)
+                        .clip(CircleShape)
+                        .then(if (loaded && !failed) Modifier else Modifier.size(0.dp))
+                )
+            }
         }
+
+        // Spindle hole
+        Box(
+            Modifier
+                .size(holeSize)
+                .clip(CircleShape)
+                .background(Color.Black)
+        )
     }
 }
 
 @Composable
-fun ProgressSection(startedAtMs: Long, durationMs: Long, modifier: Modifier = Modifier) {
+fun ProgressSection(startedAtMs: Long, durationMs: Long, accentColor: Color = Accent, modifier: Modifier = Modifier) {
     var elapsedMs by remember { mutableLongStateOf(0L) }
     LaunchedEffect(startedAtMs, durationMs) {
         while (true) {
@@ -500,7 +514,7 @@ fun ProgressSection(startedAtMs: Long, durationMs: Long, modifier: Modifier = Mo
         LinearProgressIndicator(
             progress = { pct },
             modifier = Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)),
-            color = Accent,
+            color = accentColor,
             trackColor = Color(0xFF333355)
         )
         Row(modifier = Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -511,12 +525,12 @@ fun ProgressSection(startedAtMs: Long, durationMs: Long, modifier: Modifier = Mo
 }
 
 @Composable
-fun DedicationCard(name: String?, message: String?, modifier: Modifier = Modifier) {
+fun DedicationCard(name: String?, message: String?, accentColor: Color = Accent, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = DedicationBg),
-        border = androidx.compose.foundation.BorderStroke(1.dp, DedicationBorder)
+        colors = CardDefaults.cardColors(containerColor = dedicationBg(accentColor)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, dedicationBorder(accentColor))
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Text("REQUESTED BY", color = TextDim, fontSize = 9.sp, letterSpacing = 0.4.sp, fontWeight = FontWeight.Medium)
