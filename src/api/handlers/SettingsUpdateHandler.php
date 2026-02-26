@@ -29,19 +29,15 @@ class SettingsUpdateHandler
         }
 
         $stmt = $db->prepare('
-            UPDATE settings SET value = :value, updated_by = :user_id
-            WHERE key = :key
+            INSERT INTO settings (key, value, updated_by)
+            VALUES (:key, :value, :user_id)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by
         ');
         $stmt->execute([
             'value'   => (string) $value,
             'key'     => $key,
             'user_id' => $user['sub'],
         ]);
-
-        if ($stmt->rowCount() === 0) {
-            Response::error('Setting not found: ' . $key, 404);
-            return;
-        }
 
         Response::json(['message' => 'Setting updated', 'key' => $key, 'value' => (string) $value]);
     }

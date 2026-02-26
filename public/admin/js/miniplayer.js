@@ -9,6 +9,7 @@ var RendezVoxMiniPlayer = (function() {
   var SSE_URL      = '/api/sse/now-playing';
   var SK_PLAYING   = 'rvox_mp_playing';
   var SK_VOLUME    = 'rvox_mp_volume';
+  var SK_MINIMIZED = 'rvox_mp_minimized';
 
   var audio    = null;
   var sse      = null;
@@ -33,6 +34,11 @@ var RendezVoxMiniPlayer = (function() {
     createAudio();
     restoreState();
     connectSSE();
+
+    // Close SSE immediately on page unload to free PHP-FPM worker
+    window.addEventListener('beforeunload', function() {
+      if (sse) { sse.close(); sse = null; }
+    });
   }
 
   // ── DOM injection ─────────────────────────────────────
@@ -172,6 +178,11 @@ var RendezVoxMiniPlayer = (function() {
   }
 
   function restoreState() {
+    // Restore minimized state
+    if (sessionStorage.getItem(SK_MINIMIZED) === 'true' && barEl) {
+      barEl.classList.add('mp-minimized');
+    }
+
     var savedVol = sessionStorage.getItem(SK_VOLUME);
     var vol = savedVol !== null ? parseInt(savedVol, 10) : 80;
     if (isNaN(vol)) vol = 80;
@@ -211,10 +222,12 @@ var RendezVoxMiniPlayer = (function() {
 
   function minimize() {
     if (barEl) barEl.classList.add('mp-minimized');
+    sessionStorage.setItem(SK_MINIMIZED, 'true');
   }
 
   function expand() {
     if (barEl) barEl.classList.remove('mp-minimized');
+    sessionStorage.setItem(SK_MINIMIZED, 'false');
   }
 
   // ── SSE ───────────────────────────────────────────────

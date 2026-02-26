@@ -100,7 +100,12 @@ class ScheduleBulkHandler
         $db->beginTransaction();
         try {
             if ($clearExisting) {
-                $db->exec('DELETE FROM schedules');
+                $clearSpecial = !empty($body['clear_special']);
+                if ($clearSpecial) {
+                    $db->exec('DELETE FROM schedules WHERE priority = 99');
+                } else {
+                    $db->exec('DELETE FROM schedules WHERE priority < 99');
+                }
             }
 
             $stmt = $db->prepare('

@@ -200,7 +200,7 @@
   .palette-chips {
     display: flex;
     gap: 6px;
-    overflow-x: auto;
+    flex-wrap: wrap;
   }
   .palette-chip {
     display: inline-flex;
@@ -225,6 +225,23 @@
 
   /* Drop-target highlight during palette drag */
   .cal-day-col.drag-over { background: rgba(0,200,160,.08); }
+
+  /* Selected blocks (multi-select) */
+  .cal-block.selected { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent); z-index: 6; }
+  .cal-block.selected::after {
+    content: '\2713';
+    position: absolute;
+    top: 2px; right: 3px;
+    font-size: .55rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 </style>
 </head>
 <body>
@@ -240,6 +257,7 @@
       <h1 class="page-title">Schedules</h1>
       <span class="cal-month-label" id="calMonthLabel"></span>
       <span style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-danger btn-sm" id="btnDeleteSelected" style="display:none">Delete Selected</button>
         <button class="btn btn-ghost btn-sm" id="btnClearSchedules">Clear</button>
         <button class="btn btn-primary btn-sm" id="btnSurpriseSchedule">Surprise Me!</button>
       </span>
