@@ -12,19 +12,15 @@ const songTitle      = $('song-title');
 const songArtist     = $('song-artist');
 const connectingMsg  = $('connecting-msg');
 const connectingBar  = $('connecting-bar');
-const coverArt       = $('cover-art');
-const coverWrap      = $('cover-wrap');
-const vinyl          = $('vinyl');
+const turntable      = $('turntable');
+const vinylWrap      = $('vinyl-wrap');
+const vinylLabel     = $('vinyl-label');
+const tonearmEl      = $('tonearm');
+const bgArt          = $('bgArt');
+const eqBars         = $('eq-bars');
+const liveBadge      = $('live-badge');
 const upNext         = $('up-next');
 const listenerCount  = $('listener-count');
-const progressWrap   = $('progress-wrap');
-const progressFill   = $('progress-fill');
-const timeElapsed    = $('time-elapsed');
-const timeRemain     = $('time-remain');
-const playBtn        = $('play-btn');
-const iconPlay       = $('icon-play');
-const iconStop       = $('icon-stop');
-const iconSpinner    = $('icon-spinner');
 const volSlider      = $('volume-slider');
 const volIcon        = $('vol-icon');
 const dedicationCard = $('dedication-card');
@@ -47,7 +43,6 @@ let isBuffering = false;
 let currentSongId = 0;
 let durationMs = 0;
 let startedAtMs = 0;
-let progressInterval = null;
 let sseSource = null;
 let listenerInterval = null;
 let resolvedSong = null;
@@ -81,6 +76,7 @@ function startPlayback() {
   audio.src = `${STREAM_URL}?t=${Date.now()}`;
   setBuffering(true);
   setConnecting(true);
+  updateTonearm();
   audio.play().catch(() => { setBuffering(false); setConnecting(false); });
 }
 
@@ -103,41 +99,19 @@ function togglePlayback() {
   }
 }
 
-// Use CSS classes instead of inline styles (CSP blocks inline style attrs)
-function showIcon(which) {
-  iconPlay.classList.remove('active');
-  iconStop.classList.remove('active');
-  iconSpinner.classList.remove('active');
-  which.classList.add('active');
-}
-
 function setPlayState(playing) {
   isPlaying = playing;
-  if (isBuffering) {
-    showIcon(iconSpinner);
-  } else if (playing) {
-    showIcon(iconStop);
-  } else {
-    showIcon(iconPlay);
-  }
-
-  if (playing) {
-    coverWrap.classList.add('spin');
-  } else if (!isBuffering) {
-    coverWrap.classList.remove('spin');
-  }
+  const isLive = playing && !isBuffering;
+  turntable.classList.toggle('is-playing', isLive);
+  vinylWrap.classList.toggle('spinning', isLive);
+  eqBars.classList.toggle('eq-active', isLive);
+  liveBadge.style.display = isLive ? 'inline-flex' : 'none';
+  updateTonearm();
   setConnecting(false);
 }
 
 function setBuffering(buffering) {
   isBuffering = buffering;
-  if (buffering) {
-    showIcon(iconSpinner);
-  } else if (isPlaying) {
-    showIcon(iconStop);
-  } else {
-    showIcon(iconPlay);
-  }
 }
 
 function setConnecting(connecting) {
@@ -157,38 +131,79 @@ volSlider.addEventListener('input', () => {
     : '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>';
 });
 
-playBtn.addEventListener('click', togglePlayback);
-
 // ── Cover art ─────────────────────────────────────────────
 function loadCoverArt(songId, hasCoverArt) {
   if (hasCoverArt && songId > 0) {
     const url = `${BASE_URL}/api/cover?id=${songId}&t=${Date.now()}`;
     const img = new Image();
     img.onload = () => {
-      coverArt.src = url;
-      coverArt.classList.add('visible');
+      vinylLabel.innerHTML = '';
+      vinylLabel.appendChild(img);
+      bgArt.style.backgroundImage = `url(${url})`;
+      bgArt.style.opacity = '1';
     };
     img.onerror = () => {
-      coverArt.classList.remove('visible');
+      vinylLabel.innerHTML = '';
+      bgArt.style.opacity = '0';
+      setTimeout(() => { bgArt.style.backgroundImage = ''; }, 800);
     };
     img.src = url;
+    img.alt = 'Cover art';
   } else {
-    coverArt.classList.remove('visible');
+    vinylLabel.innerHTML = '';
+    bgArt.style.opacity = '0';
+    setTimeout(() => { bgArt.style.backgroundImage = ''; }, 800);
   }
 }
+
+// ── Tonearm ───────────────────────────────────────────────
+function updateTonearm() {
+  const active = isPlaying || isBuffering;
+  if (!active || !startedAtMs || !durationMs) {
+    tonearmEl.style.transform = 'rotate(-20deg) translateY(-2px)';
+    return;
+  }
+  let elapsed = Date.now() - startedAtMs;
+  if (elapsed < 0) elapsed = 0;
+  if (elapsed > durationMs) elapsed = durationMs;
+  const pct = elapsed / durationMs;
+  const angle = pct * 20;
+  tonearmEl.style.transform = `rotate(${angle}deg)`;
+}
+
+// Click turntable to play/stop
+turntable.addEventListener('click', togglePlayback);
 
 // ── Now playing ───────────────────────────────────────────
 function handleNowPlaying(data) {
   const song = data.song;
+  const nowPlayingWrap = $('now-playing-wrap');
 
   if (song) {
-    if (song.id !== currentSongId) {
+    const songChanged = song.id !== currentSongId;
+    if (songChanged) {
       currentSongId = song.id || 0;
       loadCoverArt(song.id, song.has_cover_art);
+
+      // Song change animation
+      if (currentSongId > 0) {
+        nowPlayingWrap.classList.remove('song-changing');
+        void nowPlayingWrap.offsetWidth;
+        nowPlayingWrap.classList.add('song-changing');
+        nowPlayingWrap.addEventListener('animationend', function handler() {
+          nowPlayingWrap.classList.remove('song-changing');
+          nowPlayingWrap.removeEventListener('animationend', handler);
+        });
+      }
     }
     songTitle.textContent  = song.title  || '\u2014';
     songArtist.textContent = song.artist || '';
     durationMs   = song.duration_ms || 0;
+    // Marquee for long titles
+    requestAnimationFrame(() => {
+      checkMarquee(songTitle);
+      checkMarquee(songArtist);
+    });
   } else {
     songTitle.textContent  = '\u2014';
     songArtist.textContent = '';
@@ -197,9 +212,10 @@ function handleNowPlaying(data) {
     loadCoverArt(0, false);
   }
 
-  if (data.started_at) {
-    startedAtMs = parseISO(data.started_at);
-  } else {
+  const startedAt = data.started_at || (song && song.started_at);
+  if (startedAt) {
+    startedAtMs = parseISO(startedAt);
+  } else if (!song) {
     startedAtMs = 0;
   }
 
@@ -221,39 +237,11 @@ function handleNowPlaying(data) {
 
   // Emergency mode
   requestBtn.disabled = data.is_emergency || false;
-
-  updateProgress();
-}
-
-// ── Progress ──────────────────────────────────────────────
-function updateProgress() {
-  if (progressInterval) clearInterval(progressInterval);
-
-  if (!durationMs || !startedAtMs) {
-    progressWrap.classList.remove('visible');
-    return;
+  if (data.is_emergency) {
+    requestBtn.textContent = 'Requests Unavailable';
+  } else {
+    requestBtn.textContent = 'Request a Song';
   }
-  progressWrap.classList.add('visible');
-
-  function tick() {
-    const now     = Date.now();
-    const elapsed = Math.max(0, Math.min(now - startedAtMs, durationMs));
-    const remain  = Math.max(0, durationMs - elapsed);
-    const pct     = durationMs > 0 ? (elapsed / durationMs) * 100 : 0;
-    progressFill.style.width = pct.toFixed(2) + '%';
-    timeElapsed.textContent  = formatMs(elapsed);
-    timeRemain.textContent   = '-' + formatMs(remain);
-  }
-
-  tick();
-  progressInterval = setInterval(tick, 1000);
-}
-
-function formatMs(ms) {
-  const s   = Math.floor(ms / 1000);
-  const min = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
 function parseISO(str) {
@@ -515,6 +503,61 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+// ── Marquee for long titles ──────────────────────────────
+function checkMarquee(el) {
+  const existing = el.querySelector('.marquee-inner');
+  if (existing) return;
+  if (el.scrollWidth > el.clientWidth) {
+    const text = el.textContent;
+    const span = document.createElement('span');
+    span.className = 'marquee-inner';
+    span.textContent = text + '\u00a0\u00a0\u00a0\u00a0\u00a0' + text;
+    el.textContent = '';
+    el.appendChild(span);
+  }
+}
+
+// ── Recently played ─────────────────────────────────────
+let historyLoaded = false;
+let historyInterval = null;
+
+$('history-toggle').addEventListener('click', () => {
+  $('history').classList.toggle('open');
+  if (!historyLoaded) {
+    historyLoaded = true;
+    fetchRecentPlays();
+    historyInterval = setInterval(fetchRecentPlays, 60000);
+  }
+});
+
+async function fetchRecentPlays() {
+  try {
+    const r = await fetch(`${BASE_URL}/api/recent-plays`);
+    const data = await r.json();
+    const list = $('history-list');
+    if (!data.plays || !data.plays.length) {
+      list.innerHTML = '<div class="history-item"><span class="hi-title" style="color:var(--text-dim)">No recent tracks</span></div>';
+      return;
+    }
+    list.innerHTML = data.plays.map(p =>
+      `<div class="history-item"><span class="hi-title">${esc(p.title)}</span><span class="hi-artist">${esc(p.artist)}</span></div>`
+    ).join('');
+  } catch (_) {}
+}
+
+// ── Time-of-day ambient color ───────────────────────────
+function updateAmbient() {
+  const h = new Date().getHours();
+  let color;
+  if (h >= 20 || h < 5) color = 'rgba(20,30,80,.15)';
+  else if (h >= 5 && h < 11) color = 'rgba(80,60,20,.12)';
+  else if (h >= 11 && h < 16) color = 'transparent';
+  else color = 'rgba(80,40,30,.12)';
+  document.documentElement.style.setProperty('--ambient', color);
+}
+updateAmbient();
+setInterval(updateAmbient, 1800000);
+
 // ── Autostart toggle ─────────────────────────────────────
 const autostartToggle = $('autostart-toggle');
 if (window.electronAPI) {
@@ -607,16 +650,39 @@ $('server-connect').addEventListener('click', () => {
 });
 
 // ── App start ────────────────────────────────────────────
+let nowPlayingInterval = null;
+let tonearmInterval = null;
+
 async function startApp() {
   failCount = 0;
   $('offline-banner').classList.remove('visible');
   await fetchConfig();
   await fetchNowPlaying();
   connectSSE();
-  setInterval(fetchNowPlaying, 30_000);
+  nowPlayingInterval = setInterval(fetchNowPlaying, 30_000);
   listenerInterval = setInterval(fetchListeners, 15_000);
+  tonearmInterval = setInterval(updateTonearm, 1000);
   fetchListeners();
 }
+
+// ── Page Visibility API ─────────────────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (nowPlayingInterval) { clearInterval(nowPlayingInterval); nowPlayingInterval = null; }
+    if (listenerInterval) { clearInterval(listenerInterval); listenerInterval = null; }
+    if (tonearmInterval) { clearInterval(tonearmInterval); tonearmInterval = null; }
+    if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
+    if (sseSource) { sseSource.close(); sseSource = null; }
+  } else {
+    fetchNowPlaying();
+    fetchListeners();
+    connectSSE();
+    nowPlayingInterval = setInterval(fetchNowPlaying, 30_000);
+    listenerInterval = setInterval(fetchListeners, 15_000);
+    tonearmInterval = setInterval(updateTonearm, 1000);
+    if (historyLoaded) historyInterval = setInterval(fetchRecentPlays, 60_000);
+  }
+});
 
 // ── Init ──────────────────────────────────────────────────
 (function init() {

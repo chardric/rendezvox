@@ -14,7 +14,8 @@
     "start": "electron .",
     "build:linux": "electron-builder --linux deb AppImage",
     "build:win": "electron-builder --win nsis",
-    "build:all": "electron-builder --linux deb AppImage --win nsis"
+    "build:mac": "electron-builder --mac dmg",
+    "build:all": "electron-builder --linux deb AppImage --win nsis --mac dmg"
   },
   "dependencies": {},
   "devDependencies": {
@@ -51,6 +52,18 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icons/icon.icns",
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "title": "RendezVox",
+      "artifactName": "RendezVox-${version}-${arch}.${ext}"
     },
     "deb": {
       "depends": ["libgtk-3-0", "libnss3", "libxss1", "libasound2"]

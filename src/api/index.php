@@ -108,6 +108,7 @@ require __DIR__ . '/handlers/LogoServeHandler.php';
 require __DIR__ . '/handlers/CoverArtHandler.php';
 require __DIR__ . '/handlers/SetupHandler.php';
 require __DIR__ . '/handlers/SystemInfoHandler.php';
+require __DIR__ . '/handlers/RecentPlaysPublicHandler.php';
 
 // -- Route definitions --
 Router::get('/health',       [HealthHandler::class,      'handle']);
@@ -237,6 +238,7 @@ Router::post('/admin/logo',            [LogoUploadHandler::class,     'handle'])
 Router::delete('/admin/logo',          [LogoUploadHandler::class,     'delete']);
 Router::get('/logo',                   [LogoServeHandler::class,      'handle']);
 Router::get('/cover',                  [CoverArtHandler::class,       'handle']);
+Router::get('/recent-plays',           [RecentPlaysPublicHandler::class, 'handle']);
 
 // -- Settings --
 Router::get('/admin/settings',         [SettingsListHandler::class,   'handle']);

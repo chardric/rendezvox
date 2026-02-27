@@ -11,9 +11,16 @@ class ManifestHandler
     {
         $db = Database::get();
 
-        $stmt = $db->prepare("SELECT value FROM settings WHERE key = 'station_name'");
-        $stmt->execute();
-        $name = $stmt->fetchColumn() ?: 'RendezVox';
+        $stmt = $db->query("SELECT key, value FROM settings WHERE key IN ('station_name', 'accent_color')");
+        $settings = [];
+        while ($row = $stmt->fetch()) {
+            $settings[$row['key']] = $row['value'];
+        }
+        $name  = $settings['station_name'] ?? 'RendezVox';
+        $accent = $settings['accent_color'] ?? '#ff7800';
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $accent)) {
+            $accent = '#ff7800';
+        }
 
         header('Content-Type: application/manifest+json');
         echo json_encode([
@@ -23,8 +30,9 @@ class ManifestHandler
             'start_url'        => '/',
             'display'          => 'standalone',
             'orientation'      => 'portrait',
-            'theme_color'      => '#1a1a2e',
-            'background_color' => '#0f0f0f',
+            'theme_color'      => $accent,
+            'background_color' => '#0a0a0c',
+            'categories'       => ['music', 'entertainment'],
             'icons'            => [
                 ['src' => '/assets/icon-48x48.png',   'sizes' => '48x48',   'type' => 'image/png'],
                 ['src' => '/assets/icon-72x72.png',   'sizes' => '72x72',   'type' => 'image/png'],

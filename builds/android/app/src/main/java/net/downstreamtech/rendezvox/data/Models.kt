@@ -11,7 +11,8 @@ data class SongInfo(
     val title: String = "",
     val artist: String = "",
     val duration_ms: Long = 0,
-    val has_cover_art: Boolean = false
+    val has_cover_art: Boolean = false,
+    val started_at: String? = null
 )
 
 data class RequestInfo(
@@ -51,6 +52,16 @@ data class RequestResponse(
     val suggestions: List<SearchSong>? = null
 )
 
+data class RecentPlay(
+    val title: String = "",
+    val artist: String = "",
+    val ended_at: String = ""
+)
+
+data class RecentPlaysResponse(
+    val plays: List<RecentPlay> = emptyList()
+)
+
 data class NowPlayingState(
     val stationName: String = "RendezVox",
     val tagline: String = "Online Radio",
@@ -72,7 +83,9 @@ data class NowPlayingState(
     val isOffline: Boolean = false,
     val volume: Float = 0.8f,
     val baseUrl: String = ServerPrefs.DEFAULT_URL,
-    val accentColor: String = "#ff7800"
+    val accentColor: String = "#ff7800",
+    val recentPlays: List<RecentPlay> = emptyList(),
+    val showHistory: Boolean = false
 ) {
     val coverArtUrl: String
         get() = if (hasCoverArt && songId > 0) "$baseUrl/api/cover?id=$songId" else ""
