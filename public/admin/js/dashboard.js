@@ -230,7 +230,8 @@ var RendezVoxDashboard = (function() {
     var fillEl    = document.getElementById('djProgressFill');
     var elapsedEl = document.getElementById('djElapsed');
     var remEl     = document.getElementById('djRemaining');
-    var coverEl   = document.getElementById('djCover');
+    var vinylEl    = document.getElementById('djVinyl');
+    var tonearmEl  = document.getElementById('djTonearm');
 
     clearInterval(progressTimer);
 
@@ -242,17 +243,18 @@ var RendezVoxDashboard = (function() {
       fillEl.style.width   = '0%';
       elapsedEl.textContent = '0:00';
       remEl.textContent     = '—';
-      coverEl.classList.remove('spinning');
-      setCoverArt(coverEl, null);
+      vinylEl.classList.remove('spinning');
+      if (tonearmEl) tonearmEl.style.transform = 'rotate(-20deg) translateY(-1px)';
+      setCoverArt(vinylEl, null);
       return;
     }
 
     liveEl.classList.add('on');
-    coverEl.classList.add('spinning');
+    vinylEl.classList.add('spinning');
     labelEl.textContent  = 'LIVE';
     titleEl.textContent  = np.title;
     artistEl.textContent = np.artist;
-    setCoverArt(coverEl, np.has_cover_art ? np.song_id : null);
+    setCoverArt(vinylEl, np.has_cover_art ? np.song_id : null);
 
     var duration  = np.duration_ms || 0;
     var startedAt = np.started_at ? new Date(np.started_at).getTime() : Date.now();
@@ -267,6 +269,10 @@ var RendezVoxDashboard = (function() {
       elapsedEl.textContent = fmtMs(elapsedMs);
       var rem = duration - elapsedMs;
       remEl.textContent     = '\u2212' + fmtMs(rem > 0 ? rem : 0);
+      if (tonearmEl) {
+        var angle = (pct / 100) * 20;
+        tonearmEl.style.transform = 'rotate(' + angle + 'deg)';
+      }
     }
 
     tick();
