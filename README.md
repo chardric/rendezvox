@@ -2,12 +2,26 @@
 
 **Online FM Radio Automation System**
 
-RendezVox is a self-hosted, fully automated internet radio station built with PHP, Liquidsoap, Icecast, and PostgreSQL. It provides a complete solution for managing music libraries, scheduling playlists, streaming live audio, and accepting listener song requests — all from a modern dark-themed admin panel. Includes a native Android mobile app for listeners.
+RendezVox is a self-hosted, fully automated internet radio station built with PHP, Liquidsoap, Icecast, and PostgreSQL. It provides a complete solution for managing music libraries, scheduling playlists, streaming live audio, and accepting listener song requests — all from a modern dark-themed admin panel. Includes desktop apps for Linux, Windows, and macOS, plus a native Android mobile app.
+
+---
+
+## Downloads
+
+| Platform | Download |
+|----------|----------|
+| **Android** | [RendezVox-1.0.0.apk](https://github.com/chardric/rendezvox/releases/download/v1.0.0/RendezVox-1.0.0.apk) |
+| **Linux (x64 DEB)** | [rendezvox_1.0.0_amd64.deb](https://github.com/chardric/rendezvox/releases/download/v1.0.0/rendezvox_1.0.0_amd64.deb) |
+| **Linux (ARM64 DEB)** | [rendezvox_1.0.0_arm64.deb](https://github.com/chardric/rendezvox/releases/download/v1.0.0/rendezvox_1.0.0_arm64.deb) |
+| **Linux (x64 AppImage)** | [RendezVox-1.0.0.AppImage](https://github.com/chardric/rendezvox/releases/download/v1.0.0/RendezVox-1.0.0.AppImage) |
+| **Linux (ARM64 AppImage)** | [RendezVox-1.0.0-arm64.AppImage](https://github.com/chardric/rendezvox/releases/download/v1.0.0/RendezVox-1.0.0-arm64.AppImage) |
+| **Windows** | [RendezVox Setup 1.0.0.exe](https://github.com/chardric/rendezvox/releases/download/v1.0.0/RendezVox.Setup.1.0.0.exe) |
 
 ---
 
 ## Table of Contents
 
+- [Downloads](#downloads)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
@@ -16,6 +30,7 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - [Deployment](#deployment)
   - [Standard Server (Docker)](#standard-server-docker)
   - [Raspberry Pi (Docker)](#raspberry-pi-docker)
+- [Desktop App](#desktop-app)
 - [Mobile App](#mobile-app)
   - [Android](#android-app)
 - [Project Structure](#project-structure)
@@ -80,26 +95,42 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - Weather widget integration
 
 ### Public Listener Page (Web)
-- Clean single-page player with album art placeholder
-- Play/stop, volume controls
+- Vinyl turntable player with animated tonearm as progress indicator
+- Click turntable to play/stop — tonearm swings from parked to record position
+- Blurred cover art background with time-of-day ambient color overlay
+- Equalizer visualizer bars with accent color theming
 - Real-time now-playing and up-next display (SSE)
-- Progress bar with elapsed/remaining time
-- Listener count display
+- Song change animation with marquee for long titles
+- Listener count with live pulse badge
 - Song request modal with fuzzy search and suggestions
 - Dedication/request-by display for current song
+- Recently played history with expand/collapse
 - Auto-reconnect on stream interruption
 - PWA support (installable, service worker)
+- Server-synced accent color
+
+### Desktop App (Electron)
+- Native app for Linux (DEB + AppImage, x64 + ARM64), Windows (NSIS), and macOS (DMG)
+- Vinyl turntable player matching the web UI/UX
+- System tray integration with minimize-to-tray
+- Autostart on login with `--hidden` flag
+- Media key bindings (play/pause, stop)
+- Single-instance lock — second launch focuses existing window
+- Page visibility API — pauses polling when minimized
+- Song request with fuzzy search
+- Volume control, listener count, dedication display
 
 ### Mobile App (Android)
-- Native app matching the web listener experience
+- Native Kotlin app with Jetpack Compose and Material Design 3
+- Vinyl turntable player matching the web UI/UX
 - Background audio playback with media notification controls
 - Real-time now-playing via SSE with polling fallback
-- Animated vinyl disc player visualization
 - Song request with autocomplete search
-- Progress bar, volume slider, listener count
+- Volume control, listener count, up-next display
 - Dedication card display
 - Configurable server URL (LAN or public)
-- Dark theme matching the web UI
+- Server selection screen with connection validation
+- Offline detection with auto-retry and visual banner
 
 ---
 
@@ -118,10 +149,11 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
        │            │                             │
        │            └──── /stream/* ──────────────┘
        │                  (audio proxy)
-  ┌────▼─────────────────────────────────────────┐
-  │  Browser (Admin Panel / Listener Page)       │
-  │  Android App (Kotlin/Compose + Media3)       │
-  └──────────────────────────────────────────────┘
+  ┌────▼─────────────────────────────────────────────────┐
+  │  Browser (Admin Panel / Listener Page)               │
+  │  Desktop App (Electron — Linux, Windows, macOS)      │
+  │  Android App (Kotlin/Compose + Media3)               │
+  └──────────────────────────────────────────────────────┘
 
 All traffic flows through Nginx on port 80 — including the audio
 stream at /stream/live. No need to expose Icecast port 8000.
@@ -147,6 +179,12 @@ stream at /stream/live. No need to expose Icecast port 8000.
 - **Authentication:** JWT tokens, bcrypt password hashing
 - **Real-time:** Server-Sent Events (SSE)
 
+### Desktop App
+- **Framework:** Electron 33
+- **Builder:** electron-builder 25
+- **Targets:** Linux DEB/AppImage (x64 + ARM64), Windows NSIS, macOS DMG
+- **Frontend:** Vanilla HTML/CSS/JS (no build step)
+
 ### Android App
 - **Language:** Kotlin 2.0
 - **UI:** Jetpack Compose with Material Design 3
@@ -169,6 +207,13 @@ stream at /stream/live. No need to expose Icecast port 8000.
 | **Software** | Docker Engine 24+, Docker Compose v2 | Docker Engine 27+, Docker Compose v2.29+ |
 | **Network** | Open port 80 (HTTP) | Static IP or Cloudflare Tunnel |
 
+### Desktop App Build
+
+| Requirement | Version |
+|-------------|---------|
+| **Node.js** | 18+ |
+| **npm** | 9+ |
+
 ### Android App Build
 
 | Requirement | Version |
@@ -178,12 +223,15 @@ stream at /stream/live. No need to expose Icecast port 8000.
 | **Gradle** | 8.10+ (included via wrapper) |
 | **Disk** | ~2 GB for SDK + Gradle cache |
 
-### Mobile Device Requirements
+### Client Device Requirements
 
 | Platform | Minimum |
 |----------|---------|
 | **Android** | Android 8.0 (Oreo, API 26) — ~95% of active devices |
-| **Network** | WiFi or cellular access to the RendezVox server |
+| **Linux** | x64 or ARM64 with GTK 3 |
+| **Windows** | Windows 10+ (x64) |
+| **macOS** | macOS 13+ (x64 or ARM64) |
+| **Web** | Any modern browser |
 
 ---
 
@@ -358,34 +406,65 @@ docker compose -f docker-compose.yml -f ../deploy/rpi/docker-compose.override.ym
 
 ---
 
+## Desktop App
+
+The desktop app is an Electron application located in `builds/desktop/`. Pre-built installers are available on the [Releases](https://github.com/chardric/rendezvox/releases) page.
+
+### Installing
+
+| Platform | Install |
+|----------|---------|
+| **Ubuntu/Debian** | `sudo dpkg -i rendezvox_1.0.0_amd64.deb` |
+| **RPi/ARM64** | `sudo dpkg -i rendezvox_1.0.0_arm64.deb` |
+| **Linux (any)** | `chmod +x RendezVox-1.0.0.AppImage && ./RendezVox-1.0.0.AppImage` |
+| **Windows** | Run `RendezVox Setup 1.0.0.exe` |
+| **macOS** | Open `RendezVox-1.0.0.dmg` and drag to Applications |
+
+### Building from Source
+
+```bash
+cd builds/desktop
+npm install
+
+# Build for your platform
+npm run build:linux    # DEB + AppImage (x64 + ARM64)
+npm run build:win      # Windows NSIS
+npm run build:mac      # macOS DMG
+npm run build:all      # All platforms
+```
+
+### Features
+- Vinyl turntable player — click to play/stop, tonearm shows song progress
+- System tray with minimize-to-tray and autostart on login
+- Media key support (play/pause, stop)
+- Single-instance lock — launching again focuses existing window
+- Song request with fuzzy search and suggestions
+- Volume control, listener count, dedication display
+- Recently played history
+- Server-synced accent color and time-of-day ambient overlay
+
+---
+
 ## Mobile App
 
 ### Android App
 
-The Android app is a native Kotlin application using Jetpack Compose and Media3 ExoPlayer, located in `mobile/android/`.
+The Android app is a native Kotlin application using Jetpack Compose and Media3 ExoPlayer, located in `builds/android/`. Pre-built APKs are available on the [Releases](https://github.com/chardric/rendezvox/releases) page.
 
 #### Building the APK
 
 ```bash
-cd mobile/android
+cd builds/android
 
 # Build debug APK (for testing)
 ./gradlew assembleDebug
 
-# APK output location:
-# app/build/outputs/apk/debug/app-debug.apk
-```
-
-Transfer the APK to your Android device and install it (enable "Install from unknown sources" in settings).
-
-#### Building a Release APK
-
-A signing keystore is included in the build config. To build:
-
-```bash
+# Build signed release APK
 ./gradlew assembleRelease
 # Output: app/build/outputs/apk/release/RendezVox-1.0.0.apk
 ```
+
+Transfer the APK to your Android device and install it (enable "Install from unknown sources" in settings).
 
 #### Usage
 
@@ -394,17 +473,19 @@ A signing keystore is included in the build config. To build:
    - **Internet:** `radio.example.com` (auto-prepends `https://`)
    - **LAN:** `http://192.168.1.100` (type the `http://` prefix for local servers)
 3. Tap **Connect** — the player loads station info and starts streaming
-4. Audio plays in the background with notification controls
-5. Use the **Request a Song** button to submit listener requests
-6. Access **Settings** (gear icon) to change the server URL
+4. Tap the vinyl turntable to play/stop
+5. Audio plays in the background with notification controls
+6. Use the **Request a Song** button to submit listener requests
 
 #### Features
+- Vinyl turntable player — tap to play/stop, tonearm shows song progress
 - Background audio with media notification (play/pause/stop from notification bar or lock screen)
 - Real-time now-playing updates via SSE
-- Animated vinyl disc visualization
+- Equalizer visualizer with accent color theming
 - Song request with autocomplete search
-- Progress bar with elapsed/remaining time
 - Volume control, listener count, up-next display
+- Recently played history
+- Offline detection with auto-retry and visual banner
 
 ---
 
@@ -441,7 +522,7 @@ RendezVox/
 │   │   └── ArtistNormalizer.php # Artist name cleanup
 │   ├── api/
 │   │   ├── index.php            # Route definitions
-│   │   └── handlers/            # 70+ API endpoint handlers
+│   │   └── handlers/            # 110+ API endpoint handlers
 │   ├── cli/                     # CLI scripts (cron jobs)
 │   └── scripts/                 # Background processing scripts
 ├── public/
@@ -453,29 +534,41 @@ RendezVox/
 │       └── *.html               # Admin pages
 ├── liquidsoap/
 │   └── radio.liq                # Liquidsoap radio script
-├── mobile/
-│   ├── android/                 # Android app (Kotlin + Compose)
-│   │   ├── build.gradle.kts     # Root build config
-│   │   ├── settings.gradle.kts  # Gradle settings
-│   │   ├── gradlew              # Gradle wrapper
-│   │   └── app/
-│   │       ├── build.gradle.kts # App module config
-│   │       └── src/main/
-│   │           ├── AndroidManifest.xml
-│   │           ├── java/net/downstreamtech/rendezvox/
-│   │           │   ├── RadioApp.kt
-│   │           │   ├── MainActivity.kt
-│   │           │   ├── data/Models.kt
-│   │           │   ├── data/RadioApi.kt
-│   │           │   ├── service/PlaybackService.kt
-│   │           │   └── ui/
-│   │           │       ├── theme/Theme.kt
-│   │           │       ├── PlayerScreen.kt
-│   │           │       ├── PlayerViewModel.kt
-│   │           │       ├── RequestDialog.kt
-│   │           │       ├── SetupScreen.kt
-│   │           │       └── SettingsScreen.kt
-│   │           └── res/
+├── builds/
+│   ├── desktop/                 # Desktop app (Electron)
+│   │   ├── main.js              # Electron main process
+│   │   ├── preload.js           # Context bridge
+│   │   ├── package.json         # Build config
+│   │   └── src/                 # Renderer (HTML/CSS/JS)
+│   │       ├── index.html
+│   │       ├── renderer.js
+│   │       └── style.css
+│   └── android/                 # Android app (Kotlin + Compose)
+│       ├── build.gradle.kts     # Root build config
+│       ├── settings.gradle.kts  # Gradle settings
+│       ├── gradlew              # Gradle wrapper
+│       └── app/
+│           ├── build.gradle.kts # App module config
+│           └── src/main/
+│               ├── AndroidManifest.xml
+│               └── java/net/downstreamtech/rendezvox/
+│                   ├── RadioApp.kt
+│                   ├── MainActivity.kt
+│                   ├── data/Models.kt
+│                   ├── data/RadioApi.kt
+│                   ├── service/PlaybackService.kt
+│                   └── ui/
+│                       ├── theme/Theme.kt
+│                       ├── PlayerScreen.kt
+│                       ├── PlayerViewModel.kt
+│                       ├── RequestDialog.kt
+│                       └── SetupScreen.kt
+├── installers/                  # Pre-built installers
+│   ├── desktop/
+│   │   ├── linux/               # DEB + AppImage (x64 + ARM64)
+│   │   └── windows/             # NSIS installer
+│   └── mobile/
+│       └── release/             # Signed APK
 ├── music/                       # Music library (not tracked)
 ├── stationids/                  # Station ID files
 └── README.md                    # This file
@@ -485,11 +578,11 @@ RendezVox/
 
 ## API Overview
 
-The backend exposes 70+ RESTful JSON endpoints used by both the web interface and mobile apps:
+The backend exposes 110+ RESTful JSON endpoints used by the web interface, desktop, and mobile apps:
 
 | Group | Endpoints | Auth |
 |-------|----------|------|
-| **Public** | `GET /now-playing`, `GET /sse/now-playing`, `GET /search-song`, `POST /request`, `GET /config` | No |
+| **Public** | `GET /now-playing`, `GET /sse/now-playing`, `GET /search-song`, `POST /request`, `GET /config`, `GET /recent-plays` | No |
 | **Auth** | `POST /admin/login`, `GET /admin/me` | JWT |
 | **Media** | Songs CRUD, artists, categories, media browser, import | JWT |
 | **Playlists** | CRUD, song management, reorder, shuffle | JWT |
@@ -505,7 +598,7 @@ The backend exposes 70+ RESTful JSON endpoints used by both the web interface an
 
 ## Database Schema
 
-PostgreSQL 16 with 15 tables:
+PostgreSQL 16 with 18 tables:
 
 - `users` — Admin accounts with roles, avatars, display name, login IP tracking
 - `artists` — Normalized artist names with trigram search
@@ -522,6 +615,9 @@ PostgreSQL 16 with 15 tables:
 - `station_logs` — Application event log
 - `settings` — Key-value station configuration
 - `banned_ips` — IP ban list with optional expiry
+- `password_reset_tokens` — Password reset tokens with expiry
+- `organizer_queue` — Media organizer job queue
+- `organizer_hashes` — Audio fingerprint dedup hashes
 
 ---
 
@@ -627,18 +723,29 @@ Nginx rate limits on sensitive endpoints:
 - Disk space monitoring with low-space warnings
 
 **Public Listener Page**
-- Single-page player with play/stop, volume, progress bar
+- Vinyl turntable player with animated tonearm progress indicator
+- Blurred cover art background, EQ visualizer, time-of-day ambient overlay
 - Real-time now-playing and up-next display via SSE
 - Song request modal with fuzzy search and suggestions
-- Listener count, dedication display, auto-reconnect
+- Listener count with live pulse badge, dedication display, auto-reconnect
+- Recently played history, marquee for long titles, song change animation
 - PWA support (installable, service worker)
+
+**Desktop App**
+- Electron app for Linux (DEB + AppImage, x64 + ARM64), Windows (NSIS), macOS (DMG)
+- Vinyl turntable player matching web UI/UX
+- System tray with minimize-to-tray and autostart on login
+- Media key bindings, single-instance lock, page visibility API
+- Song request, volume control, listener count, dedication display
 
 **Mobile App**
 - Native Android app (Kotlin + Jetpack Compose + Media3 ExoPlayer)
+- Vinyl turntable player matching web UI/UX
 - Background audio with notification / lock screen controls
 - Real-time SSE now-playing with polling fallback
 - Song request with autocomplete search
-- Smart server URL input (bare hostnames auto-prepend `https://`)
+- Server selection screen with connection validation
+- Offline detection with auto-retry
 
 **Security**
 - IP spoofing prevention: `REMOTE_ADDR` only (attacker headers ignored)
@@ -657,6 +764,29 @@ Nginx rate limits on sensitive endpoints:
 - RPi resource limits (memory caps, reduced workers, tuned PostgreSQL)
 - Auto-generated secure passwords and credential file
 - Cloudflare Zero Trust tunnel support (single port 80, stream proxied)
+
+---
+
+## Roadmap
+
+### Planned Features
+- **iOS App** — Native Swift/SwiftUI listener app with background audio and AirPlay support
+- **Live DJ Mode** — Real-time microphone input mixing with Liquidsoap for live broadcasts
+- **Multi-Station Support** — Manage multiple radio stations from a single admin panel
+- **Podcast Integration** — Schedule and stream podcast episodes alongside music rotation
+- **Advanced Analytics** — Listening trends, peak hours, geographic listener distribution
+- **API Webhooks** — Notify external services on song changes, requests, and station events
+- **Theme Customization** — Admin-configurable listener page themes (colors, layout, branding)
+- **Playlist Sharing** — Public shareable playlist links for listeners
+- **Song Voting** — Listeners upvote/downvote songs to influence rotation weights
+- **Scheduled Announcements** — Text-to-speech or pre-recorded announcements at scheduled times
+- **Remote DJ Panel** — Web-based DJ interface for remote hosts to manage live shows
+
+### Infrastructure
+- **Kubernetes Helm Chart** — Production-grade deployment with horizontal scaling
+- **S3/MinIO Storage** — Cloud-compatible music library storage backend
+- **Prometheus + Grafana** — Observability stack for monitoring stream health and performance
+- **WebSocket Support** — Lower-latency alternative to SSE for real-time updates
 
 ---
 
