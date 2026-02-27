@@ -20,34 +20,67 @@
   margin-bottom: 24px;
   flex-wrap: wrap;
 }
-.dj-cover {
-  width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+/* DJ Turntable */
+.dj-turntable {
+  position: relative; width: 110px; flex-shrink: 0;
+}
+.dj-turntable::before {
+  content: ''; position: absolute;
+  width: 84px; height: 84px; border-radius: 50%;
+  top: 0; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg,transparent 35%,rgba(255,255,255,.08) 46%,rgba(255,255,255,.16) 50%,rgba(255,255,255,.08) 54%,transparent 65%);
+  z-index: 1; pointer-events: none;
+}
+.dj-vinyl {
+  width: 84px; height: 84px; border-radius: 50%; margin: 0 auto;
   position: relative;
   background:
-    radial-gradient(circle,transparent 21%,rgba(255,255,255,.04) 21.3%,transparent 21.6%,
-    transparent 35%,rgba(255,255,255,.03) 35.3%,transparent 35.6%,
-    transparent 55%,rgba(255,255,255,.04) 55.3%,transparent 55.6%,
-    transparent 75%,rgba(255,255,255,.03) 75.3%,transparent 75.6%,
-    transparent 90%,rgba(255,255,255,.04) 90.3%,transparent 90.6%),
-    radial-gradient(circle,#1a1a1a 22%,#111 50%,#0d0d0d 80%,#080808);
-  box-shadow: 0 2px 10px rgba(0,0,0,.4), inset 0 0 2px rgba(255,255,255,.03);
+    conic-gradient(from 30deg,
+      transparent 0%,rgba(255,255,255,.1) 8%,transparent 18%,
+      rgba(255,255,255,.08) 30%,transparent 42%,
+      rgba(255,255,255,.12) 55%,transparent 65%,
+      rgba(255,255,255,.06) 78%,transparent 90%),
+    radial-gradient(circle,transparent 21%,rgba(255,255,255,.08) 21.3%,transparent 21.8%,
+    transparent 30%,rgba(255,255,255,.06) 30.3%,transparent 30.8%,
+    transparent 39%,rgba(255,255,255,.08) 39.3%,transparent 39.8%,
+    transparent 55%,rgba(255,255,255,.07) 55.3%,transparent 55.8%,
+    transparent 65%,rgba(255,255,255,.08) 65.3%,transparent 65.8%,
+    transparent 75%,rgba(255,255,255,.06) 75.3%,transparent 75.8%,
+    transparent 85%,rgba(255,255,255,.08) 85.3%,transparent 85.8%,
+    transparent 93%,rgba(255,255,255,.06) 93.3%,transparent 93.8%),
+    radial-gradient(circle,#222 22%,#181818 50%,#111 80%,#0a0a0a);
+  box-shadow: 0 2px 10px rgba(0,0,0,.4), inset 0 0 3px rgba(255,255,255,.06);
 }
-.dj-cover.spinning { animation: dj-vinyl-spin 4s linear infinite; }
+.dj-vinyl.spinning { animation: dj-vinyl-spin 4s linear infinite; }
 @keyframes dj-vinyl-spin { to { transform: rotate(360deg); } }
-.dj-cover-label {
+.dj-vinyl-label {
   position: absolute; width: 44%; height: 44%; border-radius: 50%;
   top: 50%; left: 50%; transform: translate(-50%,-50%);
   overflow: hidden; z-index: 1;
   background: var(--accent);
   display: flex; align-items: center; justify-content: center;
 }
-.dj-cover-label img {
+.dj-vinyl-label img {
   width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;
 }
-.dj-cover-hole {
-  position: absolute; width: 5px; height: 5px; border-radius: 50%;
+.dj-vinyl-hole {
+  position: absolute; width: 4px; height: 4px; border-radius: 50%;
   background: #000; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 2;
   box-shadow: inset 0 0 1px rgba(255,255,255,.15);
+}
+.dj-tonearm {
+  position: absolute; width: 18px; height: 62px;
+  top: -1px; right: 3px; z-index: 3;
+  transform-origin: 50% 10%;
+  transform: rotate(-20deg) translateY(-1px);
+  transition: transform .6s cubic-bezier(.4,0,.2,1);
+  pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+}
+.dj-arm-rest {
+  position: absolute; right: 0; top: 26px; z-index: 2;
+  width: 8px; height: 11px;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.5));
 }
 .dj-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .dj-live {
@@ -242,9 +275,28 @@
 
       <!-- DJ Booth Monitor -->
       <div class="dj-booth" id="djBooth">
-        <div class="dj-cover" id="djCover">
-          <div class="dj-cover-label" id="djCoverLabel"></div>
-          <div class="dj-cover-hole"></div>
+        <div class="dj-turntable" id="djTurntable">
+          <div class="dj-vinyl" id="djVinyl">
+            <div class="dj-vinyl-label" id="djCoverLabel"></div>
+            <div class="dj-vinyl-hole"></div>
+          </div>
+          <svg class="dj-arm-rest" viewBox="0 0 14 22" fill="none">
+            <defs><linearGradient id="djRestMtl" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#666"/><stop offset="50%" stop-color="#aaa"/><stop offset="100%" stop-color="#666"/></linearGradient></defs>
+            <ellipse cx="7" cy="20" rx="5.5" ry="2" fill="#3a3a3a" stroke="#4a4a4a" stroke-width=".3"/>
+            <rect x="5.5" y="8" width="3" height="13" rx="1" fill="url(#djRestMtl)"/>
+            <path d="M3 9 C3 4 4.5 1.5 7 1.5 C9.5 1.5 11 4 11 9" stroke="url(#djRestMtl)" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+            <rect x="5" y="8" width="4" height="1.5" rx=".5" fill="#2a2a2a"/>
+          </svg>
+          <svg class="dj-tonearm" id="djTonearm" viewBox="0 0 40 138" fill="none">
+            <defs><linearGradient id="djArmMtl" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#888"/><stop offset="40%" stop-color="#ccc"/><stop offset="60%" stop-color="#bbb"/><stop offset="100%" stop-color="#777"/></linearGradient></defs>
+            <ellipse cx="20" cy="5" rx="6" ry="4" fill="#444" stroke="#555" stroke-width=".5"/>
+            <circle cx="20" cy="14" r="4" fill="#666"/>
+            <circle cx="20" cy="14" r="2.5" fill="#555" stroke="#777" stroke-width=".5"/>
+            <rect x="19" y="14" width="2.5" height="90" rx="1.2" fill="url(#djArmMtl)"/>
+            <line x1="20.2" y1="104" x2="13" y2="114" stroke="#aaa" stroke-width="2.5" stroke-linecap="round"/>
+            <rect x="9.5" y="112" width="8" height="4.5" rx="1" fill="#333" stroke="#555" stroke-width=".5"/>
+            <circle cx="13.5" cy="119" r="1.3" fill="#e33"/>
+          </svg>
         </div>
         <div class="dj-left">
           <div class="dj-live" id="djLive"><span class="dj-dot"></span><span id="djLiveLabel">IDLE</span></div>
