@@ -76,6 +76,18 @@ class RadioApi(private val baseUrl: String) {
         }
     }
 
+    suspend fun fetchRecentPlays(): List<RecentPlay> = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url("$baseUrl/api/recent-plays").build()
+        try {
+            val response = client.newCall(request).await()
+            val body = response.body?.string() ?: return@withContext emptyList()
+            val result = gson.fromJson(body, RecentPlaysResponse::class.java)
+            result.plays
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     suspend fun searchSong(title: String, artist: String? = null): SearchResult =
         withContext(Dispatchers.IO) {
             var url = "$baseUrl/api/search-song?title=${java.net.URLEncoder.encode(title, "UTF-8")}"

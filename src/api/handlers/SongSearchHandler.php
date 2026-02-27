@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 class SongSearchHandler
 {
-    public static function handle(): void
+    public function handle(): void
     {
         $title  = trim($_GET['title'] ?? '');
         $artist = trim($_GET['artist'] ?? '');

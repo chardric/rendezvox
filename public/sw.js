@@ -7,8 +7,7 @@ var CACHE_ASSETS = 'rendezvox-assets-v1';
 var EXPECTED_CACHES = [CACHE_STATIC, CACHE_ASSETS];
 
 var PRECACHE_URLS = [
-  '/',
-  '/manifest.json'
+  '/'
 ];
 
 // ── Install: precache app shell ──────────────────────────────
@@ -86,8 +85,8 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // App shell (/, /manifest.json) → stale-while-revalidate
-  if (url.pathname === '/' || url.pathname === '/manifest.json') {
+  // App shell (/) → stale-while-revalidate
+  if (url.pathname === '/') {
     event.respondWith(
       caches.open(CACHE_STATIC).then(function(cache) {
         return cache.match(event.request).then(function(cached) {
@@ -123,16 +122,3 @@ self.addEventListener('fetch', function(event) {
   );
 });
 
-// ── Background sync placeholder ──────────────────────────────
-
-self.addEventListener('sync', function(event) {
-  if (event.tag === 'sync-requests') {
-    event.waitUntil(
-      // Placeholder: future implementation will read queued requests
-      // from IndexedDB and replay them via fetch('/api/request', ...)
-      Promise.resolve().then(function() {
-        console.log('[SW] sync-requests: background sync triggered (not yet implemented)');
-      })
-    );
-  }
-});

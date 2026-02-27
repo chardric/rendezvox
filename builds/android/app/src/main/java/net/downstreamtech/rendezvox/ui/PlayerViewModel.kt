@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import net.downstreamtech.rendezvox.data.*
 import net.downstreamtech.rendezvox.service.PlaybackService
-import java.text.SimpleDateFormat
 import java.util.*
 
 class PlayerViewModel(private val context: Context, private val baseUrl: String) : ViewModel() {
@@ -33,6 +32,7 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
     private var pollingJob: Job? = null
     private var sseJob: Job? = null
     private var listenerJob: Job? = null
+    private var historyJob: Job? = null
     private var failCount = 0
     private val offlineThreshold = 3
 
@@ -173,7 +173,8 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
     private fun handleNowPlayingData(data: NowPlayingData) {
         _state.update { current ->
             val song = data.song
-            val startedMs = data.started_at?.let { parseIsoDate(it) } ?: 0L
+            val startedAt = data.started_at ?: song?.started_at
+            val startedMs = startedAt?.let { parseIsoDate(it) } ?: current.startedAtMs
 
             current.copy(
                 songTitle = song?.title ?: "\u2014",
@@ -210,20 +211,46 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
     }
 
     private fun parseIsoDate(dateStr: String): Long {
-        val formats = arrayOf(
-            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-            "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            "yyyy-MM-dd'T'HH:mm:ssXXX",
-            "yyyy-MM-dd HH:mm:ss"
-        )
-        for (fmt in formats) {
-            try {
-                val sdf = SimpleDateFormat(fmt, Locale.US)
-                sdf.timeZone = TimeZone.getTimeZone("UTC")
-                return sdf.parse(dateStr)?.time ?: 0L
-            } catch (_: Exception) {}
+        // Regex parser matching web app's parseTs() — handles PostgreSQL timestamps
+        // e.g. "2026-02-27 06:41:14.996164+00" or "2026-02-27T06:41:14Z"
+        val m = Regex("""(\d+)-(\d+)-(\d+)\D+(\d+):(\d+):(\d+)""").find(dateStr) ?: return 0L
+        val (yr, mo, dy, hr, mn, sc) = m.destructured
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        cal.set(yr.toInt(), mo.toInt() - 1, dy.toInt(), hr.toInt(), mn.toInt(), sc.toInt())
+        cal.set(Calendar.MILLISECOND, 0)
+        var ms = cal.timeInMillis
+        // Apply timezone offset if present (e.g. +00, +08, -05)
+        val tz = Regex("""([+-])(\d{2})\s*$""").find(dateStr)
+        if (tz != null) {
+            val sign = if (tz.groupValues[1] == "+") 1 else -1
+            ms -= sign * tz.groupValues[2].toInt() * 3600000L
         }
-        return 0L
+        return ms
+    }
+
+    fun toggleHistory() {
+        val show = !_state.value.showHistory
+        _state.update { it.copy(showHistory = show) }
+        if (show) {
+            fetchRecentPlays()
+            historyJob?.cancel()
+            historyJob = viewModelScope.launch {
+                while (isActive) {
+                    delay(60_000)
+                    fetchRecentPlays()
+                }
+            }
+        } else {
+            historyJob?.cancel()
+            historyJob = null
+        }
+    }
+
+    private fun fetchRecentPlays() {
+        viewModelScope.launch {
+            val plays = api.fetchRecentPlays()
+            _state.update { it.copy(recentPlays = plays) }
+        }
     }
 
     suspend fun searchSongs(title: String, artist: String?): SearchResult =
@@ -237,6 +264,7 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
         pollingJob?.cancel()
         sseJob?.cancel()
         listenerJob?.cancel()
+        historyJob?.cancel()
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }

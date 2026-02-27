@@ -55,7 +55,10 @@ function createWindow() {
     }
   });
 
+  win.setMenu(null);
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
+
+
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -128,7 +131,7 @@ function getAutostartEnabled() {
   if (process.platform === 'linux') {
     return fs.existsSync(getAutostartDesktopPath());
   }
-  // Windows: Electron's built-in API works reliably
+  // macOS + Windows: Electron's built-in API
   return app.getLoginItemSettings().openAtLogin;
 }
 
@@ -158,7 +161,7 @@ function setAutostartEnabled(enabled) {
     }
     return enabled;
   }
-  // Windows
+  // macOS + Windows: Electron's built-in API
   app.setLoginItemSettings({
     openAtLogin: enabled,
     args: enabled ? ['--hidden'] : []
