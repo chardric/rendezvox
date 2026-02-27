@@ -223,8 +223,7 @@ fun PlayerScreen(
             Spacer(Modifier.height(14.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     if (state.volume == 0f) Icons.AutoMirrored.Filled.VolumeOff
@@ -233,16 +232,50 @@ fun PlayerScreen(
                     tint = TextDim,
                     modifier = Modifier.size(16.dp)
                 )
-                Slider(
-                    value = state.volume,
-                    onValueChange = onVolumeChange,
-                    modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = accent,
-                        activeTrackColor = accent,
-                        inactiveTrackColor = Color(0xFF333355)
+                Spacer(Modifier.width(8.dp))
+                // Custom thin slider matching web style
+                Box(
+                    modifier = Modifier.weight(1f).height(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Track (drawn behind)
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 7.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
+                    ) {
+                        drawRect(Color(0xFF333355))
+                        drawRect(accent, size = androidx.compose.ui.geometry.Size(size.width * state.volume, size.height))
+                    }
+                    // Thumb dot (positioned by fraction)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(state.volume)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .align(Alignment.CenterEnd)
+                                    .shadow(4.dp, CircleShape, ambientColor = accent.copy(alpha = 0.3f))
+                                    .clip(CircleShape)
+                                    .background(accent)
+                            )
+                        }
+                    }
+                    // Invisible slider for touch interaction
+                    Slider(
+                        value = state.volume,
+                        onValueChange = onVolumeChange,
+                        modifier = Modifier.fillMaxWidth().alpha(0f),
                     )
-                )
+                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -768,6 +801,13 @@ fun Turntable(
             )
         }
 
+        // Arm rest bracket (landing clip)
+        ArmRestBracket(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 0.dp, y = 46.dp)
+        )
+
         // Tonearm
         TonearmComposable(
             angle = animatedTonearm,
@@ -778,66 +818,114 @@ fun Turntable(
 
 @Composable
 fun TonearmComposable(angle: Float, modifier: Modifier = Modifier) {
+    // Matches web SVG viewBox="0 0 40 138" — all coordinates proportional
     Canvas(
         modifier = modifier
             .width(36.dp)
             .height(120.dp)
             .offset(x = (-2).dp, y = (-2).dp)
     ) {
-        val pivotX = size.width * 0.5f
-        val pivotY = size.height * 0.1f
+        val sx = size.width / 40f   // scale factor X (viewBox width = 40)
+        val sy = size.height / 138f // scale factor Y (viewBox height = 138)
 
-        // Save and rotate around pivot
+        val pivotX = 20f * sx
+        val pivotY = 5f * sy
+
         val canvas = drawContext.canvas
         canvas.save()
         canvas.translate(pivotX, pivotY)
         canvas.rotate(angle)
         canvas.translate(-pivotX, -pivotY)
 
-        // Base plate (ellipse)
+        // Base plate (ellipse) — SVG: cx=20 cy=5 rx=6 ry=4
         drawOval(
             Color(0xFF444444),
-            topLeft = androidx.compose.ui.geometry.Offset(pivotX - 8f, pivotY - 6f),
-            size = androidx.compose.ui.geometry.Size(16f, 12f)
+            topLeft = androidx.compose.ui.geometry.Offset(14f * sx, 1f * sy),
+            size = androidx.compose.ui.geometry.Size(12f * sx, 8f * sy)
         )
 
-        // Pivot hub
-        drawCircle(Color(0xFF666666), radius = 5f, center = androidx.compose.ui.geometry.Offset(pivotX, pivotY + 10f))
-        drawCircle(Color(0xFF555555), radius = 3.5f, center = androidx.compose.ui.geometry.Offset(pivotX, pivotY + 10f))
+        // Pivot hub — SVG: cx=20 cy=14 r=4, inner r=2.5
+        drawCircle(Color(0xFF666666), radius = 4f * sx, center = androidx.compose.ui.geometry.Offset(20f * sx, 14f * sy))
+        drawCircle(Color(0xFF555555), radius = 2.5f * sx, center = androidx.compose.ui.geometry.Offset(20f * sx, 14f * sy))
 
-        // Arm shaft
-        val armLeft = pivotX - 1.5f
+        // Arm shaft — SVG: x=19 y=14 width=2.5 height=90
         drawRect(
             Color(0xFFBBBBBB),
-            topLeft = androidx.compose.ui.geometry.Offset(armLeft, pivotY + 12f),
-            size = androidx.compose.ui.geometry.Size(3f, 80f)
+            topLeft = androidx.compose.ui.geometry.Offset(19f * sx, 14f * sy),
+            size = androidx.compose.ui.geometry.Size(2.5f * sx, 90f * sy)
         )
 
-        // Headshell angle
-        val shaftBottom = pivotY + 92f
+        // Headshell angle — SVG: line x1=20.2 y1=104 x2=13 y2=114
         drawLine(
             Color(0xFFAAAAAA),
-            start = androidx.compose.ui.geometry.Offset(pivotX, shaftBottom),
-            end = androidx.compose.ui.geometry.Offset(pivotX - 8f, shaftBottom + 12f),
-            strokeWidth = 3f,
+            start = androidx.compose.ui.geometry.Offset(20.2f * sx, 104f * sy),
+            end = androidx.compose.ui.geometry.Offset(13f * sx, 114f * sy),
+            strokeWidth = 2.5f * sx,
             cap = androidx.compose.ui.graphics.StrokeCap.Round
         )
 
-        // Cartridge body
+        // Cartridge body — SVG: x=9.5 y=112 width=8 height=4.5
         drawRect(
             Color(0xFF333333),
-            topLeft = androidx.compose.ui.geometry.Offset(pivotX - 13f, shaftBottom + 10f),
-            size = androidx.compose.ui.geometry.Size(10f, 5.5f)
+            topLeft = androidx.compose.ui.geometry.Offset(9.5f * sx, 112f * sy),
+            size = androidx.compose.ui.geometry.Size(8f * sx, 4.5f * sy)
         )
 
-        // Stylus tip (red dot)
+        // Stylus tip (red dot) — SVG: cx=13.5 cy=119 r=1.3
         drawCircle(
             Color(0xFFEE3333),
-            radius = 1.8f,
-            center = androidx.compose.ui.geometry.Offset(pivotX - 8f, shaftBottom + 18f)
+            radius = 1.3f * sx,
+            center = androidx.compose.ui.geometry.Offset(13.5f * sx, 119f * sy)
         )
 
         canvas.restore()
+    }
+}
+
+@Composable
+fun ArmRestBracket(modifier: Modifier = Modifier) {
+    // Matches web SVG viewBox="0 0 14 22"
+    Canvas(
+        modifier = modifier
+            .width(14.dp)
+            .height(22.dp)
+    ) {
+        val sx = size.width / 14f
+        val sy = size.height / 22f
+        val metal = Color(0xFF888888)
+
+        // Ellipse base — SVG: cx=7 cy=20 rx=5.5 ry=2
+        drawOval(
+            Color(0xFF3A3A3A),
+            topLeft = androidx.compose.ui.geometry.Offset(1.5f * sx, 18f * sy),
+            size = androidx.compose.ui.geometry.Size(11f * sx, 4f * sy)
+        )
+
+        // Upright post — SVG: rect x=5.5 y=8 width=3 height=13
+        drawRect(
+            metal,
+            topLeft = androidx.compose.ui.geometry.Offset(5.5f * sx, 8f * sy),
+            size = androidx.compose.ui.geometry.Size(3f * sx, 13f * sy)
+        )
+
+        // U-shaped clip — approximate the curve with lines
+        val clipColor = Color(0xFF999999)
+        val strokeW = 1.4f * sx
+        // Left side of U
+        drawLine(clipColor, androidx.compose.ui.geometry.Offset(3f * sx, 9f * sy), androidx.compose.ui.geometry.Offset(3.5f * sx, 4f * sy), strokeW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        // Top curve left to center
+        drawLine(clipColor, androidx.compose.ui.geometry.Offset(3.5f * sx, 4f * sy), androidx.compose.ui.geometry.Offset(7f * sx, 1.5f * sy), strokeW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        // Top curve center to right
+        drawLine(clipColor, androidx.compose.ui.geometry.Offset(7f * sx, 1.5f * sy), androidx.compose.ui.geometry.Offset(10.5f * sx, 4f * sy), strokeW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        // Right side of U
+        drawLine(clipColor, androidx.compose.ui.geometry.Offset(10.5f * sx, 4f * sy), androidx.compose.ui.geometry.Offset(11f * sx, 9f * sy), strokeW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+
+        // Clamp bar — SVG: rect x=5 y=8 width=4 height=1.5
+        drawRect(
+            Color(0xFF2A2A2A),
+            topLeft = androidx.compose.ui.geometry.Offset(5f * sx, 8f * sy),
+            size = androidx.compose.ui.geometry.Size(4f * sx, 1.5f * sy)
+        )
     }
 }
 
