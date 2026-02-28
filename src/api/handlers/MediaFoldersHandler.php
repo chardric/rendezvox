@@ -46,7 +46,11 @@ class MediaFoldersHandler
         Response::json(['folders' => $folders]);
     }
 
-    private const HIDDEN_DIRS = ['upload', '_untagged', '_duplicates'];
+    /** Directories hidden entirely (not scanned at all). */
+    private const HIDDEN_DIRS = ['untagged'];
+
+    /** Structural wrapper dirs: scanned into but not listed as entries. */
+    private const SKIP_DIRS = ['tagged', 'tagged/files', 'tagged/folders'];
 
     private function scan(string $absBase, string $relPath, array &$folders, int $depth, ?array &$fileCounts): void
     {
@@ -59,10 +63,17 @@ class MediaFoldersHandler
             $full = $dir . '/' . $item;
 
             if (is_dir($full)) {
-                // Hide system directories at root level
+                $rel = ($relPath !== '' ? $relPath . '/' : '') . $item;
+
+                // Hide entirely — don't scan children
                 if ($relPath === '' && in_array($item, self::HIDDEN_DIRS)) continue;
 
-                $rel       = ($relPath !== '' ? $relPath . '/' : '') . $item;
+                // Skip wrappers — scan children but don't list the dir itself
+                if (in_array($rel, self::SKIP_DIRS)) {
+                    $this->scan($absBase, $rel, $folders, $depth, $fileCounts);
+                    continue;
+                }
+
                 $folders[] = ['name' => $item, 'path' => '/' . $rel, 'depth' => $depth];
                 $this->scan($absBase, $rel, $folders, $depth + 1, $fileCounts);
             } elseif ($fileCounts !== null) {

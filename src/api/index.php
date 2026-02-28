@@ -21,6 +21,7 @@ require __DIR__ . '/handlers/AuthMeHandler.php';
 require __DIR__ . '/handlers/DashboardStatsHandler.php';
 require __DIR__ . '/handlers/SongListHandler.php';
 require __DIR__ . '/handlers/SongDetailHandler.php';
+require __DIR__ . '/handlers/SongPreviewHandler.php';
 require __DIR__ . '/handlers/SongCreateHandler.php';
 require __DIR__ . '/handlers/SongUpdateHandler.php';
 require __DIR__ . '/handlers/SongToggleHandler.php';
@@ -71,6 +72,7 @@ require __DIR__ . '/handlers/MediaImportHandler.php';
 require __DIR__ . '/handlers/MediaFoldersHandler.php';
 require __DIR__ . '/handlers/MediaCopyHandler.php';
 require __DIR__ . '/handlers/FileManagerBrowseHandler.php';
+require __DIR__ . '/handlers/FileManagerSearchHandler.php';
 require __DIR__ . '/handlers/FileManagerTreeHandler.php';
 require __DIR__ . '/handlers/FileManagerRenameHandler.php';
 require __DIR__ . '/handlers/FileManagerMoveHandler.php';
@@ -161,6 +163,8 @@ Router::post('/admin/songs/deactivate-missing', [SongDeactivateMissingHandler::c
 Router::delete('/admin/songs/purge',          [SongPurgeHandler::class,   'purge']);
 Router::delete('/admin/songs/purge-all',      [SongPurgeHandler::class,   'purgeAll']);
 Router::delete('/admin/songs/purge-inactive', [SongPurgeHandler::class,   'purgeInactive']);
+Router::delete('/admin/songs/purge-duplicates', [SongPurgeHandler::class, 'purgeDuplicates']);
+Router::get('/admin/songs/:id/preview',  [SongPreviewHandler::class, 'handle']);
 Router::get('/admin/songs/:id',          [SongDetailHandler::class,  'handle']);
 Router::post('/admin/songs',             [SongCreateHandler::class,  'handle']);
 Router::put('/admin/songs/:id',          [SongUpdateHandler::class,  'handle']);
@@ -217,11 +221,13 @@ Router::post('/admin/media/copy',   [MediaCopyHandler::class,   'handle']);
 
 // -- File Manager (unfiltered filesystem browser + DB-aware operations) --
 Router::get('/admin/files/browse',    [FileManagerBrowseHandler::class, 'handle']);
+Router::get('/admin/files/search',    [FileManagerSearchHandler::class, 'handle']);
 Router::get('/admin/files/tree',      [FileManagerTreeHandler::class,   'handle']);
 Router::post('/admin/files/rename',   [FileManagerRenameHandler::class, 'handle']);
 Router::post('/admin/files/move',     [FileManagerMoveHandler::class,   'handle']);
-Router::delete('/admin/files/delete', [FileManagerDeleteHandler::class,      'handle']);
-Router::get('/admin/files/delete-check', [FileManagerDeleteCheckHandler::class, 'handle']);
+Router::delete('/admin/files/delete',      [FileManagerDeleteHandler::class,      'handle']);
+Router::post('/admin/files/delete-bulk',   [FileManagerDeleteHandler::class,      'handleBulk']);
+Router::get('/admin/files/delete-check',   [FileManagerDeleteCheckHandler::class, 'handle']);
 Router::post('/admin/media/import', [MediaImportHandler::class, 'handle']);
 Router::delete('/admin/media/file', [MediaDeleteHandler::class, 'handle']);
 

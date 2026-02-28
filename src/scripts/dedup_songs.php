@@ -6,7 +6,7 @@
  * are skipped — they require human judgement and are handled via the Media Duplicates tab.
  *
  * For each group, keeps the copy with the highest play_count (ties broken by largest file).
- * Deletes the rest from DB and disk.
+ * Marks the rest as duplicates (non-destructive — no files or rows deleted).
  *
  * Progress is written to /tmp/rendezvox_dedup_songs.json so the admin UI can poll.
  */
@@ -58,8 +58,7 @@ $progress = [
     'phase'       => 'scanning',
     'total_groups' => 0,
     'processed'   => 0,
-    'deleted'     => 0,
-    'freed_bytes' => 0,
+    'marked'      => 0,
     'started_at'  => date('c'),
     'finished_at' => null,
 ];
@@ -85,9 +84,10 @@ $stmt = $db->query("
     JOIN artists a ON a.id = s.artist_id
     WHERE s.file_hash IS NOT NULL AND s.file_hash != ''
       AND s.trashed_at IS NULL
+      AND s.duplicate_of IS NULL
       AND s.file_hash IN (
           SELECT file_hash FROM songs
-          WHERE file_hash IS NOT NULL AND file_hash != '' AND trashed_at IS NULL
+          WHERE file_hash IS NOT NULL AND file_hash != '' AND trashed_at IS NULL AND duplicate_of IS NULL
           GROUP BY file_hash HAVING COUNT(*) > 1
       )
     ORDER BY s.file_hash, s.play_count DESC
@@ -156,8 +156,7 @@ if (count($groups) === 0) {
         @file_put_contents('/tmp/rendezvox_auto_dedup_songs_last.json', json_encode([
             'ran_at'  => date('c'),
             'groups'  => 0,
-            'deleted' => 0,
-            'freed'   => 0,
+            'marked'  => 0,
             'message' => 'No exact duplicates found',
         ]), LOCK_EX);
         @chmod('/tmp/rendezvox_auto_dedup_songs_last.json', 0666);
@@ -166,13 +165,10 @@ if (count($groups) === 0) {
     exit(0);
 }
 
-// ── Resolve: delete duplicates ─────────────────────────────
-$deleteStmt = $db->prepare('DELETE FROM songs WHERE id = ?');
-$hashStmt   = $db->prepare('SELECT file_hash FROM songs WHERE id = ?');
-$delHash    = $db->prepare('DELETE FROM organizer_hashes WHERE file_hash = ?');
+// ── Resolve: mark duplicates (non-destructive) ─────────────
+$markStmt = $db->prepare('UPDATE songs SET duplicate_of = ? WHERE id = ?');
 
-$totalDeleted  = 0;
-$totalFreed    = 0;
+$totalMarked = 0;
 
 foreach ($groups as $gi => $group) {
     // Check for stop signal
@@ -181,14 +177,13 @@ foreach ($groups as $gi => $group) {
         $progress['status']      = 'stopped';
         $progress['finished_at'] = date('c');
         writeProgress($progress);
-        logMsg('Dedup stopped — ' . $totalDeleted . ' deleted so far', $autoMode);
+        logMsg('Dedup stopped — ' . $totalMarked . ' marked so far', $autoMode);
         if ($autoMode) {
             @file_put_contents('/tmp/rendezvox_auto_dedup_songs_last.json', json_encode([
                 'ran_at'  => date('c'),
                 'groups'  => $gi,
-                'deleted' => $totalDeleted,
-                'freed'   => $totalFreed,
-                'message' => 'Stopped — ' . $totalDeleted . ' deleted so far',
+                'marked'  => $totalMarked,
+                'message' => 'Stopped — ' . $totalMarked . ' marked so far',
             ]), LOCK_EX);
             @chmod('/tmp/rendezvox_auto_dedup_songs_last.json', 0666);
         }
@@ -198,74 +193,31 @@ foreach ($groups as $gi => $group) {
 
     foreach ($group['delete_ids'] as $did) {
         try {
-            // Get hash before deleting
-            $hashStmt->execute([$did]);
-            $hash = $hashStmt->fetchColumn();
-
-            // Get file path before deleting
-            $fpStmt = $db->prepare('SELECT file_path FROM songs WHERE id = ?');
-            $fpStmt->execute([$did]);
-            $filePath = $fpStmt->fetchColumn();
-
-            $deleteStmt->execute([$did]);
-            $totalDeleted++;
-
-            // Remove hash from organizer_hashes
-            if ($hash) {
-                $delHash->execute([$hash]);
-            }
-
-            // Remove file from disk
-            if ($filePath) {
-                $absPath = $musicDir . '/' . $filePath;
-                if (file_exists($absPath)) {
-                    $size = (int) filesize($absPath);
-                    if (@unlink($absPath)) {
-                        $totalFreed += $size;
-                        // Clean up empty parent directories
-                        $dir = dirname($absPath);
-                        while ($dir !== $musicDir && $dir !== dirname($musicDir)) {
-                            if (is_dir($dir) && count((array) scandir($dir)) === 2) {
-                                @rmdir($dir);
-                                $dir = dirname($dir);
-                            } else {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            $markStmt->execute([$group['keep_id'], $did]);
+            $totalMarked++;
         } catch (\PDOException $e) {
-            error_log('DedupSongs error deleting song ' . $did . ': ' . $e->getMessage());
+            error_log('DedupSongs error marking song ' . $did . ': ' . $e->getMessage());
         }
     }
 
     $progress['processed'] = $gi + 1;
-    $progress['deleted']   = $totalDeleted;
-    $progress['freed_bytes'] = $totalFreed;
+    $progress['marked']    = $totalMarked;
     writeProgress($progress);
-}
-
-// Clean up orphaned artists
-if ($totalDeleted > 0) {
-    $db->exec('DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM songs)');
 }
 
 $progress['status']      = 'done';
 $progress['finished_at'] = date('c');
 writeProgress($progress);
 
-$freedMB = round($totalFreed / 1048576, 1);
-logMsg("Dedup complete — {$totalDeleted} duplicates deleted, {$freedMB} MB freed from " . count($groups) . " groups", $autoMode);
+logMsg("Dedup complete — {$totalMarked} duplicates marked from " . count($groups) . " groups", $autoMode);
 
 // Write auto-dedup summary
 if ($autoMode) {
     @file_put_contents('/tmp/rendezvox_auto_dedup_songs_last.json', json_encode([
         'ran_at'  => date('c'),
         'groups'  => count($groups),
-        'deleted' => $totalDeleted,
-        'freed'   => $totalFreed,
-        'message' => $totalDeleted . ' duplicates deleted, ' . $freedMB . ' MB freed',
+        'marked'  => $totalMarked,
+        'message' => $totalMarked . ' duplicates marked',
     ]), LOCK_EX);
     @chmod('/tmp/rendezvox_auto_dedup_songs_last.json', 0666);
 }

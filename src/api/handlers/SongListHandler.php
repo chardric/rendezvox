@@ -72,7 +72,7 @@ class SongListHandler
             SELECT
                 s.id, s.title, s.file_path, s.file_hash, s.duration_ms,
                 s.rotation_weight, s.year, s.play_count, s.last_played_at,
-                s.is_active, s.is_requestable, s.trashed_at, s.created_at,
+                s.is_active, s.is_requestable, s.trashed_at, s.duplicate_of, s.created_at,
                 a.id   AS artist_id,
                 a.name AS artist_name,
                 c.id   AS category_id,
@@ -129,7 +129,7 @@ class SongListHandler
             SELECT
                 s.id, s.title, s.file_path, s.file_hash, s.duration_ms,
                 s.rotation_weight, s.year, s.play_count, s.last_played_at,
-                s.is_active, s.is_requestable, s.trashed_at, s.created_at,
+                s.is_active, s.is_requestable, s.trashed_at, s.duplicate_of, s.created_at,
                 a.id   AS artist_id,
                 a.name AS artist_name,
                 c.id   AS category_id,
@@ -182,6 +182,7 @@ class SongListHandler
             'is_active'       => (bool) $row['is_active'],
             'is_requestable'  => (bool) $row['is_requestable'],
             'trashed_at'      => $row['trashed_at'],
+            'duplicate_of'    => $row['duplicate_of'] ? (int) $row['duplicate_of'] : null,
             'created_at'      => $row['created_at'],
         ];
     }

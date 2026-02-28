@@ -14,14 +14,26 @@ class MediaMkdirHandler
             return;
         }
 
-        $abs = MediaBrowseHandler::safePath($path);
-        if ($abs === null) {
-            Response::error('Invalid path', 400);
+        // Try virtual path resolution first (handles structural dir unwrapping)
+        $abs = FileManagerBrowseHandler::resolveVirtualPath($path);
+        if ($abs !== null && is_dir($abs)) {
+            Response::error('Folder already exists', 409);
             return;
         }
 
-        if (is_dir($abs)) {
-            Response::error('Folder already exists', 409);
+        // For new folders at root level, create inside tagged/folders/
+        if ($abs === null) {
+            $parts = explode('/', ltrim($path, '/'), 2);
+            if (count($parts) === 1) {
+                // Root-level new folder → tagged/folders/<name>
+                $abs = MediaBrowseHandler::safePath('/tagged/folders/' . $parts[0]);
+            } else {
+                $abs = MediaBrowseHandler::safePath($path);
+            }
+        }
+
+        if ($abs === null) {
+            Response::error('Invalid path', 400);
             return;
         }
 

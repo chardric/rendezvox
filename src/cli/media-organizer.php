@@ -5,12 +5,14 @@ declare(strict_types=1);
 /**
  * RendezVox — Media Library Auto-Organizer
  *
- * Long-running CLI process that watches /var/lib/rendezvox/music/upload/ for new
- * audio files, validates metadata, detects duplicates, organizes files into
- * tagged/Genre/Artist/Title.ext structure, and imports them into the database.
+ * Long-running CLI process that watches untagged/ for new audio files, validates
+ * metadata, detects duplicates, and organizes files:
  *
- * Files with missing required metadata are moved to _untagged/.
- * Duplicate files (by SHA-256) are moved to _duplicates/.
+ *   untagged/files/  → tagged/files/Genre/Artist/Title.ext   (individual uploads)
+ *   untagged/folders/ → tagged/folders/FolderName/Artist - Title.ext (folder uploads)
+ *
+ * Files with missing required metadata stay in untagged/ and are imported with
+ * available metadata. Duplicate files are tagged in DB (duplicate_of).
  *
  * Usage:
  *   php media-organizer.php [--dry-run] [--once]
@@ -27,14 +29,15 @@ require __DIR__ . '/../core/ArtistNormalizer.php';
 
 // -- Configuration --
 $musicDir       = '/var/lib/rendezvox/music';
-$uploadDir      = $musicDir . '/upload';
+$uploadDir      = $musicDir . '/untagged';
 $lockFile       = '/tmp/media-organizer.lock';
 $stopFile       = '/tmp/media-organizer.lock.stop';
 $progressFile   = '/tmp/rendezvox_media_organizer.json';
 $extensions     = ['mp3', 'flac', 'm4a', 'ogg', 'wav'];
-$untaggedDir    = '_untagged';
-$duplicatesDir  = '_duplicates';
-$taggedDir      = 'tagged';
+$untaggedFilesDir  = 'untagged/files';
+$untaggedFoldersDir = 'untagged/folders';
+$taggedFilesDir    = 'tagged/files';
+$taggedFoldersDir  = 'tagged/folders';
 $stabilityDelay = 3;        // seconds — file mtime must be this old
 
 $dryRun = in_array('--dry-run', $argv ?? []);
@@ -74,10 +77,13 @@ if (!is_dir($musicDir)) {
     log_msg("Music directory not found: {$musicDir}");
     exit(1);
 }
-if (!is_dir($uploadDir)) {
-    if (!mkdir($uploadDir, 0775, true)) {
-        log_msg("Cannot create upload directory: {$uploadDir}");
-        exit(1);
+// Ensure untagged/files and untagged/folders exist
+foreach ([$musicDir . '/untagged/files', $musicDir . '/untagged/folders'] as $_dir) {
+    if (!is_dir($_dir)) {
+        if (!mkdir($_dir, 0775, true)) {
+            log_msg("Cannot create directory: {$_dir}");
+            exit(1);
+        }
     }
 }
 
@@ -124,13 +130,17 @@ function isOrganizerEnabled(PDO $db): bool
 function loadKnownHashes(PDO $db): array
 {
     $hashes = [];
-    $stmt = $db->query('SELECT file_hash FROM songs WHERE file_hash IS NOT NULL');
+    $stmt = $db->query('SELECT id, file_hash FROM songs WHERE file_hash IS NOT NULL');
     while ($row = $stmt->fetch()) {
-        $hashes[$row['file_hash']] = true;
+        if (!isset($hashes[$row['file_hash']])) {
+            $hashes[$row['file_hash']] = (int) $row['id'];
+        }
     }
     $stmt = $db->query('SELECT file_hash FROM organizer_hashes');
     while ($row = $stmt->fetch()) {
-        $hashes[$row['file_hash']] = true;
+        if (!isset($hashes[$row['file_hash']])) {
+            $hashes[$row['file_hash']] = true;
+        }
     }
     return $hashes;
 }
@@ -239,16 +249,6 @@ function moveFile(string $src, string $dest, bool $dryRun): bool
     return true;
 }
 
-// -- Write untagged info sidecar --
-function writeInfoFile(string $filePath, string $reason, bool $dryRun): void
-{
-    if ($dryRun) return;
-
-    $infoPath = $filePath . '.info.txt';
-    $content  = "Untagged: " . date('Y-m-d H:i:s') . "\n"
-              . "Reason: {$reason}\n";
-    file_put_contents($infoPath, $content);
-}
 
 // -- Write progress JSON --
 function writeProgress(string $file, array $stats): void
@@ -367,7 +367,7 @@ function findOrCreateCategory(PDO $db, string $name): int
 }
 
 // -- Import song into database --
-function importSong(PDO $db, string $destPath, string $musicDir, array $meta, string $hash, bool $dryRun, array $sidecar = []): ?int
+function importSong(PDO $db, string $destPath, string $musicDir, array $meta, string $hash, bool $dryRun, array $sidecar = [], ?int $duplicateOf = null): ?int
 {
     if ($dryRun) {
         log_msg("  DRY-RUN: would import to DB");
@@ -389,22 +389,39 @@ function importSong(PDO $db, string $destPath, string $musicDir, array $meta, st
 
     $stmt = $db->prepare('
         INSERT INTO songs (title, artist_id, category_id, file_path, file_hash,
-                           duration_ms, year)
+                           duration_ms, year, duplicate_of)
         VALUES (:title, :artist_id, :category_id, :file_path, :file_hash,
-                :duration_ms, :year)
+                :duration_ms, :year, :duplicate_of)
         RETURNING id
     ');
     $stmt->execute([
-        'title'       => $title,
-        'artist_id'   => $artistId,
-        'category_id' => $categoryId,
-        'file_path'   => $relativePath,
-        'file_hash'   => $hash,
-        'duration_ms' => $meta['duration_ms'],
-        'year'        => $year,
+        'title'        => $title,
+        'artist_id'    => $artistId,
+        'category_id'  => $categoryId,
+        'file_path'    => $relativePath,
+        'file_hash'    => $hash,
+        'duration_ms'  => $meta['duration_ms'],
+        'year'         => $year,
+        'duplicate_of' => $duplicateOf,
     ]);
 
     return (int) $stmt->fetchColumn();
+}
+
+// -- Determine if a file is from a folder upload (under untagged/folders/) --
+function isFromFolderUpload(string $absolutePath, string $musicDir): bool
+{
+    $foldersDir = $musicDir . '/untagged/folders';
+    return str_starts_with($absolutePath, $foldersDir . '/');
+}
+
+// -- Get folder name for folder uploads (first dir segment under untagged/folders/) --
+function getFolderName(string $absolutePath, string $musicDir): string
+{
+    $foldersDir = $musicDir . '/untagged/folders/';
+    $relative = substr($absolutePath, strlen($foldersDir));
+    $parts = explode('/', $relative);
+    return $parts[0] ?? 'Unknown';
 }
 
 // -- Process a single file from the upload directory --
@@ -412,9 +429,10 @@ function processFile(
     PDO    $db,
     string $absolutePath,
     string $musicDir,
-    string $untaggedDir,
-    string $duplicatesDir,
-    string $taggedDir,
+    string $untaggedFilesDir,
+    string $untaggedFoldersDir,
+    string $taggedFilesDir,
+    string $taggedFoldersDir,
     array  &$knownHashes,
     bool   $dryRun,
     MetadataLookup $lookup = null
@@ -424,40 +442,49 @@ function processFile(
 
     log_msg("Processing: {$filename}");
 
-    // -- Step A: SHA-256 duplicate check --
+    // -- Step A: SHA-256 hash + duplicate detection --
     $hash = hash_file('sha256', $absolutePath);
     if ($hash === false) {
         return ['status' => 'failed', 'action' => null, 'error' => 'Cannot compute hash'];
     }
 
-    // Check songs table
-    $stmt = $db->prepare('SELECT file_path FROM songs WHERE file_hash = :hash LIMIT 1');
+    // Detect canonical song for duplicate tracking (non-destructive)
+    // Only mark as duplicate if an active (non-trashed) canonical copy exists.
+    // If the only existing copy is trashed, restore it instead of creating a duplicate.
+    $canonicalId    = null;
+    $restoredSongId = null;
+    $stmt = $db->prepare('
+        SELECT id, trashed_at FROM songs
+        WHERE file_hash = :hash AND duplicate_of IS NULL
+        ORDER BY trashed_at NULLS FIRST, id LIMIT 1
+    ');
     $stmt->execute(['hash' => $hash]);
-    $existingSong = $stmt->fetchColumn();
-
-    if ($existingSong !== false) {
-        log_msg("  DUPLICATE (in DB as {$existingSong}) — moving to _duplicates/");
-        if (!$dryRun) {
-            $dupDest = "{$musicDir}/{$duplicatesDir}/{$filename}";
-            $dupDest = resolveConflict($dupDest);
-            moveFile($absolutePath, $dupDest, false);
-            $sidecarPath = dirname($absolutePath) . '/.' . basename($absolutePath) . '.meta';
-            @unlink($sidecarPath);
+    $existingRow = $stmt->fetch();
+    if ($existingRow !== false) {
+        if ($existingRow['trashed_at'] !== null) {
+            // Only copy is trashed — restore it; file_path updated after move in Step D
+            $restoredSongId = (int) $existingRow['id'];
+            $db->prepare('UPDATE songs SET trashed_at = NULL, is_active = true WHERE id = :id')
+               ->execute(['id' => $restoredSongId]);
+            log_msg("  RESTORED trashed song #{$restoredSongId} — re-uploaded same file");
+        } else {
+            $canonicalId = (int) $existingRow['id'];
+            log_msg("  DUPLICATE of song #{$canonicalId} — will organize and tag as duplicate");
         }
-        return ['status' => 'done', 'action' => 'duplicate', 'path' => null, 'error' => null];
-    }
-
-    // Check organizer_hashes
-    if (isset($knownHashes[$hash])) {
-        log_msg("  DUPLICATE (hash already seen) — moving to _duplicates/");
-        if (!$dryRun) {
-            $dupDest = "{$musicDir}/{$duplicatesDir}/{$filename}";
-            $dupDest = resolveConflict($dupDest);
-            moveFile($absolutePath, $dupDest, false);
-            $sidecarPath = dirname($absolutePath) . '/.' . basename($absolutePath) . '.meta';
-            @unlink($sidecarPath);
+    } elseif (isset($knownHashes[$hash]) && is_int($knownHashes[$hash])) {
+        // Check if the cached canonical is still active
+        $chkStmt = $db->prepare('SELECT id, trashed_at FROM songs WHERE id = :id');
+        $chkStmt->execute(['id' => $knownHashes[$hash]]);
+        $chkRow = $chkStmt->fetch();
+        if ($chkRow && $chkRow['trashed_at'] === null) {
+            $canonicalId = $knownHashes[$hash];
+            log_msg("  DUPLICATE of song #{$canonicalId} (hash cache) — will organize and tag as duplicate");
+        } elseif ($chkRow && $chkRow['trashed_at'] !== null) {
+            $restoredSongId = (int) $chkRow['id'];
+            $db->prepare('UPDATE songs SET trashed_at = NULL, is_active = true WHERE id = :id')
+               ->execute(['id' => $restoredSongId]);
+            log_msg("  RESTORED trashed song #{$restoredSongId} — re-uploaded same file");
         }
-        return ['status' => 'done', 'action' => 'duplicate', 'path' => null, 'error' => null];
     }
 
     // -- Step B: Extract metadata + read sidecar overrides --
@@ -584,16 +611,24 @@ function processFile(
 
     if (!empty($missing)) {
         $reason   = 'Missing: ' . implode(', ', $missing);
-        $destPath = "{$musicDir}/{$untaggedDir}/{$filename}";
+        // Keep files in their current untagged subdirectory (files/ or folders/)
+        $isFolder = isFromFolderUpload($absolutePath, $musicDir);
+        $utDir    = $isFolder ? $untaggedFoldersDir : $untaggedFilesDir;
+        $destPath = "{$musicDir}/{$utDir}/{$filename}";
         $destPath = resolveConflict($destPath);
 
         log_msg("  UNTAGGED: {$reason}");
         if (moveFile($absolutePath, $destPath, $dryRun)) {
-            writeInfoFile($destPath, $reason, $dryRun);
             // Still import to DB with available metadata
             $hash2 = hash_file('sha256', $destPath);
             if ($hash2 !== false) {
-                importSong($db, $destPath, $musicDir, $meta, $hash2, $dryRun, $sidecar);
+                if ($restoredSongId !== null && !$dryRun) {
+                    $relPath = ltrim(str_replace($musicDir, '', $destPath), '/');
+                    $db->prepare('UPDATE songs SET file_path = :fp, file_hash = :hash WHERE id = :id')
+                       ->execute(['fp' => $relPath, 'hash' => $hash2, 'id' => $restoredSongId]);
+                } else {
+                    importSong($db, $destPath, $musicDir, $meta, $hash2, $dryRun, $sidecar, $canonicalId);
+                }
                 registerHash($db, $hash2, $destPath);
                 $knownHashes[$hash2] = true;
             }
@@ -622,20 +657,36 @@ function processFile(
         $hash = hash_file('sha256', $absolutePath);
     }
 
-    // -- Step C: Build destination path (Genre/Artist/Title.ext) --
+    // -- Step C: Build destination path --
     $genre  = sanitizeSegment(trim($meta['genre']));
     $artist = sanitizeSegment(trim($meta['artist']));
     $title  = sanitizeFilename(trim($meta['title']));
 
-    $destFilename = "{$title}.{$ext}";
+    $isFolder = isFromFolderUpload($absolutePath, $musicDir);
 
-    // Cap total filename length at 255
-    if (mb_strlen($destFilename) > 255) {
-        $title = mb_substr($title, 0, max(1, 255 - mb_strlen($ext) - 1));
+    if ($isFolder) {
+        // Folder uploads → tagged/folders/{FolderName}/{Artist} - {Title}.ext
+        $folderName   = sanitizeSegment(getFolderName($absolutePath, $musicDir));
+        $destFilename = "{$artist} - {$title}.{$ext}";
+
+        if (mb_strlen($destFilename) > 255) {
+            $title = mb_substr($title, 0, max(1, 255 - mb_strlen($artist) - mb_strlen($ext) - 4));
+            $destFilename = "{$artist} - {$title}.{$ext}";
+        }
+
+        $destPath = "{$musicDir}/{$taggedFoldersDir}/{$folderName}/{$destFilename}";
+    } else {
+        // Individual files → tagged/files/{Genre}/{Artist}/{Title}.ext
         $destFilename = "{$title}.{$ext}";
+
+        if (mb_strlen($destFilename) > 255) {
+            $title = mb_substr($title, 0, max(1, 255 - mb_strlen($ext) - 1));
+            $destFilename = "{$title}.{$ext}";
+        }
+
+        $destPath = "{$musicDir}/{$taggedFilesDir}/{$genre}/{$artist}/{$destFilename}";
     }
 
-    $destPath = "{$musicDir}/{$taggedDir}/{$genre}/{$artist}/{$destFilename}";
     $destPath = resolveConflict($destPath);
 
     // -- Step D: Move, register hash, and import to DB --
@@ -648,10 +699,21 @@ function processFile(
         }
         $knownHashes[$hash] = true;
 
-        // Import into songs table
-        $songId = importSong($db, $destPath, $musicDir, $meta, $hash, $dryRun, $sidecar);
-        if ($songId !== null) {
-            log_msg("  IMPORTED -> song #{$songId}");
+        // Import into songs table (or update restored song's file_path)
+        $songId = null;
+        if ($restoredSongId !== null && !$dryRun) {
+            // Re-uploaded file restored a trashed song — update its path
+            $relPath = ltrim(str_replace($musicDir, '', $destPath), '/');
+            $db->prepare('UPDATE songs SET file_path = :fp, file_hash = :hash WHERE id = :id')
+               ->execute(['fp' => $relPath, 'hash' => $hash, 'id' => $restoredSongId]);
+            $songId = $restoredSongId;
+            log_msg("  UPDATED path for restored song #{$songId}");
+        } else {
+            $songId = importSong($db, $destPath, $musicDir, $meta, $hash, $dryRun, $sidecar, $canonicalId);
+            if ($songId !== null) {
+                $dupLabel = $canonicalId !== null ? " (dup of #{$canonicalId})" : '';
+                log_msg("  IMPORTED{$dupLabel} -> song #{$songId}");
+            }
         }
 
         // Fetch and embed cover art if missing
@@ -693,7 +755,7 @@ function processFile(
     return ['status' => 'failed', 'action' => 'organized', 'error' => 'Move failed'];
 }
 
-// -- Clean up empty directories in upload/ --
+// -- Clean up empty directories in untagged/ --
 function cleanEmptyDirs(string $uploadDir, bool $dryRun): void
 {
     if (!is_dir($uploadDir)) return;
@@ -793,7 +855,7 @@ while (true) {
 
             $stats['scanned']++;
 
-            $result = processFile($db, $absPath, $musicDir, $untaggedDir, $duplicatesDir, $taggedDir, $knownHashes, $dryRun, $metadataLookup);
+            $result = processFile($db, $absPath, $musicDir, $untaggedFilesDir, $untaggedFoldersDir, $taggedFilesDir, $taggedFoldersDir, $knownHashes, $dryRun, $metadataLookup);
 
             match ($result['action']) {
                 'organized' => $stats['organized']++,
@@ -805,7 +867,7 @@ while (true) {
             $processedThisCycle++;
         }
 
-        // -- STEP 3: Clean empty directories in upload/ --
+        // -- STEP 3: Clean empty directories in untagged/ --
         if ($processedThisCycle > 0) {
             cleanEmptyDirs($uploadDir, $dryRun);
         }

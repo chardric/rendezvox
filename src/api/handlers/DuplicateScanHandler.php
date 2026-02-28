@@ -27,8 +27,10 @@ class DuplicateScanHandler
             WHERE s.file_hash IN (
                 SELECT file_hash FROM songs
                 WHERE file_hash IS NOT NULL AND file_hash != ''
+                AND duplicate_of IS NULL
                 GROUP BY file_hash HAVING COUNT(*) > 1
             )
+            AND s.duplicate_of IS NULL
             ORDER BY s.file_hash, s.play_count DESC
         ");
 
@@ -87,6 +89,7 @@ class DuplicateScanHandler
               AND LOWER(s1.title) = LOWER(s2.title)
               AND ABS(s1.duration_ms - s2.duration_ms) <= 5000
             WHERE (s1.file_hash IS NULL OR s2.file_hash IS NULL OR s1.file_hash != s2.file_hash)
+              AND s1.duplicate_of IS NULL AND s2.duplicate_of IS NULL
         ");
 
         $pairs = $stmt->fetchAll();
@@ -193,6 +196,7 @@ class DuplicateScanHandler
             'play_count'   => (int) $row['play_count'],
             'is_active'    => (bool) $row['is_active'],
             'created_at'   => $row['created_at'],
+            'duplicate_of' => $row['duplicate_of'] ? (int) $row['duplicate_of'] : null,
         ];
     }
 

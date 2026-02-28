@@ -1,7 +1,18 @@
 /* ============================================================
    RendezVox Admin — File Manager
    ============================================================ */
-(function () {
+/* Promise.allSettled polyfill for older browsers */
+if (typeof Promise.allSettled !== 'function') {
+  Promise.allSettled = function (promises) {
+    return Promise.all(promises.map(function (p) {
+      return Promise.resolve(p).then(
+        function (value) { return { status: 'fulfilled', value: value }; },
+        function (reason) { return { status: 'rejected', reason: reason }; }
+      );
+    }));
+  };
+}
+var RendezVoxFileManager = (function () {
   'use strict';
 
   // ── State ──────────────────────────────────────────────────
@@ -13,31 +24,42 @@
   var ctxMenu      = null;
   var treeExpanded    = new Set(['/']);
   var treeData        = [];
-  var SYSTEM_PATHS     = ['/tagged', '/_untagged', '/imports', '/upload'];
+  var SYSTEM_PATHS     = [];
   var newFolderTarget  = null;  // overrides currentPath when creating from tree ctx menu
   var dragItems        = null;  // [{path,name,type}] — items being dragged
   var lasso            = { active: false, moved: false, startX: 0, startY: 0, el: null, origSel: null };
   var lassoWasDragged  = false;
+  var searchTerm       = '';
+  var searchTimer      = null;
+  var searchMode       = false;  // true when showing recursive search results
+  var savedItems       = null;   // original currentItems before search mode
+  var initialized      = false;
 
   // ── DOM refs ────────────────────────────────────────────────
   var elContent, elBreadcrumb, elTree, elStatus;
   var elBtnNewFolder, elBtnCut, elBtnCopy, elBtnPaste, elBtnRename, elBtnDelete;
+  var elBtnSelectAll, elSearchBar, elSearch, elBtnClearSearch, elSearchCount;
 
-  // ── Bootstrap ───────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', function () {
-    if (!RendezVoxAuth.requireLogin()) return;
-    RendezVoxNav.init();
+  // ── Init (called explicitly, not on DOMContentLoaded) ──────
+  function init() {
+    if (initialized) { browse('/'); return; }
+    initialized = true;
 
     elContent      = document.getElementById('fm-content');
     elBreadcrumb   = document.getElementById('fm-breadcrumb');
     elTree         = document.getElementById('fm-tree');
     elStatus       = document.getElementById('fm-status');
-    elBtnNewFolder = document.getElementById('btnNewFolder');
-    elBtnCut       = document.getElementById('btnCut');
-    elBtnCopy      = document.getElementById('btnCopy');
-    elBtnPaste     = document.getElementById('btnPaste');
-    elBtnRename    = document.getElementById('btnRename');
-    elBtnDelete    = document.getElementById('btnDelete');
+    elBtnNewFolder = document.getElementById('fm-btnNewFolder');
+    elBtnCut       = document.getElementById('fm-btnCut');
+    elBtnCopy      = document.getElementById('fm-btnCopy');
+    elBtnPaste     = document.getElementById('fm-btnPaste');
+    elBtnRename    = document.getElementById('fm-btnRename');
+    elBtnDelete    = document.getElementById('fm-btnDelete');
+    elBtnSelectAll   = document.getElementById('fm-btnSelectAll');
+    elSearchBar      = document.getElementById('fm-searchBar');
+    elSearch         = document.getElementById('fm-search');
+    elBtnClearSearch = document.getElementById('fm-btnClearSearch');
+    elSearchCount    = document.getElementById('fm-searchCount');
 
     elBtnNewFolder.addEventListener('click', cmdNewFolder);
     elBtnCut.addEventListener('click', cmdCut);
@@ -48,9 +70,34 @@
       if (paths.length === 1) cmdRename(paths[0]);
     });
     elBtnDelete.addEventListener('click', cmdDelete);
+    elBtnSelectAll.addEventListener('click', cmdSelectAll);
+
+    elSearch.addEventListener('input', function () {
+      searchTerm = this.value.trim().toLowerCase();
+      elBtnClearSearch.style.display = searchTerm ? '' : 'none';
+      if (needsRecursiveSearch(searchTerm)) {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () { doRecursiveSearch(searchTerm); }, 300);
+      } else {
+        clearTimeout(searchTimer);
+        if (searchMode) exitSearchMode();
+        applySearchFilter();
+      }
+    });
+    elBtnClearSearch.addEventListener('click', function () {
+      elSearch.value = '';
+      searchTerm = '';
+      elBtnClearSearch.style.display = 'none';
+      clearTimeout(searchTimer);
+      if (searchMode) exitSearchMode();
+      else applySearchFilter();
+      elSearch.focus();
+    });
 
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('click', function (e) {
+      var fv = document.getElementById('filesView');
+      if (!fv || fv.classList.contains('hidden')) return;
       closeCtxMenu();
       if (e.target === elContent) {
         if (lassoWasDragged) { lassoWasDragged = false; return; }
@@ -85,13 +132,20 @@
     initNewFolderModal();
     loadTree();
     browse('/');
-  });
+  }
 
   // ── Browse ──────────────────────────────────────────────────
   function browse(path) {
     currentPath = path || '/';
     selSet.clear();
     lastClickIdx = -1;
+    searchTerm = '';
+    searchMode = false;
+    savedItems = null;
+    clearTimeout(searchTimer);
+    if (elSearch) { elSearch.value = ''; }
+    if (elBtnClearSearch) { elBtnClearSearch.style.display = 'none'; }
+    if (elSearchCount) { elSearchCount.textContent = ''; }
     elContent.style.opacity = '0.5';
 
     RendezVoxAPI.get('/admin/files/browse?path=' + encodeURIComponent(currentPath))
@@ -107,6 +161,10 @@
         renderList();
         updateToolbar();
         highlightTreeNode(currentPath);
+        // Show search bar when folder has items
+        if (elSearchBar) {
+          elSearchBar.style.display = currentItems.length > 0 ? '' : 'none';
+        }
       })
       .catch(function (err) {
         elContent.innerHTML = '<div class="fm-empty" style="color:var(--danger)">Failed to load directory</div>';
@@ -145,18 +203,20 @@
       var isCut = clipboard && clipboard.mode === 'cut' &&
         clipboard.items.some(function (ci) { return ci.path === item.path; });
       var cls = 'fm-item' + (isSel ? ' selected' : '') + (isCut ? ' cut-mode' : '');
+      var sys  = isSystemPath(item.path);
       var icon = item.type === 'folder' ? iconFolder() : iconFile();
       var meta = item.type === 'folder'
         ? (item.child_count + ' item' + (item.child_count !== 1 ? 's' : ''))
         : fmtSize(item.size);
+      if (sys) cls += ' fm-system';
 
       html += '<div class="' + cls + '" data-index="' + i + '" data-path="' + esc(item.path) + '">'
         + '<div class="item-icon' + (item.type === 'folder' ? ' folder-icon' : '') + '">' + icon + '</div>'
-        + '<div class="item-name">' + esc(item.name) + '</div>'
+        + '<div class="item-name">' + esc(item.name) + (sys ? ' <span class="fm-lock" title="System folder (protected)">' + iconLock() + '</span>' : '') + '</div>'
         + '<div class="item-meta">' + esc(meta) + '</div>'
         + '<div class="item-actions">'
-        + (isSystemPath(item.path) ? '' : '<button class="btn btn-ghost btn-sm" data-act="rename" title="Rename">' + iconEdit() + '</button>')
-        + (isSystemPath(item.path) ? '' : '<button class="btn btn-sm" data-act="delete" title="Delete" style="color:var(--danger);border-color:transparent;background:transparent;">' + iconTrash() + '</button>')
+        + (sys ? '' : '<button class="btn btn-ghost btn-sm" data-act="rename" title="Rename">' + iconEdit() + '</button>')
+        + (sys ? '' : '<button class="btn btn-sm" data-act="delete" title="Delete" style="color:var(--danger);border-color:transparent;background:transparent;">' + iconTrash() + '</button>')
         + '</div></div>';
     });
     html += '</div>';
@@ -333,10 +393,176 @@
   }
 
   function cmdSelectAll() {
-    currentItems.forEach(function (item) { selSet.add(item.path); });
-    lastClickIdx = currentItems.length - 1;
+    var visible = getVisibleItems();
+    visible.forEach(function (item) { selSet.add(item.path); });
+    if (visible.length > 0) lastClickIdx = currentItems.indexOf(visible[visible.length - 1]);
     updateSelectionClasses();
     updateToolbar();
+  }
+
+  function matchesSearch(name) {
+    if (!searchTerm) return true;
+    var lower = name.toLowerCase();
+    // Bare extension shorthand: "flac" or "mp3" → match files ending with that ext
+    var AUDIO_EXTS = ['mp3','flac','ogg','wav','aac','m4a','wma','opus','aiff'];
+    if (AUDIO_EXTS.indexOf(searchTerm) !== -1) {
+      return lower.lastIndexOf('.' + searchTerm) === lower.length - searchTerm.length - 1;
+    }
+    // ".ext" shorthand → match files ending with .ext
+    if (searchTerm.charAt(0) === '.' && searchTerm.indexOf('*') === -1 && searchTerm.indexOf('?') === -1 && searchTerm.indexOf(' ') === -1) {
+      return lower.lastIndexOf(searchTerm) === lower.length - searchTerm.length;
+    }
+    // Plain substring match when no wildcards
+    if (searchTerm.indexOf('*') === -1 && searchTerm.indexOf('?') === -1) {
+      return lower.indexOf(searchTerm) !== -1;
+    }
+    // Convert wildcard pattern to regex: * = any chars, ? = single char
+    var escaped = searchTerm.replace(/([.+^${}()|[\]\\])/g, '\\$1');
+    var re = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
+    return new RegExp('^' + re + '$').test(lower);
+  }
+
+  function getVisibleItems() {
+    if (!searchTerm) return currentItems;
+    return currentItems.filter(function (item) { return matchesSearch(item.name); });
+  }
+
+  function applySearchFilter() {
+    elContent.querySelectorAll('.fm-item').forEach(function (el) {
+      var idx = parseInt(el.dataset.index, 10);
+      if (isNaN(idx) || !currentItems[idx]) return;
+      el.style.display = matchesSearch(currentItems[idx].name) ? '' : 'none';
+    });
+    // Deselect hidden items
+    if (searchTerm) {
+      currentItems.forEach(function (item) {
+        if (!matchesSearch(item.name)) selSet.delete(item.path);
+      });
+      updateSelectionClasses();
+      updateToolbar();
+    }
+    // Update count
+    var visible = getVisibleItems();
+    if (searchTerm) {
+      elSearchCount.textContent = visible.length + ' of ' + currentItems.length;
+    } else {
+      elSearchCount.textContent = '';
+    }
+  }
+
+  var AUDIO_EXTS = ['mp3','flac','ogg','wav','aac','m4a','wma','opus','aiff'];
+
+  function needsRecursiveSearch(term) {
+    if (!term) return false;
+    if (AUDIO_EXTS.indexOf(term) !== -1) return true;
+    if (term.charAt(0) === '.' && term.indexOf('*') === -1 && term.indexOf('?') === -1 && term.indexOf(' ') === -1) return true;
+    if (term.indexOf('*') !== -1 || term.indexOf('?') !== -1) return true;
+    return false;
+  }
+
+  function doRecursiveSearch(term) {
+    if (!term) return;
+    selSet.clear();
+    lastClickIdx = -1;
+    elContent.style.opacity = '0.5';
+    elSearchCount.textContent = 'Searching...';
+
+    RendezVoxAPI.get('/admin/files/search?path=' + encodeURIComponent(currentPath) + '&q=' + encodeURIComponent(term))
+      .then(function (data) {
+        if (!savedItems) savedItems = currentItems.slice();
+        searchMode = true;
+        currentItems = (data.files || []).map(function (f) {
+          return { type: 'file', name: f.name, path: f.path, size: f.size || 0, folder: f.folder || '' };
+        });
+        renderSearchResults();
+        updateToolbar();
+        elSearchCount.textContent = currentItems.length + ' found';
+      })
+      .catch(function () {
+        elSearchCount.textContent = 'Search failed';
+      })
+      .finally(function () { elContent.style.opacity = '1'; });
+  }
+
+  function renderSearchResults() {
+    if (currentItems.length === 0) {
+      elContent.innerHTML = '<div class="fm-empty">No matching files</div>';
+      return;
+    }
+    var html = '<div class="fm-items">';
+    currentItems.forEach(function (item, i) {
+      var isSel = selSet.has(item.path);
+      var isCut = clipboard && clipboard.mode === 'cut' &&
+        clipboard.items.some(function (ci) { return ci.path === item.path; });
+      var cls = 'fm-item' + (isSel ? ' selected' : '') + (isCut ? ' cut-mode' : '');
+      var icon = iconFile();
+      var meta = item.folder ? esc(item.folder) + ' · ' + fmtSize(item.size) : fmtSize(item.size);
+
+      html += '<div class="' + cls + '" data-index="' + i + '" data-path="' + esc(item.path) + '">'
+        + '<div class="item-icon">' + icon + '</div>'
+        + '<div class="item-name">' + esc(item.name) + '</div>'
+        + '<div class="item-meta">' + meta + '</div>'
+        + '<div class="item-actions">'
+        + '<button class="btn btn-sm" data-act="delete" title="Delete" style="color:var(--danger);border-color:transparent;background:transparent;">' + iconTrash() + '</button>'
+        + '</div></div>';
+    });
+    html += '</div>';
+    elContent.innerHTML = html;
+
+    elContent.querySelectorAll('.fm-item').forEach(function (el) {
+      var idx = parseInt(el.dataset.index, 10);
+      var item = currentItems[idx];
+
+      el.addEventListener('click', function (e) {
+        if (e.target.closest('[data-act]')) return;
+        handleItemClick(e, idx);
+      });
+
+      el.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        if (!selSet.has(item.path)) {
+          selSet.clear();
+          selSet.add(item.path);
+          lastClickIdx = idx;
+          updateSelectionClasses();
+          updateToolbar();
+        }
+        showCtxMenu(e.clientX, e.clientY, item);
+      });
+
+      var deleteBtn = el.querySelector('[data-act="delete"]');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          selSet.clear();
+          selSet.add(item.path);
+          updateToolbar();
+          cmdDelete();
+        });
+      }
+    });
+  }
+
+  function exitSearchMode() {
+    searchMode = false;
+    if (savedItems) {
+      currentItems = savedItems;
+      savedItems = null;
+    }
+    selSet.clear();
+    lastClickIdx = -1;
+    renderList();
+    updateToolbar();
+    elSearchCount.textContent = '';
+  }
+
+  /** Refresh after an operation: re-run search if in search mode, otherwise browse. */
+  function refreshView() {
+    if (searchMode && searchTerm) {
+      doRecursiveSearch(searchTerm);
+    } else {
+      browse(currentPath);
+    }
   }
 
   function getSelectedItems() {
@@ -366,23 +592,30 @@
       return;
     }
 
-    var endpoint = mode === 'copy' ? '/admin/media/copy' : '/admin/files/move';
-    var promises = toPaste.map(function (it) {
-      return RendezVoxAPI.post(endpoint, { path: it.path, destination: dest });
-    });
-
-    Promise.allSettled(promises).then(function (results) {
-      var ok = 0, fail = 0, errMsg = '';
-      results.forEach(function (r) {
-        if (r.status === 'fulfilled') ok++;
-        else { fail++; if (!errMsg && r.reason && r.reason.error) errMsg = r.reason.error; }
+    if (mode === 'cut') {
+      // Bulk move in a single request
+      var allPaths = toPaste.map(function (it) { return it.path; });
+      RendezVoxAPI.post('/admin/files/move', { paths: allPaths, destination: dest })
+        .then(function (data) {
+          if (data.ok > 0) { clipboard = null; showToast(data.ok + ' item(s) moved', 'success'); }
+          if (data.failed > 0) showToast(data.failed + ' item(s) failed', 'error');
+          loadTree();
+          refreshView();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) ? err.error : 'Move failed', 'error');
+        });
+    } else {
+      // Copy: sequential to avoid rate limits
+      bulkSequential(toPaste.map(function (it) {
+        return function () { return RendezVoxAPI.post('/admin/media/copy', { path: it.path, destination: dest }); };
+      }), function (ok, fail) {
+        if (ok > 0) showToast(ok + ' item(s) copied', 'success');
+        if (fail > 0) showToast(fail + ' item(s) failed', 'error');
+        loadTree();
+        refreshView();
       });
-      if (mode === 'cut' && ok > 0) clipboard = null;
-      if (ok > 0)   showToast(ok + ' item(s) ' + (mode === 'cut' ? 'moved' : 'copied') + ' successfully', 'success');
-      if (fail > 0) showToast(fail + ' item(s) failed' + (errMsg ? ': ' + errMsg : ''), 'error');
-      loadTree();
-      browse(currentPath);
-    });
+    }
   }
 
   function cmdPasteInto(destPath) {
@@ -400,24 +633,30 @@
 
     if (toPaste.length === 0) { showToast('Nothing to paste here', 'error'); return; }
 
-    var endpoint = mode === 'copy' ? '/admin/media/copy' : '/admin/files/move';
-    var promises = toPaste.map(function (it) {
-      return RendezVoxAPI.post(endpoint, { path: it.path, destination: destPath });
-    });
-
-    Promise.allSettled(promises).then(function (results) {
-      var ok = 0, fail = 0, errMsg = '';
-      results.forEach(function (r) {
-        if (r.status === 'fulfilled') ok++;
-        else { fail++; if (!errMsg && r.reason && r.reason.error) errMsg = r.reason.error; }
+    if (mode === 'cut') {
+      var allPaths = toPaste.map(function (it) { return it.path; });
+      RendezVoxAPI.post('/admin/files/move', { paths: allPaths, destination: destPath })
+        .then(function (data) {
+          if (data.ok > 0) { clipboard = null; showToast(data.ok + ' item(s) moved', 'success'); }
+          if (data.failed > 0) showToast(data.failed + ' item(s) failed', 'error');
+          updateToolbar();
+          loadTree();
+          refreshView();
+        })
+        .catch(function (err) {
+          showToast((err && err.error) ? err.error : 'Move failed', 'error');
+        });
+    } else {
+      bulkSequential(toPaste.map(function (it) {
+        return function () { return RendezVoxAPI.post('/admin/media/copy', { path: it.path, destination: destPath }); };
+      }), function (ok, fail) {
+        if (ok > 0) showToast(ok + ' item(s) copied', 'success');
+        if (fail > 0) showToast(fail + ' item(s) failed', 'error');
+        updateToolbar();
+        loadTree();
+        refreshView();
       });
-      if (mode === 'cut' && ok > 0) clipboard = null;
-      if (ok > 0)   showToast(ok + ' item(s) ' + (mode === 'cut' ? 'moved' : 'copied') + ' successfully', 'success');
-      if (fail > 0) showToast(fail + ' item(s) failed' + (errMsg ? ': ' + errMsg : ''), 'error');
-      updateToolbar();
-      loadTree();
-      browse(currentPath);
-    });
+    }
   }
 
   function doMove(items, destPath) {
@@ -428,27 +667,23 @@
     });
     if (!toPaste.length) { showToast('Already in this folder', 'error'); return; }
 
-    var promises = toPaste.map(function (it) {
-      return RendezVoxAPI.post('/admin/files/move', { path: it.path, destination: destPath });
-    });
-    Promise.allSettled(promises).then(function (results) {
-      var ok = 0, fail = 0, errMsg = '';
-      results.forEach(function (r) {
-        if (r.status === 'fulfilled') ok++;
-        else { fail++; if (!errMsg && r.reason && r.reason.error) errMsg = r.reason.error; }
+    var allPaths = toPaste.map(function (it) { return it.path; });
+    RendezVoxAPI.post('/admin/files/move', { paths: allPaths, destination: destPath })
+      .then(function (data) {
+        if (data.ok > 0) showToast(data.ok + ' item(s) moved', 'success');
+        if (data.failed > 0) showToast(data.failed + ' failed', 'error');
+        // Clear moved items from clipboard if they were cut
+        if (clipboard && clipboard.mode === 'cut') {
+          clipboard.items = clipboard.items.filter(function (ci) { return !allPaths.includes(ci.path); });
+          if (!clipboard.items.length) clipboard = null;
+        }
+        loadTree();
+        refreshView();
+        updateToolbar();
+      })
+      .catch(function (err) {
+        showToast((err && err.error) ? err.error : 'Move failed', 'error');
       });
-      if (ok > 0) showToast(ok + ' item(s) moved', 'success');
-      if (fail > 0) showToast(fail + ' failed' + (errMsg ? ': ' + errMsg : ''), 'error');
-      // Clear moved items from clipboard if they were cut
-      if (clipboard && clipboard.mode === 'cut') {
-        var moved = toPaste.map(function (it) { return it.path; });
-        clipboard.items = clipboard.items.filter(function (ci) { return !moved.includes(ci.path); });
-        if (!clipboard.items.length) clipboard = null;
-      }
-      loadTree();
-      browse(currentPath);
-      updateToolbar();
-    });
   }
 
   function cmdDeletePath(path, name) {
@@ -474,10 +709,10 @@
               });
               if (!clipboard.items.length) clipboard = null;
             }
-            var navTo = (currentPath === path || currentPath.startsWith(path + '/')) ? parentPath(path) : currentPath;
             updateToolbar();
             loadTree();
-            browse(navTo);
+            if (searchMode) { refreshView(); }
+            else { var navTo = (currentPath === path || currentPath.startsWith(path + '/')) ? parentPath(path) : currentPath; browse(navTo); }
           })
           .catch(function (err) {
             showToast((err && err.error) ? err.error : 'Delete failed', 'error');
@@ -491,10 +726,10 @@
             RendezVoxAPI.del('/admin/files/delete?path=' + encodeURIComponent(path))
               .then(function () {
                 showToast('Deleted successfully', 'success');
-                var navTo = (currentPath === path || currentPath.startsWith(path + '/')) ? parentPath(path) : currentPath;
                 updateToolbar();
                 loadTree();
-                browse(navTo);
+                if (searchMode) { refreshView(); }
+                else { var navTo = (currentPath === path || currentPath.startsWith(path + '/')) ? parentPath(path) : currentPath; browse(navTo); }
               })
               .catch(function (err) {
                 showToast((err && err.error) ? err.error : 'Delete failed', 'error');
@@ -537,21 +772,20 @@
 
       RendezVoxConfirm(msg, { title: 'Delete', okLabel: 'Delete', okClass: 'btn-danger' }).then(function (ok) {
         if (!ok) return;
-        var promises = paths.map(function (p) {
-          return RendezVoxAPI.del('/admin/files/delete?path=' + encodeURIComponent(p));
-        });
-        Promise.allSettled(promises).then(function (results) {
-          var done = 0, fail = 0;
-          results.forEach(function (r) { if (r.status === 'fulfilled') done++; else fail++; });
-          if (done > 0) showToast(done + ' item(s) deleted', 'success');
-          if (fail > 0) showToast(fail + ' item(s) failed to delete', 'error');
-          if (clipboard) {
-            clipboard.items = clipboard.items.filter(function (ci) { return !paths.includes(ci.path); });
-            if (!clipboard.items.length) clipboard = null;
-          }
-          loadTree();
-          browse(currentPath);
-        });
+        RendezVoxAPI.post('/admin/files/delete-bulk', { paths: paths })
+          .then(function (data) {
+            if (data.ok > 0) showToast(data.ok + ' item(s) deleted', 'success');
+            if (data.failed > 0) showToast(data.failed + ' item(s) failed to delete', 'error');
+            if (clipboard) {
+              clipboard.items = clipboard.items.filter(function (ci) { return !paths.includes(ci.path); });
+              if (!clipboard.items.length) clipboard = null;
+            }
+            loadTree();
+            refreshView();
+          })
+          .catch(function (err) {
+            showToast((err && err.error) ? err.error : 'Delete failed', 'error');
+          });
       });
     }
 
@@ -615,7 +849,7 @@
         .then(function () {
           showToast('Renamed successfully', 'success');
           loadTree();
-          browse(currentPath);
+          refreshView();
         })
         .catch(function (err) {
           showToast((err && err.error) ? err.error : 'Rename failed', 'error');
@@ -661,7 +895,7 @@
             browse(newPath + currentPath.slice(path.length));
           } else {
             loadTree();
-            browse(currentPath);
+            refreshView();
           }
         })
         .catch(function (err) {
@@ -679,8 +913,8 @@
   }
 
   function cmdNewFolder() {
-    document.getElementById('newFolderModal').style.display = 'flex';
-    var input = document.getElementById('newFolderName');
+    document.getElementById('fmNewFolderModal').style.display = 'flex';
+    var input = document.getElementById('fmNewFolderName');
     input.value = '';
     setTimeout(function () { input.focus(); }, 50);
   }
@@ -769,7 +1003,7 @@
         cmdRenameTree(path, name, tnEl.querySelector('.fn-label'));
       }});
     }
-    if (!isRoot) {
+    if (!isRoot && !isSys) {
       entries.push({ label: 'Cut', icon: iconCut(), action: function () {
         clipboard = { mode: 'cut', items: [{ path: path, name: name, type: 'folder' }] };
         updateToolbar();
@@ -925,8 +1159,10 @@
     var depth  = Math.max(0, (node.depth || 0) + 1);
     var indent = depth * 14;
 
-    var html = '<div class="fm-tn" data-path="' + esc(node.path) + '" style="padding-left:' + (8 + indent) + 'px">'
+    var sys = !isRoot && isSystemPath(node.path);
+    var html = '<div class="fm-tn' + (sys ? ' fm-tn-system' : '') + '" data-path="' + esc(node.path) + '" style="padding-left:' + (8 + indent) + 'px">'
       + arrow + icon + '<span class="fn-label">' + esc(node.name) + '</span>'
+      + (sys ? ' ' + iconLock() : '')
       + '</div>';
 
     if (hasChildren) {
@@ -961,11 +1197,11 @@
 
   // ── New folder modal ─────────────────────────────────────────
   function initNewFolderModal() {
-    var modal  = document.getElementById('newFolderModal');
-    var input  = document.getElementById('newFolderName');
-    var btnOk  = document.getElementById('btnCreateFolder');
-    var btnCan = document.getElementById('btnCancelFolder');
-    var btnX   = document.getElementById('btnCancelFolderX');
+    var modal  = document.getElementById('fmNewFolderModal');
+    var input  = document.getElementById('fmNewFolderName');
+    var btnOk  = document.getElementById('fmBtnCreateFolder');
+    var btnCan = document.getElementById('fmBtnCancelFolder');
+    var btnX   = document.getElementById('fmBtnCancelFolderX');
 
     function submit() {
       var name   = input.value.trim();
@@ -1064,6 +1300,8 @@
 
   // ── Keyboard shortcuts ───────────────────────────────────────
   function handleKeydown(e) {
+    var fv = document.getElementById('filesView');
+    if (!fv || fv.classList.contains('hidden')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     var ctrl = e.ctrlKey || e.metaKey;
     if      (ctrl && e.key === 'a') { e.preventDefault(); cmdSelectAll(); }
@@ -1074,6 +1312,16 @@
     else if (e.key === 'F2')        { e.preventDefault(); var p = Array.from(selSet); if (p.length === 1) cmdRename(p[0]); }
     else if (e.key === 'Escape')    { selSet.clear(); lastClickIdx = -1; updateSelectionClasses(); updateToolbar(); }
     else if (e.key === 'Backspace' && ctrl) { e.preventDefault(); browse(parentPath(currentPath)); }
+  }
+
+  /** Run an array of request-factory functions sequentially, then call done(ok, fail). */
+  function bulkSequential(fns, done) {
+    var ok = 0, fail = 0, i = 0;
+    function next() {
+      if (i >= fns.length) { done(ok, fail); return; }
+      fns[i++]().then(function () { ok++; next(); }).catch(function () { fail++; next(); });
+    }
+    next();
   }
 
   // ── Helpers ──────────────────────────────────────────────────
@@ -1121,10 +1369,12 @@
   function iconFile()   { return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'; }
   function iconEdit()   { return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>'; }
   function iconTrash()  { return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'; }
+  function iconLock()   { return '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;opacity:.4"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'; }
   function iconCut()    { return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="20" r="2"/><circle cx="6" cy="4" r="2"/><line x1="6" y1="2" x2="6" y2="22"/><line x1="21" y1="2" x2="6" y2="22"/><line x1="21" y1="22" x2="6" y2="2"/></svg>'; }
   function iconCopy()   { return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'; }
   function iconPaste()  { return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>'; }
   function iconOpen()      { return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>'; }
   function iconNewFolder() { return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>'; }
 
+  return { init: init };
 })();

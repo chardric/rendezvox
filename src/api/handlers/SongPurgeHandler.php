@@ -74,6 +74,42 @@ class SongPurgeHandler
     }
 
     /**
+     * Purge all songs marked as duplicates — delete files from disk + DB rows.
+     * Keeps canonical copies intact; only removes duplicate-of entries.
+     */
+    public function purgeDuplicates(): void
+    {
+        $db = Database::get();
+
+        $stmt = $db->query('SELECT id FROM songs WHERE duplicate_of IS NOT NULL');
+        $ids  = array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+
+        if (empty($ids)) {
+            Response::json(['purged' => 0, 'freed_bytes' => 0, 'errors' => []]);
+            return;
+        }
+
+        // Calculate space to be freed before deleting
+        $freedBytes = 0;
+        foreach ($ids as $id) {
+            $fp = $db->prepare('SELECT file_path FROM songs WHERE id = :id');
+            $fp->execute(['id' => $id]);
+            $path = $fp->fetchColumn();
+            if ($path) {
+                $full = self::MUSIC_DIR . '/' . $path;
+                if (file_exists($full)) {
+                    $freedBytes += (int) filesize($full);
+                }
+            }
+        }
+
+        $result = $this->purgeSongs($ids, 'duplicate_of IS NOT NULL');
+        $result['freed_bytes'] = $freedBytes;
+
+        Response::json($result);
+    }
+
+    /**
      * @param string $condition SQL WHERE condition that guards which songs can be purged
      */
     private function purgeSongs(array $ids, string $condition = 'trashed_at IS NOT NULL'): array

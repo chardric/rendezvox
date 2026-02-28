@@ -238,6 +238,7 @@ class RotationEngine
             JOIN categories c ON c.id = s.category_id
             WHERE ps.playlist_id = :playlist_id
               AND s.is_active = true
+              AND s.duplicate_of IS NULL
               {$playedFilter}
         ");
         $stmt->execute(['playlist_id' => $playlistId]);

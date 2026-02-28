@@ -33,7 +33,7 @@ class MediaBrowseHandler
         $notice    = null;
 
         // Internal directories hidden from the root folder list
-        $hiddenDirs = ['upload', '_untagged', '_duplicates'];
+        $hiddenDirs = ['untagged'];
 
         foreach (scandir($absPath) ?: [] as $item) {
             if ($item === '.' || $item === '..' || str_starts_with($item, '.')) continue;
@@ -58,7 +58,7 @@ class MediaBrowseHandler
                 }
                 $folders[] = ['name' => $item, 'path' => $relativePath, 'file_count' => $fileCount];
             } else {
-                // At root level, skip loose files — we show upload/ files instead
+                // At root level, skip loose files — we show untagged/files/ instead
                 if ($rawPath === '/') continue;
 
                 $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
@@ -73,18 +73,18 @@ class MediaBrowseHandler
             }
         }
 
-        // At root, show files from upload/ as the file listing
+        // At root, show files from untagged/files/ as the file listing
         if ($rawPath === '/') {
-            $uploadAbs = self::BASE_DIR . '/upload';
-            if (is_dir($uploadAbs)) {
-                foreach (scandir($uploadAbs) ?: [] as $item) {
+            $pendingAbs = self::BASE_DIR . '/untagged/files';
+            if (is_dir($pendingAbs)) {
+                foreach (scandir($pendingAbs) ?: [] as $item) {
                     if ($item === '.' || $item === '..' || str_starts_with($item, '.')) continue;
-                    $fullPath = $uploadAbs . '/' . $item;
+                    $fullPath = $pendingAbs . '/' . $item;
                     if (!is_file($fullPath)) continue;
                     $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
                     if (!in_array($ext, $audioExts)) continue;
 
-                    $relativePath       = '/upload/' . $item;
+                    $relativePath       = '/untagged/files/' . $item;
                     $absPaths[]         = $fullPath;
                     $fileInfos[$fullPath] = [
                         'filename' => $item,

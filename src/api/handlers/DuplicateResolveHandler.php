@@ -4,16 +4,6 @@ declare(strict_types=1);
 
 class DuplicateResolveHandler
 {
-    private const BASE_DIR = '/var/lib/rendezvox/music';
-
-    private function resolveFilePath(string $filePath): string
-    {
-        if ($filePath !== '' && $filePath[0] !== '/') {
-            return self::BASE_DIR . '/' . $filePath;
-        }
-        return $filePath;
-    }
-
     public function handle(): void
     {
         $db = Database::get();
@@ -81,65 +71,45 @@ class DuplicateResolveHandler
             }
         }
 
-        // Delete songs and their files
-        $deleted = 0;
-        $freedBytes = 0;
+        // Mark duplicates — match each delete_id to its keep_id by file_hash
+        $marked = 0;
         $errors = [];
 
-        $deleteStmt = $db->prepare('DELETE FROM songs WHERE id = ?');
-        $hashStmt   = $db->prepare('SELECT file_hash FROM songs WHERE id = ?');
-        $delHash    = $db->prepare('DELETE FROM organizer_hashes WHERE file_hash = ?');
+        $hashStmt  = $db->prepare('SELECT file_hash FROM songs WHERE id = ?');
+        $markStmt  = $db->prepare('UPDATE songs SET duplicate_of = ? WHERE id = ?');
 
-        foreach ($deleteSet as $did) {
-            $filePath = $songMap[$did];
-
-            try {
-                // Get hash before deleting
-                $hashStmt->execute([$did]);
-                $hash = $hashStmt->fetchColumn();
-
-                $deleteStmt->execute([$did]);
-                $deleted++;
-
-                // Remove hash from organizer_hashes
-                if ($hash) {
-                    $delHash->execute([$hash]);
-                }
-
-                // Remove file from disk
-                $absPath = $this->resolveFilePath($filePath);
-                if ($absPath !== '' && file_exists($absPath)) {
-                    $size = (int) filesize($absPath);
-                    if (unlink($absPath)) {
-                        $freedBytes += $size;
-                        // Clean up empty parent directories
-                        $dir = dirname($absPath);
-                        while ($dir !== self::BASE_DIR && $dir !== dirname(self::BASE_DIR)) {
-                            if (is_dir($dir) && count(scandir($dir)) === 2) {
-                                @rmdir($dir);
-                                $dir = dirname($dir);
-                            } else {
-                                break;
-                            }
-                        }
-                    } else {
-                        $errors[] = 'Failed to delete file: ' . $absPath;
-                    }
-                }
-            } catch (\PDOException $e) {
-                error_log('DuplicateResolve DB error deleting song ' . $did . ': ' . $e->getMessage());
-                $errors[] = 'DB error deleting song ' . $did;
+        // Build hash → keep_id map from keepSet
+        $hashToKeep = [];
+        foreach (array_keys($keepSet) as $kid) {
+            $hashStmt->execute([$kid]);
+            $kHash = $hashStmt->fetchColumn();
+            if ($kHash) {
+                $hashToKeep[$kHash] = $kid;
             }
         }
 
-        // Clean up orphaned artists
-        if ($deleted > 0) {
-            $db->exec('DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM songs)');
+        foreach ($deleteSet as $did) {
+            try {
+                $hashStmt->execute([$did]);
+                $dHash = $hashStmt->fetchColumn();
+
+                // Find the canonical keep_id: prefer same-hash match, fallback to first keep_id
+                $keepId = ($dHash && isset($hashToKeep[$dHash]))
+                    ? $hashToKeep[$dHash]
+                    : (int) array_key_first($keepSet);
+
+                $markStmt->execute([$keepId, $did]);
+                $marked++;
+            } catch (\PDOException $e) {
+                error_log('DuplicateResolve DB error marking song ' . $did . ': ' . $e->getMessage());
+                $errors[] = 'DB error marking song ' . $did;
+            }
         }
 
         Response::json([
-            'deleted'     => $deleted,
-            'freed_bytes' => $freedBytes,
+            'deleted'     => $marked,
+            'marked'      => $marked,
+            'freed_bytes' => 0,
             'errors'      => $errors,
         ]);
     }

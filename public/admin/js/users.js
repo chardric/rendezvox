@@ -402,8 +402,19 @@ var RendezVoxUsers = (function() {
     var copyBtn = t.querySelector('.pw-copy-btn');
     if (copyBtn) {
       copyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(tempPw);
-        this.textContent = 'Copied!';
+        var btn = this;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(tempPw).then(function() { btn.textContent = 'Copied!'; });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = tempPw;
+          ta.style.cssText = 'position:fixed;left:-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          btn.textContent = 'Copied!';
+        }
       });
     }
     c.appendChild(t);

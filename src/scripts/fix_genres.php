@@ -514,8 +514,8 @@ foreach ($allSongs as $song) {
     if (!$dryRun && file_exists($currentPath)) {
         $relPath = ltrim(str_replace($musicDir . '/', '', $currentPath), '/');
 
-        // _untagged/ → tagged/ if all fields now filled
-        if (str_starts_with($relPath, '_untagged/') && !empty($genre) && !empty($artistName) && !empty($title)
+        // untagged/files/ → tagged/files/ if all fields now filled
+        if (str_starts_with($relPath, 'untagged/files/') && !empty($genre) && !empty($artistName) && !empty($title)
             && strtolower($genre) !== 'uncategorized') {
             $safeGenre  = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($genre));
             $safeArtist = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($artistName));
@@ -523,7 +523,7 @@ foreach ($allSongs as $song) {
             $ext = strtolower(pathinfo($currentPath, PATHINFO_EXTENSION));
 
             if ($safeGenre !== '' && $safeArtist !== '' && $safeTitle !== '') {
-                $newDir  = $musicDir . '/tagged/' . $safeGenre . '/' . $safeArtist;
+                $newDir  = $musicDir . '/tagged/files/' . $safeGenre . '/' . $safeArtist;
                 $newPath = $newDir . '/' . $safeTitle . '.' . $ext;
 
                 if (!file_exists($newPath)) {
@@ -547,11 +547,11 @@ foreach ($allSongs as $song) {
             }
         }
 
-        // Files NOT in imports/ or _untagged/ with no external data → move to _untagged/
-        elseif (!$gotExternalData && !str_starts_with($relPath, 'imports/') && !str_starts_with($relPath, '_untagged/')) {
+        // Files NOT in tagged/folders/ or untagged/ with no external data → move to untagged/files/
+        elseif (!$gotExternalData && !str_starts_with($relPath, 'tagged/folders/') && !str_starts_with($relPath, 'untagged/')) {
             $ext      = strtolower(pathinfo($currentPath, PATHINFO_EXTENSION));
             $basename = pathinfo($currentPath, PATHINFO_FILENAME) . '.' . $ext;
-            $destDir  = $musicDir . '/_untagged';
+            $destDir  = $musicDir . '/untagged/files';
             $destPath = $destDir . '/' . $basename;
 
             // Resolve filename conflicts
@@ -575,7 +575,7 @@ foreach ($allSongs as $song) {
             }
         }
 
-        // imports/ files: tagged in place, NOT relocated (preserves folder structure for playlists)
+        // tagged/folders/ files: tagged in place, NOT relocated (preserves folder structure for playlists)
     }
 
     // Mark song as processed (always, to prevent infinite retry)

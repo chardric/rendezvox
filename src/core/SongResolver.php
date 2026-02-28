@@ -83,6 +83,7 @@ class SongResolver
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
               AND s.is_requestable = true
+              AND s.duplicate_of IS NULL
               AND LOWER(s.title) = LOWER(:title)
         ';
         $params = ['title' => $title];
@@ -106,6 +107,7 @@ class SongResolver
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
               AND s.is_requestable = true
+              AND s.duplicate_of IS NULL
               AND s.title ILIKE :title_like
         ';
         $params = ['title_like' => '%' . $title . '%'];
@@ -136,6 +138,7 @@ class SongResolver
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
               AND s.is_requestable = true
+              AND s.duplicate_of IS NULL
               AND (
                   similarity(s.title, :t3) > :threshold
                   OR word_similarity(:t4, s.title) > :threshold2
@@ -170,6 +173,7 @@ class SongResolver
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
               AND s.is_requestable = true
+              AND s.duplicate_of IS NULL
               AND LOWER(a.name) = LOWER(:artist)
             ORDER BY s.title
             LIMIT ' . self::MAX_RESULTS;
@@ -186,6 +190,7 @@ class SongResolver
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
               AND s.is_requestable = true
+              AND s.duplicate_of IS NULL
               AND a.name ILIKE :artist_like
             ORDER BY s.title
             LIMIT ' . self::MAX_RESULTS;
@@ -209,6 +214,7 @@ class SongResolver
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
               AND s.is_requestable = true
+              AND s.duplicate_of IS NULL
               AND (
                   similarity(a.name, :a3) > :threshold
                   OR word_similarity(:a4, a.name) > :threshold2
