@@ -31,14 +31,14 @@ class LibraryStatsHandler
         $stmt = $db->query("SELECT COUNT(*) FROM categories WHERE type = 'music' AND is_active = true");
         $genreCount = (int) $stmt->fetchColumn();
 
-        // Pending uploads
+        // Pending uploads (count files in untagged/)
         $pendingCount = 0;
-        $uploadDir = self::MUSIC_DIR . '/upload';
-        if (is_dir($uploadDir)) {
+        $untaggedDir = self::MUSIC_DIR . '/untagged';
+        if (is_dir($untaggedDir)) {
             $extensions = ['mp3', 'flac', 'ogg', 'wav', 'aac', 'm4a'];
             $iter = new RecursiveIteratorIterator(
                 new RecursiveCallbackFilterIterator(
-                    new RecursiveDirectoryIterator($uploadDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                    new RecursiveDirectoryIterator($untaggedDir, RecursiveDirectoryIterator::SKIP_DOTS),
                     function ($current) {
                         return !str_starts_with($current->getFilename(), '.');
                     }
@@ -53,13 +53,13 @@ class LibraryStatsHandler
             }
         }
 
-        // Disk usage (music directory, excluding upload)
+        // Disk usage (music directory, excluding untagged)
         // BusyBox-compatible: find + stat instead of GNU du --exclude
         $diskBytes = 0;
         if (is_dir(self::MUSIC_DIR)) {
             $output = shell_exec(
                 "find " . escapeshellarg(self::MUSIC_DIR) . " -not -path " .
-                escapeshellarg(self::MUSIC_DIR . '/upload/*') .
+                escapeshellarg(self::MUSIC_DIR . '/untagged/*') .
                 " -type f -exec stat -c '%s' {} + 2>/dev/null | awk '{s+=\$1} END {print s+0}'"
             );
             if ($output && preg_match('/^(\d+)/', trim($output), $m)) {

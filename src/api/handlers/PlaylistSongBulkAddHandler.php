@@ -48,6 +48,17 @@ class PlaylistSongBulkAddHandler
             $stmt->execute(['id' => $id]);
             $pos = (int) $stmt->fetchColumn();
 
+            // Resolve duplicates — swap any duplicate-marked IDs to their canonical version
+            $dupStmt = $db->prepare('SELECT id, duplicate_of FROM songs WHERE duplicate_of IS NOT NULL');
+            $dupStmt->execute();
+            $dupMap = [];
+            foreach ($dupStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                $dupMap[(int) $row['id']] = (int) $row['duplicate_of'];
+            }
+            $songIds = array_values(array_unique(array_map(function ($sid) use ($dupMap) {
+                return $dupMap[$sid] ?? $sid;
+            }, $songIds)));
+
             // Get existing song IDs in this playlist
             $stmt = $db->prepare('SELECT song_id FROM playlist_songs WHERE playlist_id = :id');
             $stmt->execute(['id' => $id]);

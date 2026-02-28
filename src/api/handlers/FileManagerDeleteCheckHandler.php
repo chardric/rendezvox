@@ -21,7 +21,7 @@ class FileManagerDeleteCheckHandler
             return;
         }
 
-        $abs = MediaBrowseHandler::safePath($rawPath);
+        $abs = FileManagerBrowseHandler::resolveVirtualPath($rawPath);
         if ($abs === null || !is_dir($abs)) {
             Response::json(['playlists' => []]);
             return;

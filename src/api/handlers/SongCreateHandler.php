@@ -5,8 +5,8 @@ declare(strict_types=1);
 class SongCreateHandler
 {
     private const BASE_DIR = '/var/lib/rendezvox/music';
-    private const UPLOAD_DIR = '/var/lib/rendezvox/music/upload';
-    private const IMPORTS_DIR = '/var/lib/rendezvox/music/imports';
+    private const UPLOAD_DIR = '/var/lib/rendezvox/music/untagged/files';
+    private const IMPORTS_DIR = '/var/lib/rendezvox/music/untagged/folders';
 
     public function handle(): void
     {
@@ -76,7 +76,7 @@ class SongCreateHandler
         ], 201);
     }
 
-    // ── Stage file to upload/ directory ──────────────────────
+    // ── Stage file to untagged/files/ directory ─────────────
 
     private function stageFile(array $file, array $sidecar = []): array
     {
@@ -144,7 +144,7 @@ class SongCreateHandler
         ];
     }
 
-    // ── Stage folder upload to imports/ preserving structure ──
+    // ── Stage folder upload to untagged/folders/ preserving structure ──
 
     private function stageToImports(string $tmpName, string $originalName, string $ext, string $relativePath, array $sidecar): array
     {

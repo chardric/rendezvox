@@ -14,7 +14,7 @@ declare(strict_types=1);
  */
 class FileManagerRenameHandler
 {
-    private const SYSTEM_DIRS = ['tagged', '_untagged', 'imports', 'upload'];
+    private const SYSTEM_DIRS = ['tagged', 'untagged'];
 
     public function handle(): void
     {
@@ -36,16 +36,16 @@ class FileManagerRenameHandler
             return;
         }
 
-        $absOld = MediaBrowseHandler::safePath($oldPath);
+        $absOld = FileManagerBrowseHandler::resolveVirtualPath($oldPath);
         if ($absOld === null || !file_exists($absOld)) {
             Response::error('File or folder not found', 404);
             return;
         }
 
-        // Block rename of root-level system folders
+        // Block rename of system folders
         $base    = rtrim(realpath(MediaBrowseHandler::BASE_DIR) ?: MediaBrowseHandler::BASE_DIR, '/');
         $relOld  = substr($absOld, strlen($base) + 1);
-        if (is_dir($absOld) && !str_contains($relOld, '/') && in_array($relOld, self::SYSTEM_DIRS, true)) {
+        if (is_dir($absOld) && self::isProtected($relOld)) {
             Response::error('"' . $relOld . '" is a system folder and cannot be renamed.', 403);
             return;
         }
@@ -72,6 +72,19 @@ class FileManagerRenameHandler
         self::syncPaths($db, $absOld, $absNew, $isFile);
 
         Response::json(['message' => 'Renamed successfully']);
+    }
+
+    private static function isProtected(string $rel): bool
+    {
+        if (!str_contains($rel, '/') && in_array($rel, self::SYSTEM_DIRS, true)) {
+            return true;
+        }
+        $parts = explode('/', $rel, 3);
+        if (count($parts) === 2 && in_array($parts[0], self::SYSTEM_DIRS, true)
+            && in_array($parts[1], ['files', 'folders'], true)) {
+            return true;
+        }
+        return false;
     }
 
     /**

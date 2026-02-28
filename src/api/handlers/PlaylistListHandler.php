@@ -19,6 +19,31 @@ class PlaylistListHandler
             ORDER BY p.id ASC
         ");
 
+        // Optional: check which playlists contain specific songs
+        $checkIds = [];
+        $songPlaylists = []; // playlist_id => count of checked songs it contains
+        $raw = trim((string) ($_GET['check_song_ids'] ?? ''));
+        if ($raw !== '') {
+            $checkIds = array_values(array_unique(array_filter(
+                array_map('intval', explode(',', $raw)),
+                fn($id) => $id > 0
+            )));
+            if (count($checkIds) > 500) {
+                $checkIds = array_slice($checkIds, 0, 500);
+            }
+            if (!empty($checkIds)) {
+                $ph = implode(',', array_fill(0, count($checkIds), '?'));
+                $cStmt = $db->prepare(
+                    "SELECT playlist_id, COUNT(*) AS cnt FROM playlist_songs
+                     WHERE song_id IN ({$ph}) GROUP BY playlist_id"
+                );
+                $cStmt->execute($checkIds);
+                while ($cr = $cStmt->fetch()) {
+                    $songPlaylists[(int) $cr['playlist_id']] = (int) $cr['cnt'];
+                }
+            }
+        }
+
         $playlists = [];
         while ($row = $stmt->fetch()) {
             $rules = null;
@@ -33,7 +58,7 @@ class PlaylistListHandler
                 $songCount = $this->countAutoSongs($db, $rules);
             }
 
-            $playlists[] = [
+            $entry = [
                 'id'          => (int) $row['id'],
                 'name'        => $row['name'],
                 'description' => $row['description'],
@@ -45,6 +70,12 @@ class PlaylistListHandler
                 'color'       => $row['color'],
                 'created_at'  => $row['created_at'],
             ];
+
+            if (!empty($checkIds)) {
+                $entry['contains_count'] = $songPlaylists[(int) $row['id']] ?? 0;
+            }
+
+            $playlists[] = $entry;
         }
 
         $rsStmt = $db->query("SELECT current_playlist_id FROM rotation_state WHERE id = 1");

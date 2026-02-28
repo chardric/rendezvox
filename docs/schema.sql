@@ -88,6 +88,7 @@ CREATE TABLE songs (
     loudness_lufs    NUMERIC(6,2),                      -- EBU R128 integrated loudness
     loudness_gain_db NUMERIC(6,2),                      -- gain to apply for target LUFS
     trashed_at      TIMESTAMPTZ,                        -- soft-delete timestamp
+    duplicate_of    INT          REFERENCES songs(id) ON DELETE SET NULL, -- canonical song for dedup
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -101,6 +102,7 @@ CREATE INDEX idx_songs_title_trgm   ON songs USING gin (title gin_trgm_ops);
 CREATE INDEX idx_songs_requestable  ON songs (is_requestable)
     WHERE is_requestable = TRUE AND is_active = TRUE AND trashed_at IS NULL;
 CREATE INDEX idx_songs_trashed      ON songs (trashed_at) WHERE trashed_at IS NOT NULL;
+CREATE INDEX idx_songs_duplicate_of ON songs (duplicate_of) WHERE duplicate_of IS NOT NULL;
 
 -- ============================================================
 -- 5. PLAYLISTS

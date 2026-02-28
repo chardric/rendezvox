@@ -33,7 +33,7 @@ require __DIR__ . '/../core/Database.php';
 $MUSIC_DIR = '/var/lib/rendezvox/music';
 
 // System directories that must never be renamed by title-casing
-$SYSTEM_DIRS = ['imports', 'tagged', 'upload', '_untagged', '_duplicates'];
+$SYSTEM_DIRS = ['tagged', 'untagged'];
 
 $dryRun = in_array('--dry-run', $argv);
 $dbOnly = in_array('--db-only', $argv);
@@ -300,6 +300,9 @@ foreach ($rows as $row) {
     $newDirParts = [];
     foreach ($dirParts as $di => $dp) {
         if ($di === 0 && in_array(strtolower($dp), $SYSTEM_DIRS)) {
+            $newDirParts[] = $dp;
+        } elseif ($di === 1 && in_array(strtolower($dirParts[0]), $SYSTEM_DIRS) && in_array(strtolower($dp), ['files', 'folders'])) {
+            // Preserve 'files' and 'folders' subdirectory names under system dirs
             $newDirParts[] = $dp;
         } else {
             $newDirParts[] = properTitleCase($dp, $MINOR_WORDS);

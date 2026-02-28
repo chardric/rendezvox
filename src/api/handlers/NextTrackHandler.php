@@ -322,6 +322,7 @@ class NextTrackHandler
             WHERE ps.playlist_id    = :playlist_id
               AND ps.played_in_cycle = false
               AND s.is_active        = true
+              AND s.duplicate_of IS NULL
             ORDER BY ps.position ASC
         ');
         $stmt->execute(['playlist_id' => $playlistId]);
@@ -424,6 +425,7 @@ class NextTrackHandler
             JOIN categories c ON c.id = s.category_id
             WHERE s.is_active = true
               AND s.rotation_weight >= :min_weight
+              AND s.duplicate_of IS NULL
               {$categoryClause}
               {$artistClause}
               {$yearClause}

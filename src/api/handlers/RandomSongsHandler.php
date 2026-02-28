@@ -48,6 +48,7 @@ class RandomSongsHandler
             FROM songs s
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
+              AND s.duplicate_of IS NULL
         ';
         $params = [];
 

@@ -185,18 +185,29 @@ foreach ($folders as $entry) {
                 }
             }
 
+            $fileHash = hash_file('sha256', $file['abs']);
+            $canonicalId = null;
+            if ($fileHash) {
+                $dupStmt = $db->prepare('SELECT id FROM songs WHERE file_hash = :hash AND duplicate_of IS NULL ORDER BY id LIMIT 1');
+                $dupStmt->execute(['hash' => $fileHash]);
+                $cid = $dupStmt->fetchColumn();
+                if ($cid !== false) $canonicalId = (int) $cid;
+            }
+
             try {
                 $insertStmt = $db->prepare('
-                    INSERT INTO songs (title, artist_id, category_id, file_path, duration_ms, year)
-                    VALUES (:title, :artist_id, :category_id, :file_path, :duration_ms, :year)
+                    INSERT INTO songs (title, artist_id, category_id, file_path, file_hash, duration_ms, year, duplicate_of)
+                    VALUES (:title, :artist_id, :category_id, :file_path, :file_hash, :duration_ms, :year, :duplicate_of)
                 ');
                 $insertStmt->execute([
-                    'title'       => $title,
-                    'artist_id'   => $artistId,
-                    'category_id' => $catId,
-                    'file_path'   => $file['rel'],
-                    'duration_ms' => $meta['duration_ms'],
-                    'year'        => $meta['year'] ?: null,
+                    'title'        => $title,
+                    'artist_id'    => $artistId,
+                    'category_id'  => $catId,
+                    'file_path'    => $file['rel'],
+                    'file_hash'    => $fileHash ?: null,
+                    'duration_ms'  => $meta['duration_ms'],
+                    'year'         => $meta['year'] ?: null,
+                    'duplicate_of' => $canonicalId,
                 ]);
                 $existingPaths[$file['rel']] = true;
                 $stats['songs_scanned']++;
@@ -210,14 +221,14 @@ foreach ($folders as $entry) {
     if ($recursive) {
         $songStmt = $db->prepare('
             SELECT id FROM songs
-            WHERE  file_path LIKE :prefix AND is_active = true
+            WHERE  file_path LIKE :prefix AND is_active = true AND duplicate_of IS NULL
             ORDER BY file_path
         ');
         $songStmt->execute(['prefix' => $prefix . '%']);
     } else {
         $songStmt = $db->prepare('
             SELECT id FROM songs
-            WHERE  file_path LIKE :prefix AND file_path NOT LIKE :subprefix AND is_active = true
+            WHERE  file_path LIKE :prefix AND file_path NOT LIKE :subprefix AND is_active = true AND duplicate_of IS NULL
             ORDER BY file_path
         ');
         $songStmt->execute([

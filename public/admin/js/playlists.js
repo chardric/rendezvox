@@ -644,6 +644,7 @@ var RendezVoxPlaylists = (function() {
       tbody.innerHTML = '<tr><td colspan="8" class="empty">No playlists</td></tr>';
       hideBulkBar();
       document.getElementById('tablePager').classList.add('hidden');
+      document.getElementById('tableShowWrap').classList.add('hidden');
       return;
     }
 
@@ -695,6 +696,7 @@ var RendezVoxPlaylists = (function() {
 
     // Update pagination bar
     var pager = document.getElementById('tablePager');
+    document.getElementById('tableShowWrap').classList.remove('hidden');
     if (tableShowLimit > 0 && totalPages > 1) {
       pager.classList.remove('hidden');
       document.getElementById('tablePageInfo').textContent = 'Page ' + tableCurrentPage + ' of ' + totalPages;
@@ -1051,6 +1053,7 @@ var RendezVoxPlaylists = (function() {
 
     // Update pagination bar
     var pager = document.getElementById('detailPager');
+    document.getElementById('detailShowWrap').classList.remove('hidden');
     if (detailShowLimit > 0 && totalPages > 1) {
       pager.classList.remove('hidden');
       document.getElementById('pageInfo').textContent = 'Page ' + detailCurrentPage + ' of ' + totalPages;
@@ -1365,13 +1368,13 @@ var RendezVoxPlaylists = (function() {
 
   // ── Shared collapsible folder tree ──────────────────
 
-  // Folders to skip as tree nodes (their children get promoted)
-  var SKIP_FOLDERS = { '/': true, '/imports': true, '/upload': true, '/tagged': true };
+  // Folders to skip as tree nodes (server already skips structural dirs)
+  var SKIP_FOLDERS = { '/': true };
 
   /**
    * Build a tree structure from flat folder list.
    * Each node: { name, path, depth, song_count?, children: [] }
-   * Skips wrapper folders like /imports, /tagged and /upload, promoting their children.
+   * Skips wrapper folders like /tagged, promoting their children.
    */
   function buildFolderTree(folders) {
     var roots = [];

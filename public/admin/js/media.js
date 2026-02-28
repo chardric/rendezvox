@@ -9,6 +9,10 @@ var RendezVoxMedia = (function () {
     del:  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
     restore: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
     activate: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    play: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><polygon points="6,3 20,12 6,21"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>',
+    addPl: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    check: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 12 9 17 20 6"/></svg>',
   };
 
   // ── State ─────────────────────────────────────────────
@@ -20,6 +24,8 @@ var RendezVoxMedia = (function () {
   var dupGroups    = [];           // duplicate scan results
   var isFolderUpload = false;      // true when uploading via Browse Folder or folder drag-drop
   var folderPaths    = {};         // index → relative path for drag-drop folders
+  var playingSongId  = null;       // currently previewing song ID
+  var pickerSongIds  = [];         // song IDs being added to playlist
 
   // Pagination / filter state
   var currentPage = 1;
@@ -45,11 +51,19 @@ var RendezVoxMedia = (function () {
     loadCategories();
 
     // Header upload button
-    document.getElementById('btnUpload').addEventListener('click', openUpload);
+    document.getElementById('btnUpload').addEventListener('click', function () {
+      switchView('upload');
+    });
 
     // View tabs
     document.getElementById('tabLibrary').addEventListener('click', function () {
       switchView('library');
+    });
+    document.getElementById('tabUpload').addEventListener('click', function () {
+      switchView('upload');
+    });
+    document.getElementById('tabFiles').addEventListener('click', function () {
+      switchView('files');
     });
     document.getElementById('tabTrash').addEventListener('click', function () {
       switchView('trash');
@@ -61,6 +75,7 @@ var RendezVoxMedia = (function () {
     // Duplicate buttons
     document.getElementById('btnDupScan').addEventListener('click', dupScan);
     document.getElementById('btnDupDeleteAll').addEventListener('click', dupResolveAll);
+    document.getElementById('btnDupPurge').addEventListener('click', dupPurgeFiles);
 
     // Empty trash button
     document.getElementById('btnEmptyTrash').addEventListener('click', emptyTrash);
@@ -86,10 +101,20 @@ var RendezVoxMedia = (function () {
     // Purge inactive button
     document.getElementById('btnPurgeInactive').addEventListener('click', purgeInactive);
 
-    // Search
-    document.getElementById('songSearch').addEventListener('input', function () {
+    // Search with clear button
+    var searchInput = document.getElementById('songSearch');
+    var searchX     = document.getElementById('btnClearSearch');
+    searchInput.addEventListener('input', function () {
+      searchX.style.display = searchInput.value ? 'block' : 'none';
       clearTimeout(searchTimer);
       searchTimer = setTimeout(function () { currentPage = 1; loadSongs(); }, 300);
+    });
+    searchX.addEventListener('click', function () {
+      searchInput.value = '';
+      searchX.style.display = 'none';
+      currentPage = 1;
+      loadSongs();
+      searchInput.focus();
     });
 
     // Per-page selector
@@ -124,6 +149,9 @@ var RendezVoxMedia = (function () {
     });
 
     // Bulk bar buttons
+    document.getElementById('btnBulkAddPlaylist').addEventListener('click', function () {
+      openPlaylistPicker(Array.from(selectedIds));
+    });
     document.getElementById('btnBulkTrash').addEventListener('click', bulkTrash);
     document.getElementById('btnBulkRestore').addEventListener('click', bulkRestore);
     document.getElementById('btnBulkPurge').addEventListener('click', bulkPurge);
@@ -140,7 +168,9 @@ var RendezVoxMedia = (function () {
     document.getElementById('uploadFiles').addEventListener('change', onFilesSelected);
     document.getElementById('btnClearDrop').addEventListener('click', clearDroppedFiles);
     document.getElementById('uploadForm').addEventListener('submit', handleUpload);
-    document.getElementById('btnCancelUpload').addEventListener('click', closeUpload);
+    document.getElementById('btnCancelUpload').addEventListener('click', function () {
+      switchView('library');
+    });
     document.getElementById('btnNewArtist').addEventListener('click', openNewArtist);
     document.getElementById('btnNewGenre').addEventListener('click', openNewGenre);
     document.getElementById('btnNewGenreEdit').addEventListener('click', openNewGenre);
@@ -163,11 +193,31 @@ var RendezVoxMedia = (function () {
       document.getElementById('artistModal').classList.add('hidden');
     });
 
+    // Audio preview
+    var audio = document.getElementById('audioPreview');
+    audio.addEventListener('ended', function () {
+      var prev = document.querySelector('.song-num.is-playing');
+      if (prev) prev.classList.remove('is-playing');
+      playingSongId = null;
+      if (audio._blobUrl) { URL.revokeObjectURL(audio._blobUrl); audio._blobUrl = null; }
+    });
+
+    // Playlist picker
+    document.getElementById('playlistPickerSearch').addEventListener('input', filterPlaylistPicker);
+    document.getElementById('btnPlaylistPickerNew').addEventListener('click', createPlaylistFromPicker);
+
     // Initial load
     loadSongs();
     loadPendingCount();
     loadTrashCount();
     loadInactiveCount();
+
+    // Handle URL hash for deep-linking (e.g. #duplicates, #uploads, #files)
+    var hash = window.location.hash.replace('#', '');
+    if (hash === 'uploads') hash = 'upload';
+    if (['upload', 'files', 'trash', 'duplicates'].indexOf(hash) !== -1) {
+      switchView(hash);
+    }
   }
 
   // ── View switching ──────────────────────────────────────
@@ -180,30 +230,51 @@ var RendezVoxMedia = (function () {
     updateBulkBar();
 
     var tabLib       = document.getElementById('tabLibrary');
+    var tabUpload    = document.getElementById('tabUpload');
+    var tabFiles     = document.getElementById('tabFiles');
     var tabTrash     = document.getElementById('tabTrash');
     var tabDup       = document.getElementById('tabDuplicates');
     var filterBar    = document.getElementById('filterBar');
-    var searchBar    = document.querySelector('.songs-filter');
     var trashToolbar = document.getElementById('trashToolbar');
     var btnUpload    = document.getElementById('btnUpload');
     var dupView      = document.getElementById('duplicatesView');
+    var uploadView   = document.getElementById('uploadView');
+    var filesView    = document.getElementById('filesView');
     var songSection  = document.getElementById('songSection');
     var bulkBar      = document.getElementById('bulkBar');
     var pagBar       = document.getElementById('paginationBar');
 
+    // Deactivate all tabs
     tabLib.classList.remove('active');
+    tabUpload.classList.remove('active');
+    tabFiles.classList.remove('active');
     tabTrash.classList.remove('active');
     tabDup.classList.remove('active');
+
+    // Hide all views
     filterBar.classList.add('hidden');
-    searchBar.classList.add('hidden');
     trashToolbar.classList.add('hidden');
     dupView.classList.add('hidden');
+    uploadView.classList.add('hidden');
+    filesView.classList.add('hidden');
     btnUpload.classList.add('hidden');
     songSection.classList.remove('hidden');
     bulkBar.classList.add('hidden');
     document.getElementById('inactiveBanner').classList.add('hidden');
 
-    if (view === 'trash') {
+    if (view === 'upload') {
+      tabUpload.classList.add('active');
+      uploadView.classList.remove('hidden');
+      songSection.classList.add('hidden');
+      pagBar.style.display = 'none';
+      resetUploadForm();
+    } else if (view === 'files') {
+      tabFiles.classList.add('active');
+      filesView.classList.remove('hidden');
+      songSection.classList.add('hidden');
+      pagBar.style.display = 'none';
+      RendezVoxFileManager.init();
+    } else if (view === 'trash') {
       tabTrash.classList.add('active');
       trashToolbar.classList.remove('hidden');
       loadSongs();
@@ -212,11 +283,11 @@ var RendezVoxMedia = (function () {
       dupView.classList.remove('hidden');
       songSection.classList.add('hidden');
       pagBar.style.display = 'none';
+      dupLoadDiskInfo();
       if (dupGroups.length === 0) dupScan();
     } else {
       tabLib.classList.add('active');
       filterBar.classList.remove('hidden');
-      searchBar.classList.remove('hidden');
       btnUpload.classList.remove('hidden');
       loadSongs();
     }
@@ -477,7 +548,7 @@ var RendezVoxMedia = (function () {
 
     if (!songs || songs.length === 0) {
       var emptyMsg = isTrash ? 'Trash is empty' : 'No songs found';
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">' + emptyMsg + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">' + emptyMsg + '</td></tr>';
       updateCheckAllState();
       return;
     }
@@ -507,19 +578,29 @@ var RendezVoxMedia = (function () {
         dateCol   = s.created_at ? formatDate(s.created_at) : '-';
         dateLabel = 'Added';
         actions =
+          '<button type="button" class="icon-btn" title="Add to playlist" onclick="RendezVoxMedia.addToPlaylist(' + s.id + ')">' + IC.addPl + '</button>' +
           '<button type="button" class="icon-btn" title="Edit metadata" onclick="RendezVoxMedia.editSong(' + s.id + ')">' + IC.edit + '</button>' +
           '<button type="button" class="icon-btn danger" title="Move to trash" onclick="RendezVoxMedia.trashSong(' + s.id + ')">' + IC.del + '</button>';
       }
+
+      var isPlaying = playingSongId === s.id;
+      var playIcon = isPlaying ? IC.pause : IC.play;
+      var numCell =
+        '<span class="song-num' + (isPlaying ? ' is-playing' : '') + '">' +
+          '<span class="num-text">' + (startNum + i + 1) + '</span>' +
+          '<span class="play-btn" onclick="RendezVoxMedia.togglePlay(' + s.id + ',this)" title="' + (isPlaying ? 'Pause' : 'Preview') + '">' + playIcon + '</span>' +
+        '</span>';
 
       html +=
         '<tr>' +
           '<td style="width:32px;text-align:center;padding-right:4px">' +
             '<input type="checkbox" class="song-check" data-id="' + s.id + '"' + isChecked + '>' +
           '</td>' +
-          '<td style="text-align:center;color:var(--text-dim,rgba(255,255,255,0.35));font-size:0.78rem">' + (startNum + i + 1) + '</td>' +
+          '<td style="text-align:center;color:var(--text-dim,rgba(255,255,255,0.35));font-size:0.78rem">' + numCell + '</td>' +
           '<td>' + title + (!s.is_active && !isTrash && !isInactiveView() ? '<span class="badge-inactive">(off)</span>' : '') + '</td>' +
           '<td>' + artist + '</td>' +
           '<td>' + genre  + '</td>' +
+          '<td style="font-size:0.78rem;opacity:0.55;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(s.file_path || '') + '">' + escHtml(s.file_path || '') + '</td>' +
           '<td style="white-space:nowrap;font-size:0.82rem;opacity:0.5">' + formatDuration(s.duration_ms) + '</td>' +
           '<td style="white-space:nowrap;font-size:0.82rem">' + dateCol + '</td>' +
           '<td style="white-space:nowrap;padding-left:4px;padding-right:4px">' + actions + '</td>' +
@@ -906,7 +987,7 @@ var RendezVoxMedia = (function () {
 
   // ── Upload ────────────────────────────────────────────
 
-  function openUpload() {
+  function resetUploadForm() {
     document.getElementById('uploadForm').reset();
     document.getElementById('dropFileList').textContent = '';
     document.getElementById('uploadResults').classList.add('hidden');
@@ -923,11 +1004,6 @@ var RendezVoxMedia = (function () {
     document.getElementById('btnClearDrop').classList.add('hidden');
     document.getElementById('dropZonePrompt').style.display = '';
     document.getElementById('dropZoneSubtext').style.display = '';
-    document.getElementById('uploadModal').classList.remove('hidden');
-  }
-
-  function closeUpload() {
-    document.getElementById('uploadModal').classList.add('hidden');
   }
 
   var AUDIO_EXTS = ['mp3','flac','ogg','wav','aac','m4a'];
@@ -954,7 +1030,7 @@ var RendezVoxMedia = (function () {
     clearBtn.classList.remove('hidden');
     if (isFolder) {
       genreRow.classList.add('hidden');
-      hint.textContent = 'Folder structure preserved in imports/. Files auto-tagged via MusicBrainz + AudioDB.';
+      hint.textContent = 'Folder structure preserved. Files auto-tagged via MusicBrainz + AudioDB.';
     } else {
       genreRow.classList.remove('hidden');
       hint.textContent = 'Title and artist are auto-read from ID3 tags by the organizer.';
@@ -1080,7 +1156,7 @@ var RendezVoxMedia = (function () {
         .then(function () {
           hideUploadProgress();
           showToast('File queued for processing');
-          closeUpload();
+          switchView('library');
           loadSongs();
           loadPendingCount();
         })
@@ -1136,7 +1212,7 @@ var RendezVoxMedia = (function () {
             imported + ' of ' + totalFiles + ' queued for processing';
           document.getElementById('uploadResults').classList.remove('hidden');
         } else {
-          closeUpload();
+          switchView('library');
         }
         loadSongs();
         loadPendingCount();
@@ -1323,6 +1399,7 @@ var RendezVoxMedia = (function () {
     btn.textContent = 'Scanning\u2026';
     document.getElementById('btnDupDeleteAll').style.display = 'none';
     document.getElementById('dupSummary').textContent = '';
+    dupPage = 1;
     document.getElementById('dupResults').innerHTML =
       '<p class="text-dim" style="padding:20px 0;text-align:center">Scanning library for duplicates\u2026</p>';
 
@@ -1354,6 +1431,9 @@ var RendezVoxMedia = (function () {
       });
   }
 
+  var dupPage = 1;
+  var DUP_PER_PAGE = 25;
+
   function dupRenderGroups() {
     var container = document.getElementById('dupResults');
     if (dupGroups.length === 0) {
@@ -1361,45 +1441,86 @@ var RendezVoxMedia = (function () {
       return;
     }
 
+    var totalPages = Math.ceil(dupGroups.length / DUP_PER_PAGE);
+    if (dupPage > totalPages) dupPage = totalPages;
+    if (dupPage < 1) dupPage = 1;
+    var start = (dupPage - 1) * DUP_PER_PAGE;
+    var end   = Math.min(start + DUP_PER_PAGE, dupGroups.length);
+    var page  = dupGroups.slice(start, end);
+
     var html = '';
-    dupGroups.forEach(function (g, idx) {
+    page.forEach(function (g, pi) {
+      var idx   = start + pi;
       var badge = g.type === 'exact'
-        ? '<span class="dup-badge-exact">Exact Match</span>'
-        : '<span class="dup-badge-likely">Likely Match</span>';
+        ? '<span class="dup-badge-exact">Exact</span>'
+        : '<span class="dup-badge-likely">Likely</span>';
+      var song0 = g.songs[0] || {};
+      var title = escHtml(song0.artist_name || '') + ' \u2014 ' + escHtml(song0.title || '');
+      var copies = g.songs.length;
 
       html += '<div class="dup-group" data-group="' + idx + '">';
-      html += '<div class="flex items-center justify-between" style="margin-bottom:10px">';
-      html += '<strong style="font-size:.9rem">Group ' + (idx + 1) + ' ' + badge + '</strong>';
-      html += '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="RendezVoxMedia.dupResolveGroup(' + idx + ')">Delete Unselected</button>';
+
+      // Compact header row — click to expand
+      html += '<div class="dup-group-header" onclick="RendezVoxMedia.dupToggle(this)">';
+      html += '<div class="dup-group-left">';
+      html += '<span class="dup-group-chevron">\u25B6</span>';
+      html += badge;
+      html += '<span class="dup-group-title">' + title + '</span>';
+      html += '</div>';
+      html += '<div class="dup-group-meta">' + copies + ' copies</div>';
       html += '</div>';
 
+      // Expandable detail
+      html += '<div class="dup-group-detail">';
       html += '<table><thead><tr>';
-      html += '<th style="width:36px">Keep</th>';
-      html += '<th>Title</th>';
-      html += '<th>Artist</th>';
-      html += '<th style="font-size:.78rem">File Path</th>';
+      html += '<th style="width:30px">Keep</th>';
+      html += '<th>File Path</th>';
       html += '<th>Size</th>';
       html += '<th>Duration</th>';
       html += '<th>Plays</th>';
+      html += '<th style="width:80px"></th>';
       html += '</tr></thead><tbody>';
 
       g.songs.forEach(function (s) {
         var checked = s.id === g.recommended_keep_id ? ' checked' : '';
         html += '<tr>';
         html += '<td style="text-align:center"><input type="radio" class="dup-keep-radio" name="dup_group_' + idx + '" value="' + s.id + '"' + checked + '></td>';
-        html += '<td>' + escHtml(s.title) + '</td>';
-        html += '<td>' + escHtml(s.artist_name) + '</td>';
-        html += '<td style="font-size:.78rem;max-width:200px;word-break:break-all;opacity:.6">' + escHtml(s.file_path) + '</td>';
+        html += '<td style="font-size:.78rem;max-width:280px;word-break:break-all;opacity:.6">' + escHtml(s.file_path) + '</td>';
         html += '<td style="white-space:nowrap">' + formatBytes(s.file_size) + '</td>';
         html += '<td style="white-space:nowrap">' + formatDuration(s.duration_ms) + '</td>';
         html += '<td style="text-align:center">' + s.play_count + '</td>';
+        html += '<td></td>';
         html += '</tr>';
       });
-
-      html += '</tbody></table></div>';
+      html += '</tbody></table>';
+      html += '<div style="text-align:right;margin-top:6px">';
+      html += '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);font-size:.78rem" onclick="RendezVoxMedia.dupResolveGroup(' + idx + ')">Mark Duplicates</button>';
+      html += '</div>';
+      html += '</div></div>';
     });
 
+    // Pagination
+    if (totalPages > 1) {
+      html += '<div class="dup-pager">';
+      html += '<button class="btn btn-ghost btn-sm" onclick="RendezVoxMedia.dupGoPage(' + (dupPage - 1) + ')"' + (dupPage <= 1 ? ' disabled' : '') + '>&laquo; Prev</button>';
+      html += '<span>Page ' + dupPage + ' of ' + totalPages + '</span>';
+      html += '<button class="btn btn-ghost btn-sm" onclick="RendezVoxMedia.dupGoPage(' + (dupPage + 1) + ')"' + (dupPage >= totalPages ? ' disabled' : '') + '>Next &raquo;</button>';
+      html += '</div>';
+    }
+
     container.innerHTML = html;
+  }
+
+  function dupToggle(headerEl) {
+    var group = headerEl.closest('.dup-group');
+    if (group) group.classList.toggle('open');
+  }
+
+  function dupGoPage(p) {
+    dupPage = p;
+    dupRenderGroups();
+    var view = document.getElementById('duplicatesView');
+    if (view) view.scrollTop = 0;
   }
 
   function dupGetKeepId(idx) {
@@ -1426,11 +1547,11 @@ var RendezVoxMedia = (function () {
     });
 
     if (deleteIds.length === 0) return;
-    RendezVoxConfirm('Delete ' + deleteIds.length + ' duplicate(s) from this group? The selected song will be kept.', { title: 'Delete Duplicates', okLabel: 'Delete' }).then(function (ok) {
+    RendezVoxConfirm('Mark ' + deleteIds.length + ' song(s) as duplicates of the selected song?', { title: 'Mark Duplicates', okLabel: 'Mark' }).then(function (ok) {
       if (!ok) return;
       RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
         .then(function (data) {
-          showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
+          showToast('Marked ' + (data.marked || data.deleted) + ' song(s) as duplicates');
           dupGroups.splice(idx, 1);
           dupRenderGroups();
           dupUpdateSummary();
@@ -1450,9 +1571,10 @@ var RendezVoxMedia = (function () {
     var deleteIds = [];
 
     for (var i = 0; i < dupGroups.length; i++) {
-      var keepId = dupGetKeepId(i);
-      if (keepId === null) {
-        showToast('Please select a song to keep in Group ' + (i + 1), 'error');
+      // Use radio if visible on current page, otherwise use recommended_keep_id
+      var keepId = dupGetKeepId(i) || dupGroups[i].recommended_keep_id;
+      if (!keepId) {
+        showToast('Cannot determine which song to keep in Group ' + (i + 1), 'error');
         return;
       }
       keepIds.push(keepId);
@@ -1462,11 +1584,11 @@ var RendezVoxMedia = (function () {
     }
 
     if (deleteIds.length === 0) return;
-    RendezVoxConfirm('Delete ' + deleteIds.length + ' duplicate(s) across all groups? One song per group will be kept.', { title: 'Delete All Duplicates', okLabel: 'Delete All' }).then(function (ok) {
+    RendezVoxConfirm('Mark ' + deleteIds.length + ' song(s) as duplicates across all groups?', { title: 'Mark All Duplicates', okLabel: 'Mark All' }).then(function (ok) {
       if (!ok) return;
       RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
         .then(function (data) {
-          showToast('Deleted ' + data.deleted + ' song(s), freed ' + formatBytes(data.freed_bytes));
+          showToast('Marked ' + (data.marked || data.deleted) + ' song(s) as duplicates');
           dupGroups = [];
           dupRenderGroups();
           dupUpdateSummary();
@@ -1506,6 +1628,232 @@ var RendezVoxMedia = (function () {
     } else {
       badge.classList.add('hidden');
     }
+  }
+
+  function dupPurgeFiles() {
+    RendezVoxAPI.get('/admin/disk-space').then(function (disk) {
+      // Count how many duplicate-marked songs exist in DB
+      RendezVoxConfirm(
+        'Permanently delete all duplicate files from disk? This frees up space but cannot be undone. Canonical copies are kept.',
+        { title: 'Purge Duplicate Files', okLabel: 'Purge Files', danger: true }
+      ).then(function (ok) {
+        if (!ok) return;
+        var btn = document.getElementById('btnDupPurge');
+        btn.disabled = true;
+        btn.textContent = 'Purging\u2026';
+        RendezVoxAPI.del('/admin/songs/purge-duplicates')
+          .then(function (data) {
+            var freed = data.freed_bytes || 0;
+            showToast('Purged ' + data.purged + ' duplicate file(s), freed ' + formatBytes(freed));
+            btn.style.display = 'none';
+            dupLoadDiskInfo();
+          })
+          .catch(function (err) {
+            showToast((err && err.error) || 'Purge failed', 'error');
+          })
+          .finally(function () {
+            btn.disabled = false;
+            btn.textContent = 'Purge Duplicate Files';
+          });
+      });
+    });
+  }
+
+  function dupLoadDiskInfo() {
+    RendezVoxAPI.get('/admin/library/stats').then(function (data) {
+      var el = document.getElementById('dupDiskInfo');
+      var dupCount = data.dup_songs || 0;
+      var btn = document.getElementById('btnDupPurge');
+      if (dupCount > 0) {
+        el.textContent = dupCount + ' duplicate-marked song(s) with files on disk.';
+        btn.style.display = '';
+      } else {
+        el.textContent = '';
+        btn.style.display = 'none';
+      }
+    });
+  }
+
+  // ── Audio Preview ───────────────────────────────────
+
+  function togglePlay(songId, el) {
+    var audio = document.getElementById('audioPreview');
+    var prevEl = document.querySelector('.song-num.is-playing');
+
+    // Pause current
+    if (playingSongId === songId) {
+      audio.pause();
+      if (prevEl) prevEl.classList.remove('is-playing');
+      playingSongId = null;
+      return;
+    }
+
+    // Stop previous
+    if (prevEl) prevEl.classList.remove('is-playing');
+    if (audio._blobUrl) { URL.revokeObjectURL(audio._blobUrl); audio._blobUrl = null; }
+
+    // Play new — fetch with auth header, create blob URL
+    playingSongId = songId;
+    var numCell = el.closest('.song-num');
+    if (numCell) numCell.classList.add('is-playing');
+
+    var token = localStorage.getItem('rendezvox_token');
+    fetch('/api/admin/songs/' + songId + '/preview', {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+    }).then(function (resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.blob();
+    }).then(function (blob) {
+      if (playingSongId !== songId) return; // user clicked another song
+      var url = URL.createObjectURL(blob);
+      audio._blobUrl = url;
+      audio.src = url;
+      return audio.play();
+    }).catch(function () {
+      if (numCell) numCell.classList.remove('is-playing');
+      if (playingSongId === songId) playingSongId = null;
+      showToast('Playback failed', 'error');
+    });
+  }
+
+  // ── Playlist Picker ────────────────────────────────
+
+  function addToPlaylist(songId) {
+    openPlaylistPicker([songId]);
+  }
+
+  function openPlaylistPicker(songIds) {
+    pickerSongIds = songIds;
+    var modal = document.getElementById('playlistPickerModal');
+    var list  = document.getElementById('playlistPickerList');
+    var title = document.getElementById('playlistPickerTitle');
+    var search = document.getElementById('playlistPickerSearch');
+
+    title.textContent = songIds.length === 1
+      ? 'Add to Playlist'
+      : 'Add ' + songIds.length + ' Songs to Playlist';
+    search.value = '';
+    list.innerHTML = '<p class="text-dim" style="padding:20px;text-align:center;font-size:.85rem">Loading playlists\u2026</p>';
+    modal.classList.remove('hidden');
+
+    // Fetch playlists with containment check
+    var qs = songIds.length <= 100 ? '?check_song_ids=' + songIds.join(',') : '';
+    RendezVoxAPI.get('/admin/playlists' + qs).then(function (data) {
+      var playlists = (data.playlists || []).filter(function (p) {
+        return p.type === 'manual';
+      });
+      modal._playlists = playlists;
+      renderPlaylistPicker(playlists);
+    }).catch(function () {
+      list.innerHTML = '<p class="text-dim" style="padding:20px;text-align:center;color:var(--danger);font-size:.85rem">Failed to load playlists</p>';
+    });
+  }
+
+  function renderPlaylistPicker(playlists) {
+    var list   = document.getElementById('playlistPickerList');
+    var search = document.getElementById('playlistPickerSearch').value.toLowerCase().trim();
+
+    if (search) {
+      playlists = playlists.filter(function (p) {
+        return p.name.toLowerCase().indexOf(search) !== -1;
+      });
+    }
+
+    if (playlists.length === 0) {
+      list.innerHTML = '<p class="text-dim" style="padding:20px;text-align:center;font-size:.85rem">' +
+        (search ? 'No matching playlists' : 'No manual playlists') + '</p>';
+      return;
+    }
+
+    var totalSongCount = pickerSongIds.length;
+    var html = '';
+    playlists.forEach(function (p) {
+      var color = p.color || '#6366f1';
+      var containsCount = p.contains_count || 0;
+      var allAdded = containsCount >= totalSongCount && totalSongCount > 0;
+
+      html += '<div class="pl-pick-item" data-id="' + p.id + '" onclick="RendezVoxMedia.pickPlaylist(' + p.id + ')">';
+      html += '<span class="pl-color" style="background:' + escHtml(color) + '"></span>';
+      html += '<span class="pl-name">' + escHtml(p.name) + '</span>';
+      html += '<span class="pl-count">' + (p.song_count || 0) + ' songs</span>';
+
+      if (allAdded) {
+        html += '<span class="pl-check" title="Already added">' + IC.check + '</span>';
+      } else if (containsCount > 0) {
+        html += '<span class="pl-badge added">' + containsCount + '/' + totalSongCount + ' added</span>';
+      }
+
+      html += '</div>';
+    });
+
+    list.innerHTML = html;
+  }
+
+  function filterPlaylistPicker() {
+    var modal = document.getElementById('playlistPickerModal');
+    if (modal._playlists) {
+      renderPlaylistPicker(modal._playlists);
+    }
+  }
+
+  function pickPlaylist(playlistId) {
+    if (!pickerSongIds.length) return;
+
+    var modal = document.getElementById('playlistPickerModal');
+
+    // Show adding state on the clicked item
+    var item = document.querySelector('.pl-pick-item[data-id="' + playlistId + '"]');
+    if (item) {
+      item.style.opacity = '0.5';
+      item.style.pointerEvents = 'none';
+    }
+
+    RendezVoxAPI.post('/admin/playlists/' + playlistId + '/songs/bulk', {
+      song_ids: pickerSongIds
+    }).then(function (data) {
+      var msg = data.added + ' song' + (data.added !== 1 ? 's' : '') + ' added';
+      if (data.skipped > 0) msg += ' (' + data.skipped + ' already in playlist)';
+      showToast(msg);
+
+      // Update the checkmark for this item
+      if (item) {
+        item.style.opacity = '';
+        item.style.pointerEvents = '';
+        // Refresh containment info
+        var qs = pickerSongIds.length <= 100 ? '?check_song_ids=' + pickerSongIds.join(',') : '';
+        RendezVoxAPI.get('/admin/playlists' + qs).then(function (d) {
+          var playlists = (d.playlists || []).filter(function (p) { return p.type === 'manual'; });
+          modal._playlists = playlists;
+          renderPlaylistPicker(playlists);
+        });
+      }
+    }).catch(function (err) {
+      showToast((err && err.error) || 'Failed to add', 'error');
+      if (item) {
+        item.style.opacity = '';
+        item.style.pointerEvents = '';
+      }
+    });
+  }
+
+  function createPlaylistFromPicker() {
+    var name = prompt('New playlist name:');
+    if (!name || !name.trim()) return;
+
+    RendezVoxAPI.post('/admin/playlists', { name: name.trim(), type: 'manual' })
+      .then(function (data) {
+        showToast('Playlist created');
+        // Add songs to the new playlist
+        return RendezVoxAPI.post('/admin/playlists/' + data.id + '/songs/bulk', {
+          song_ids: pickerSongIds
+        }).then(function (addData) {
+          showToast(addData.added + ' song' + (addData.added !== 1 ? 's' : '') + ' added to "' + name.trim() + '"');
+          document.getElementById('playlistPickerModal').classList.add('hidden');
+        });
+      })
+      .catch(function (err) {
+        showToast((err && err.error) || 'Failed to create playlist', 'error');
+      });
   }
 
   // ── Helpers ───────────────────────────────────────────
@@ -1551,6 +1899,11 @@ var RendezVoxMedia = (function () {
     purgeInactiveSong: purgeInactiveSong,
     reactivateSong:    reactivateSong,
     goToPage:          goToPage,
+    togglePlay:        togglePlay,
+    addToPlaylist:     addToPlaylist,
+    pickPlaylist:      pickPlaylist,
     dupResolveGroup:   dupResolveGroup,
+    dupToggle:         dupToggle,
+    dupGoPage:         dupGoPage,
   };
 })();

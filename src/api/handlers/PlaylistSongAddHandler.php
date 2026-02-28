@@ -17,6 +17,14 @@ class PlaylistSongAddHandler
             return;
         }
 
+        // Resolve duplicate — if song is marked as duplicate, use the canonical version
+        $dupStmt = $db->prepare('SELECT duplicate_of FROM songs WHERE id = :id');
+        $dupStmt->execute(['id' => $songId]);
+        $dupOf = $dupStmt->fetchColumn();
+        if ($dupOf !== false && $dupOf !== null) {
+            $songId = (int) $dupOf;
+        }
+
         // Check duplicate
         $stmt = $db->prepare('
             SELECT id FROM playlist_songs WHERE playlist_id = :pid AND song_id = :sid

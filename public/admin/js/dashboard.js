@@ -456,9 +456,9 @@ var RendezVoxDashboard = (function() {
       { count: data.pending_imports || 0, label: 'Pending Uploads', href: '/admin/media.html#uploads' },
       { count: data.untagged || 0,        label: 'Untagged',        href: '/admin/media.html' },
       { count: data.unnormalized || 0,    label: 'Unnormalized' },
-      { count: data.dup_songs || 0,       label: 'Duplicate Songs', href: '/admin/duplicates.html' },
-      { count: data.dup_artists || 0,     label: 'Duplicate Artists',href: '/admin/duplicates.html' },
-      { count: data.zero_byte_files || 0, label: 'Zero-byte Files', href: '/admin/duplicates.html' },
+      { count: data.dup_songs || 0,       label: 'Duplicate Songs', href: '/admin/media.html#duplicates' },
+      { count: data.dup_artists || 0,     label: 'Duplicate Artists',href: '/admin/media.html#duplicates' },
+      { count: data.zero_byte_files || 0, label: 'Zero-byte Files', href: '/admin/media.html#duplicates' },
       { count: data.missing_files || 0,   label: 'Missing Files' },
       { count: data.songs_trashed || 0,   label: 'In Trash' },
     ];

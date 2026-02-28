@@ -55,11 +55,11 @@ $db = Database::get();
 $existingPaths  = [];
 $existingHashes = [];
 
-$stmt = $db->query('SELECT file_path, file_hash FROM songs');
+$stmt = $db->query('SELECT id, file_path, file_hash FROM songs');
 while ($row = $stmt->fetch()) {
     $existingPaths[$row['file_path']] = true;
-    if ($row['file_hash']) {
-        $existingHashes[$row['file_hash']] = true;
+    if ($row['file_hash'] && !isset($existingHashes[$row['file_hash']])) {
+        $existingHashes[$row['file_hash']] = (int) $row['id'];
     }
 }
 
@@ -77,7 +77,7 @@ $filterIterator = new RecursiveCallbackFilterIterator(
             $name = $current->getFilename();
             // Skip hidden directories, organizer-managed directories, and upload staging
             if (str_starts_with($name, '.')) return false;
-            return !in_array($name, ['tagged', '_untagged', '_duplicates', 'upload']);
+            return !in_array($name, ['tagged', 'untagged']);
         }
         return true;
     }
@@ -103,13 +103,9 @@ foreach ($iterator as $fileInfo) {
         continue;
     }
 
-    // Compute hash and skip duplicates
+    // Compute hash and detect duplicates
     $hash = hash_file('sha256', $absolutePath);
-    if (isset($existingHashes[$hash])) {
-        log_msg("SKIP (dup hash): {$relativePath}");
-        $skipped++;
-        continue;
-    }
+    $canonicalId = $existingHashes[$hash] ?? null;
 
     // Extract metadata
     $meta = MetadataExtractor::extract($absolutePath);
@@ -139,9 +135,10 @@ foreach ($iterator as $fileInfo) {
     try {
         $stmt2 = $db->prepare('
             INSERT INTO songs (title, artist_id, category_id, file_path, file_hash,
-                               duration_ms, year, has_cover_art)
+                               duration_ms, year, has_cover_art, duplicate_of)
             VALUES (:title, :artist_id, :category_id, :file_path, :file_hash,
-                    :duration_ms, :year, :has_cover_art)
+                    :duration_ms, :year, :has_cover_art, :duplicate_of)
+            RETURNING id
         ');
         $stmt2->execute([
             'title'         => $title,
@@ -152,12 +149,17 @@ foreach ($iterator as $fileInfo) {
             'duration_ms'   => $meta['duration_ms'],
             'year'          => $meta['year'] ?: null,
             'has_cover_art' => $hasCoverArt ? 'true' : 'false',
+            'duplicate_of'  => $canonicalId,
         ]);
 
+        $newId = (int) $stmt2->fetchColumn();
         $existingPaths[$relativePath] = true;
-        $existingHashes[$hash] = true;
+        if (!isset($existingHashes[$hash])) {
+            $existingHashes[$hash] = $newId;
+        }
         $imported++;
-        log_msg("IMPORTED: {$relativePath} → \"{$title}\" by \"{$artist}\"");
+        $dupLabel = $canonicalId !== null ? " (dup of #{$canonicalId})" : '';
+        log_msg("IMPORTED{$dupLabel}: {$relativePath} → \"{$title}\" by \"{$artist}\"");
     } catch (\PDOException $e) {
         log_msg("ERROR: {$relativePath} — " . $e->getMessage());
         $errors++;

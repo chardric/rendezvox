@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 class MediaPendingCountHandler
 {
-    private const UPLOAD_DIR = '/var/lib/rendezvox/music/upload';
+    private const UNTAGGED_DIR = '/var/lib/rendezvox/music/untagged';
     private const EXTENSIONS = ['mp3', 'flac', 'ogg', 'wav', 'aac', 'm4a'];
 
     public function handle(): void
     {
         $count = 0;
 
-        if (is_dir(self::UPLOAD_DIR)) {
+        // Count audio files in both untagged/files/ and untagged/folders/
+        foreach (['files', 'folders'] as $sub) {
+            $dir = self::UNTAGGED_DIR . '/' . $sub;
+            if (!is_dir($dir)) continue;
+
             $iter = new RecursiveIteratorIterator(
                 new RecursiveCallbackFilterIterator(
-                    new RecursiveDirectoryIterator(self::UPLOAD_DIR, RecursiveDirectoryIterator::SKIP_DOTS),
+                    new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
                     function ($current) {
                         return !str_starts_with($current->getFilename(), '.');
                     }

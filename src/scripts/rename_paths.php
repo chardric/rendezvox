@@ -21,7 +21,7 @@ declare(strict_types=1);
 require __DIR__ . '/../core/Database.php';
 
 $MUSIC_DIR    = '/var/lib/rendezvox/music';
-$SYSTEM_DIRS  = ['imports', 'tagged', 'upload', '_untagged', '_duplicates'];
+$SYSTEM_DIRS  = ['tagged', 'untagged'];
 $MINOR_WORDS  = ['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'yet', 'so',
                  'at', 'by', 'in', 'of', 'on', 'to', 'up', 'as', 'vs',
                  'is', 'it', 'if', 'no', 'not', 'with', 'from'];
@@ -410,6 +410,9 @@ foreach (array_keys($allDirPaths) as $dirPath) {
         if (str_starts_with($part, '.')) {
             $newParts[] = $part;
         } elseif ($i === 0 && in_array(strtolower($part), $SYSTEM_DIRS)) {
+            $newParts[] = $part;
+        } elseif ($i === 1 && in_array(strtolower($parts[0]), $SYSTEM_DIRS) && in_array(strtolower($part), ['files', 'folders'])) {
+            // Preserve 'files' and 'folders' subdirectory names under system dirs
             $newParts[] = $part;
         } else {
             $newParts[] = pathTitleCase($part, $MINOR_WORDS);

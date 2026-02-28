@@ -6,13 +6,17 @@
 <title>Admin — Playlists</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
 <link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
+<script src="/admin/js/theme.js?v=20260228"></script>
 <style>
 tr.on-air {
   background: rgba(0,200,160,.06) !important;
   background: color-mix(in srgb, var(--pl-color, var(--accent)) 8%, transparent) !important;
   box-shadow: inset 3px 0 0 var(--pl-color, var(--accent));
 }
-tr.on-air td { border-bottom-color: color-mix(in srgb, var(--pl-color, var(--accent)) 20%, transparent); }
+tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  tr.on-air td { border-bottom-color: color-mix(in srgb, var(--pl-color, var(--accent)) 20%, transparent); }
+}
 .streaming-icon {
   display: inline-flex;
   align-items: center;
@@ -90,15 +94,6 @@ tr.on-air td { border-bottom-color: color-mix(in srgb, var(--pl-color, var(--acc
     <div class="flex items-center justify-between" style="margin-bottom:20px">
       <h1 class="page-title" style="margin-bottom:0">Playlists</h1>
       <div class="flex gap-8" style="align-items:center">
-        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:.8rem;color:var(--text-dim)">Show
-          <select id="tableShowCount" style="margin:0;padding:4px 6px;font-size:.8rem;width:auto">
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="0">All</option>
-          </select>
-        </label>
         <button type="button" class="btn btn-ghost" id="btnImportFolders">Import from Folders</button>
         <button type="button" class="btn btn-primary" id="btnCreate">+ New Playlist</button>
       </div>
@@ -112,6 +107,17 @@ tr.on-air td { border-bottom-color: color-mix(in srgb, var(--pl-color, var(--acc
     </div>
 
     <!-- ── Playlist list ────────────────────────────── -->
+    <div id="tableShowWrap" class="hidden" style="text-align:right;font-size:.82rem;padding:0 18px 6px;opacity:.6">
+      Show
+      <select id="tableShowCount" style="padding:3px 6px;font-size:.82rem;width:auto;border-radius:4px;border:1px solid var(--border,rgba(255,255,255,.12));background:rgba(255,255,255,.04);color:inherit;margin:0">
+        <option value="10">10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+        <option value="0">All</option>
+      </select>
+      per page
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -150,18 +156,20 @@ tr.on-air td { border-bottom-color: color-mix(in srgb, var(--pl-color, var(--acc
             <button type="button" class="btn btn-ghost btn-sm" id="btnAddSong">+ Add Song</button>
             <button type="button" class="btn btn-ghost btn-sm" id="btnAddFolder">+ From Folder</button>
             <button type="button" class="btn btn-ghost btn-sm" id="btnSurpriseMe">Surprise Me!</button>
-            <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:.8rem;color:var(--text-dim)">Show
-              <select id="detailShowCount" style="margin:0;padding:4px 6px;font-size:.8rem;width:auto">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="0">All</option>
-              </select>
-            </label>
             <button type="button" class="btn btn-ghost btn-sm" id="btnCloseDetail" style="color:#f87171;font-size:1.1rem;font-weight:700;padding:2px 8px;line-height:1">&times;</button>
           </div>
         </div>
+      </div>
+      <div id="detailShowWrap" class="hidden" style="text-align:right;font-size:.82rem;padding:4px 18px 2px;opacity:.6">
+        Show
+        <select id="detailShowCount" style="padding:3px 6px;font-size:.82rem;width:auto;border-radius:4px;border:1px solid var(--border,rgba(255,255,255,.12));background:rgba(255,255,255,.04);color:inherit;margin:0">
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="0">All</option>
+        </select>
+        per page
       </div>
       <div class="table-wrap">
         <table>
@@ -393,7 +401,6 @@ tr.on-air td { border-bottom-color: color-mix(in srgb, var(--pl-color, var(--acc
 <script src="/assets/scroll-controls.js?v=20260226"></script>
 <script src="/admin/js/api.js?v=20260226"></script>
 <script src="/admin/js/auth.js?v=20260226"></script>
-<script src="/admin/js/theme.js?v=20260226"></script>
 <script src="/admin/js/nav.js?v=20260226"></script>
 <script src="/admin/js/icons.js?v=20260226"></script>
 <script src="/admin/js/confirm.js?v=20260226"></script>
