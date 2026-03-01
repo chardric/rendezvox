@@ -114,6 +114,9 @@
     transition: box-shadow .15s;
     min-height: 15px;
     box-sizing: border-box;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .cal-block:hover { box-shadow: 0 2px 12px rgba(0,0,0,.4); z-index: 5; }
   .cal-block.dragging { opacity: .6; cursor: grabbing; z-index: 20; }
@@ -131,6 +134,12 @@
   }
   .cal-block .resize-top { top: 0; }
   .cal-block .resize-bottom { bottom: 0; }
+  @media (pointer: coarse) {
+    .cal-block .resize-top,
+    .cal-block .resize-bottom { height: 18px; }
+    .cal-block .resize-top { top: -6px; }
+    .cal-block .resize-bottom { bottom: -6px; }
+  }
 
   /* Now block glow */
   .cal-block.now { box-shadow: 0 0 0 2px #34d399, 0 2px 12px rgba(52,211,153,.3); }
@@ -214,6 +223,8 @@
     color: #fff;
     cursor: grab;
     white-space: nowrap;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
     user-select: none;
     transition: box-shadow .15s, transform .1s;
     flex-shrink: 0;
@@ -315,12 +326,12 @@
 <div class="toast-container" id="toasts"></div>
 
 <script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260226"></script>
-<script src="/admin/js/auth.js?v=20260226"></script>
-<script src="/admin/js/nav.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/auth.js?v=20260301"></script>
+<script src="/admin/js/nav.js?v=20260301"></script>
 <script src="/admin/js/icons.js?v=20260226"></script>
 <script src="/admin/js/confirm.js?v=20260226"></script>
-<script src="/admin/js/schedules.js?v=20260226"></script>
+<script src="/admin/js/schedules.js?v=20260301"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

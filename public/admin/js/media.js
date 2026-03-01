@@ -1697,7 +1697,7 @@ var RendezVoxMedia = (function () {
     var numCell = el.closest('.song-num');
     if (numCell) numCell.classList.add('is-playing');
 
-    var token = localStorage.getItem('rendezvox_token');
+    var token = sessionStorage.getItem('rendezvox_token');
     fetch('/api/admin/songs/' + songId + '/preview', {
       headers: token ? { 'Authorization': 'Bearer ' + token } : {}
     }).then(function (resp) {

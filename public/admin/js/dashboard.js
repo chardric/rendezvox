@@ -5,6 +5,7 @@ var RendezVoxDashboard = (function() {
 
   var pollTimer    = null;
   var progressTimer = null;
+  var streamActive = true;
 
   // SVG icons for the play/stop button
   var ICON_PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
@@ -119,6 +120,7 @@ var RendezVoxDashboard = (function() {
   function connectMiniPlayer() {
     if (!window.RendezVoxMiniPlayer) return;
     RendezVoxMiniPlayer.onTrackChange(function(data) {
+      if (!streamActive) return; // stream is off, ignore stale SSE events
       if (data.song) {
         renderNowPlaying({
           song_id:     data.song.id,
@@ -183,6 +185,16 @@ var RendezVoxDashboard = (function() {
       btn.title     = 'Monitor stream';
       btn.classList.remove('active');
     }
+    updateBoothControls();
+  }
+
+  function updateBoothControls() {
+    var playBtn = document.getElementById('djPlayBtn');
+    var skipBtn = document.getElementById('djSkipBtn');
+    var volSlider = document.getElementById('djVolume');
+    if (playBtn) { playBtn.disabled = !streamActive; playBtn.style.opacity = streamActive ? '' : '0.4'; }
+    if (skipBtn) { skipBtn.disabled = !streamActive; skipBtn.style.opacity = streamActive ? '' : '0.4'; }
+    if (volSlider) { volSlider.disabled = !streamActive; volSlider.style.opacity = streamActive ? '' : '0.4'; }
   }
 
   function skipTrack() {
@@ -296,8 +308,18 @@ var RendezVoxDashboard = (function() {
 
     RendezVoxAPI.post('/admin/stream-control', { action: action })
       .then(function(data) {
+        streamActive = !!data.stream_active;
         renderStreamStatus(data.stream_active);
+        if (!streamActive) {
+          updateDJBooth(null);
+          renderNowPlaying(null);
+        }
+        updateBoothControls();
         showToast(data.message, action === 'stop' ? 'error' : 'success');
+        // Rapid poll to catch Liquidsoap state change quickly
+        setTimeout(fetchStats, 500);
+        setTimeout(fetchStats, 1500);
+        setTimeout(fetchStats, 3000);
       })
       .catch(function(err) {
         showToast((err && err.error) || 'Failed to toggle stream', 'error');
@@ -333,6 +355,7 @@ var RendezVoxDashboard = (function() {
   function fetchStats() {
     RendezVoxAPI.get('/admin/stats/dashboard')
       .then(function(data) {
+        streamActive = !!data.stream_active;
         renderNowPlaying(data.now_playing);
         renderUpNext(data.next_track);
         renderListeners(data.listeners_current, data.listeners_peak_today);
@@ -340,7 +363,8 @@ var RendezVoxDashboard = (function() {
         renderStreamStatus(data.stream_active);
         renderRequests(data.pending_requests, data.approved_requests);
         renderRecentPlays(data.recent_plays);
-        updateDJBooth(data.now_playing);
+        updateDJBooth(streamActive ? data.now_playing : null);
+        updateBoothControls();
       })
       .catch(function(err) {
         console.error('Dashboard fetch error:', err);

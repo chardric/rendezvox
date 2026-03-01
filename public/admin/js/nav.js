@@ -94,7 +94,7 @@ var RendezVoxNav = (function() {
           var u = RendezVoxAuth.getUser();
           if (u) {
             u.avatar_path = res.avatar_path;
-            localStorage.setItem('rendezvox_user', JSON.stringify(u));
+            sessionStorage.setItem('rendezvox_user', JSON.stringify(u));
           }
           // Update sidebar avatar
           var sidebarAv = document.getElementById('sidebarAvatar');
@@ -168,9 +168,12 @@ var RendezVoxNav = (function() {
       mainEl.appendChild(footer);
     }
 
+    // Sync accent color from server (localStorage is per-device)
+    syncAccentFromServer();
+
     // Load persistent mini-player (streams audio across all pages)
     var mpScript = document.createElement('script');
-    mpScript.src = '/admin/js/miniplayer.js?v=20260226';
+    mpScript.src = '/admin/js/miniplayer.js?v=20260301';
     mpScript.onload = function() {
       if (window.RendezVoxMiniPlayer) {
         RendezVoxMiniPlayer.init();
@@ -335,7 +338,7 @@ var RendezVoxNav = (function() {
           var u = RendezVoxAuth.getUser();
           if (u) {
             u.display_name = res.display_name;
-            localStorage.setItem('rendezvox_user', JSON.stringify(u));
+            sessionStorage.setItem('rendezvox_user', JSON.stringify(u));
             var sidebarName = document.getElementById('btnOpenProfile');
             if (sidebarName) sidebarName.textContent = res.display_name || u.username;
             var dnLabel = document.getElementById('profileDisplayNameLabel');
@@ -386,7 +389,7 @@ var RendezVoxNav = (function() {
           var u = RendezVoxAuth.getUser();
           if (u) {
             u.email = res.email;
-            localStorage.setItem('rendezvox_user', JSON.stringify(u));
+            sessionStorage.setItem('rendezvox_user', JSON.stringify(u));
             var emailLabel = document.getElementById('profileEmail');
             if (emailLabel) emailLabel.textContent = res.email || '';
           }
@@ -611,6 +614,19 @@ var RendezVoxNav = (function() {
       RendezVoxTheme.apply(sel.value);
       showToast('Theme: ' + (themes[sel.value] || {}).label);
     });
+  }
+
+  /* ── Sync accent color from server ────────────────── */
+  function syncAccentFromServer() {
+    RendezVoxAPI.get('/config').then(function(cfg) {
+      var serverAccent = cfg.accent_color || '';
+      if (serverAccent && /^#[0-9a-fA-F]{6}$/.test(serverAccent)) {
+        var local = localStorage.getItem('rendezvox_accent');
+        if (local !== serverAccent) {
+          RendezVoxTheme.setAccent(serverAccent);
+        }
+      }
+    }).catch(function() {});
   }
 
   return { init: init };

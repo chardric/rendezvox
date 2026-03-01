@@ -36,7 +36,7 @@ class Router
     private static function checkRateLimit(string $ip, string $path): void
     {
         // Only rate-limit public endpoints (admin endpoints are JWT-protected)
-        $publicPaths = ['/search-song', '/request', '/config', '/now-playing', '/forgot-password', '/reset-password', '/activate-account'];
+        $publicPaths = ['/search-song', '/request', '/config', '/now-playing', '/forgot-password', '/reset-password', '/activate-account', '/schedule'];
         $isPublic = false;
         foreach ($publicPaths as $pp) {
             if (str_starts_with($path, $pp)) {

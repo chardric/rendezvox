@@ -145,7 +145,7 @@ var RendezVoxStationIds = (function() {
     // Fetch with auth header, create blob URL for audio element
     // (<audio> elements cannot send Authorization headers natively)
     fetch('/api/admin/station-ids/' + encodeURIComponent(filename) + '/stream', {
-      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('rendezvox_token') }
+      headers: { 'Authorization': 'Bearer ' + sessionStorage.getItem('rendezvox_token') }
     })
     .then(function(res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);

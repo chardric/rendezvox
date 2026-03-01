@@ -21,10 +21,19 @@ for f in /var/log/rendezvox/*.log; do
   case "$(basename "$f")" in liquidsoap.log|icecast_*.log) continue ;; esac
   chown www-data:www-data "$f" 2>/dev/null || true
 done
-for mdir in tagged imports upload _untagged; do
+for mdir in tagged/files tagged/folders untagged/files untagged/folders; do
   mkdir -p "/var/lib/rendezvox/music/$mdir"
   chown www-data:www-data "/var/lib/rendezvox/music/$mdir" 2>/dev/null || true
   chmod 775 "/var/lib/rendezvox/music/$mdir" 2>/dev/null || true
+done
+# Ensure parent dirs are also writable
+for pdir in tagged untagged; do
+  chown www-data:www-data "/var/lib/rendezvox/music/$pdir" 2>/dev/null || true
+  chmod 775 "/var/lib/rendezvox/music/$pdir" 2>/dev/null || true
+done
+# Clean up legacy directory names (empty after migration)
+for old in imports upload _untagged _duplicates Imports Upload Untagged _Untagged; do
+  [ -d "/var/lib/rendezvox/music/$old" ] && rmdir "/var/lib/rendezvox/music/$old" 2>/dev/null || true
 done
 
 # Ensure crontab has correct permissions for BusyBox crond (requires 0600)

@@ -37,6 +37,7 @@ require __DIR__ . '/handlers/PlaylistDetailHandler.php';
 require __DIR__ . '/handlers/PlaylistCreateHandler.php';
 require __DIR__ . '/handlers/PlaylistUpdateHandler.php';
 require __DIR__ . '/handlers/PlaylistDeleteHandler.php';
+require __DIR__ . '/handlers/PlaylistMergeHandler.php';
 require __DIR__ . '/handlers/PlaylistSongAddHandler.php';
 require __DIR__ . '/handlers/PlaylistSongBulkAddHandler.php';
 require __DIR__ . '/handlers/PlaylistSongFolderAddHandler.php';
@@ -111,6 +112,7 @@ require __DIR__ . '/handlers/CoverArtHandler.php';
 require __DIR__ . '/handlers/SetupHandler.php';
 require __DIR__ . '/handlers/SystemInfoHandler.php';
 require __DIR__ . '/handlers/RecentPlaysPublicHandler.php';
+require __DIR__ . '/handlers/SchedulePublicHandler.php';
 
 // -- Route definitions --
 Router::get('/health',       [HealthHandler::class,      'handle']);
@@ -181,7 +183,8 @@ Router::post('/admin/categories',      [CategoryCreateHandler::class, 'handle'])
 // -- Playlists --
 Router::get('/admin/playlists',                    [PlaylistListHandler::class,       'handle']);
 Router::post('/admin/playlists',                   [PlaylistCreateHandler::class,     'handle']);
-// Batch import routes MUST come before :id routes (exact match before param match)
+// These routes MUST come before :id routes (exact match before param match)
+Router::post('/admin/playlists/merge',              [PlaylistMergeHandler::class,       'handle']);
 Router::post('/admin/playlists/batch-import',      [PlaylistBatchImportHandler::class, 'start']);
 Router::get('/admin/playlists/batch-import',       [PlaylistBatchImportHandler::class, 'status']);
 Router::delete('/admin/playlists/batch-import',    [PlaylistBatchImportHandler::class, 'stop']);
@@ -245,6 +248,7 @@ Router::delete('/admin/logo',          [LogoUploadHandler::class,     'delete'])
 Router::get('/logo',                   [LogoServeHandler::class,      'handle']);
 Router::get('/cover',                  [CoverArtHandler::class,       'handle']);
 Router::get('/recent-plays',           [RecentPlaysPublicHandler::class, 'handle']);
+Router::get('/schedule',               [SchedulePublicHandler::class,    'handle']);
 
 // -- Settings --
 Router::get('/admin/settings',         [SettingsListHandler::class,   'handle']);

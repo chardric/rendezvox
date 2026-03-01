@@ -3,15 +3,19 @@
    ============================================================ */
 var RendezVoxAuth = (function() {
 
+  // Clean up old localStorage tokens (migrated to sessionStorage)
+  localStorage.removeItem('rendezvox_token');
+  localStorage.removeItem('rendezvox_user');
+
   var IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
   var lastActivity = Date.now();
 
   function getToken() {
-    return localStorage.getItem('rendezvox_token');
+    return sessionStorage.getItem('rendezvox_token');
   }
 
   function getUser() {
-    try { return JSON.parse(localStorage.getItem('rendezvox_user')); }
+    try { return JSON.parse(sessionStorage.getItem('rendezvox_user')); }
     catch (e) { return null; }
   }
 
@@ -20,14 +24,14 @@ var RendezVoxAuth = (function() {
   }
 
   function login(token, user) {
-    localStorage.setItem('rendezvox_token', token);
-    localStorage.setItem('rendezvox_user', JSON.stringify(user));
+    sessionStorage.setItem('rendezvox_token', token);
+    sessionStorage.setItem('rendezvox_user', JSON.stringify(user));
   }
 
   function logout() {
-    localStorage.removeItem('rendezvox_token');
-    localStorage.removeItem('rendezvox_user');
-    window.location.href = '/';
+    sessionStorage.removeItem('rendezvox_token');
+    sessionStorage.removeItem('rendezvox_user');
+    window.location.href = '/admin/';
   }
 
   function requireLogin() {
