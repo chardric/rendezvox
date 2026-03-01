@@ -32,12 +32,18 @@ class NowPlayingHandler
 
         $row = $stmt->fetch();
 
+        // Stream broadcast status
+        $seStmt = $db->query("SELECT value FROM settings WHERE key = 'stream_enabled'");
+        $seVal  = $seStmt->fetchColumn();
+        $streamActive = ($seVal === false || $seVal !== 'false');
+
         if (!$row || !$row['song_id']) {
             Response::json([
-                'is_playing'  => false,
-                'song'        => null,
-                'next_track'  => null,
-                'message'     => 'No track currently loaded',
+                'is_playing'     => false,
+                'stream_active'  => $streamActive,
+                'song'           => null,
+                'next_track'     => null,
+                'message'        => 'No track currently loaded',
             ]);
             return;
         }
@@ -86,6 +92,7 @@ class NowPlayingHandler
 
         Response::json([
             'is_playing'         => (bool) $row['is_playing'],
+            'stream_active'      => $streamActive,
             'is_emergency'       => (bool) $row['is_emergency'],
             'song' => [
                 'id'            => (int) $row['song_id'],

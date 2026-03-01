@@ -29,11 +29,17 @@
     <div style="text-align:center;margin-top:12px">
       <a href="/admin/forgot-password" style="font-size:.8rem;color:var(--text-dim)">Forgot Password?</a>
     </div>
+    <div style="text-align:center;margin-top:16px">
+      <a href="/" style="display:inline-flex;align-items:center;gap:5px;font-size:.8rem;color:var(--accent);text-decoration:none" title="Go to listener page">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>
+        Listen Live
+      </a>
+    </div>
   </div>
   <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
 </div>
-<script src="/admin/js/api.js?v=20260226"></script>
-<script src="/admin/js/auth.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/auth.js?v=20260301"></script>
 <script>
 (function() {
   // Load station branding + logo
@@ -48,6 +54,11 @@
       img.style.cssText = 'width:64px;height:64px;object-fit:contain;border-radius:8px;margin:0 auto 12px;display:block';
       var box = document.querySelector('.login-box');
       if (box) box.insertBefore(img, box.firstChild);
+    }
+    // Sync accent color from server
+    var accent = cfg.accent_color || '';
+    if (accent && /^#[0-9a-fA-F]{6}$/.test(accent) && localStorage.getItem('rendezvox_accent') !== accent) {
+      RendezVoxTheme.setAccent(accent);
     }
   }).catch(function() {});
 

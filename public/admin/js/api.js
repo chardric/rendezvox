@@ -5,7 +5,7 @@ var RendezVoxAPI = (function() {
   var BASE = '/api';
 
   function getToken() {
-    return localStorage.getItem('rendezvox_token');
+    return sessionStorage.getItem('rendezvox_token');
   }
 
   function headers(extra) {
@@ -20,8 +20,8 @@ var RendezVoxAPI = (function() {
 
   function handleResponse(res) {
     if (res.status === 401) {
-      localStorage.removeItem('rendezvox_token');
-      localStorage.removeItem('rendezvox_user');
+      sessionStorage.removeItem('rendezvox_token');
+      sessionStorage.removeItem('rendezvox_user');
       window.location.href = '/admin/';
       return Promise.reject(new Error('Unauthorized'));
     }
@@ -97,8 +97,8 @@ var RendezVoxAPI = (function() {
 
       xhr.addEventListener('load', function() {
         if (xhr.status === 401) {
-          localStorage.removeItem('rendezvox_token');
-          localStorage.removeItem('rendezvox_user');
+          sessionStorage.removeItem('rendezvox_token');
+          sessionStorage.removeItem('rendezvox_user');
           window.location.href = '/admin/';
           return reject(new Error('Unauthorized'));
         }

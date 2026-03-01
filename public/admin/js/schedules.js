@@ -18,9 +18,15 @@ var RendezVoxSchedules = (function() {
   // ── Drag state ──────────────────────────────────────
   var dragState = null; // { type: 'create'|'move'|'resize-top'|'resize-bottom', ... }
 
-  // ── Palette drag state (HTML5 DnD) ────────────────
+  // ── Palette drag state (HTML5 DnD + touch) ────────────────
   var paletteDragData = null; // { playlistId, color, name }
   var paletteDragging = false;
+
+  // ── Touch drag state ──────────────────────────────
+  var touchGhost = null;    // floating clone element
+  var touchScrollRAF = 0;   // requestAnimationFrame ID for edge-scroll
+  var touchDragTimer = 0;   // long-press timer for block move
+  var touchStartPos = null; // { x, y } at touchstart
 
   // ── Bulk operation guard (pauses auto-refresh) ────
   var bulkBusy = false;
@@ -31,6 +37,12 @@ var RendezVoxSchedules = (function() {
 
   // ── Multi-select state ────────────────────────────
   var selectedIds = {}; // schedule IDs selected for bulk delete
+
+  // ── Day index conversion helpers ─────────────────────
+  // Calendar columns: 0=Mon, 1=Tue, ..., 6=Sun
+  // DB days_of_week:  0=Sun, 1=Mon, ..., 6=Sat  (JS getDay() convention)
+  function colToDow(col) { return (col + 1) % 7; }
+  function dowToCol(dow) { return (dow + 6) % 7; }
 
   // ── Timezone helpers ────────────────────────────────
   function getCurrentDay() {
@@ -61,7 +73,7 @@ var RendezVoxSchedules = (function() {
   function isScheduleActiveNow(s) {
     if (!s.is_active || !s.playlist_active) return false;
     var today = getCurrentDay();
-    if (s.days_of_week !== null && s.days_of_week.indexOf(today) === -1) return false;
+    if (s.days_of_week !== null && s.days_of_week.indexOf(colToDow(today)) === -1) return false;
     var todayStr = getStationDateStr();
     if (s.start_date && todayStr < s.start_date) return false;
     if (s.end_date && todayStr > s.end_date) return false;
@@ -126,10 +138,25 @@ var RendezVoxSchedules = (function() {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
 
+    // Global touch events for calendar block drag
+    document.addEventListener('touchmove', onCalBlockTouchMove, { passive: false });
+    document.addEventListener('touchend', onCalBlockTouchEnd);
+    document.addEventListener('touchcancel', onCalBlockTouchEnd);
+
     // Context menu for right-click on calendar blocks
     createContextMenu();
     document.addEventListener('click', hideContextMenu);
+    document.addEventListener('touchstart', function(e) {
+      if (ctxMenu && ctxMenu.style.display !== 'none' && !ctxMenu.contains(e.target)) {
+        hideContextMenu();
+      }
+    }, { passive: true });
     document.addEventListener('contextmenu', function(e) {
+      // Suppress native context menu during touch drag/resize
+      if (dragState || touchStartPos || paletteDragging) {
+        e.preventDefault();
+        return;
+      }
       var block = e.target.closest('.cal-block');
       if (block) {
         e.preventDefault();
@@ -207,6 +234,7 @@ var RendezVoxSchedules = (function() {
     container.querySelectorAll('.palette-chip').forEach(function(chip) {
       chip.addEventListener('dragstart', onPaletteDragStart);
       chip.addEventListener('dragend', onPaletteDragEnd);
+      chip.addEventListener('touchstart', onPaletteTouchStart, { passive: false });
     });
   }
 
@@ -313,7 +341,7 @@ var RendezVoxSchedules = (function() {
 
     var body = {
       playlist_id: paletteDragData.playlistId,
-      days_of_week: [day],
+      days_of_week: [colToDow(day)],
       start_date: null,
       end_date: null,
       start_time: formatTimeHHMM(startMin),
@@ -338,6 +366,149 @@ var RendezVoxSchedules = (function() {
       .catch(function(err) {
         showToast((err && err.error) || 'Create failed', 'error');
       });
+  }
+
+  // ── Touch drag support (mobile) ─────────────────────
+  function onPaletteTouchStart(e) {
+    var chip = e.target.closest('.palette-chip');
+    if (!chip) return;
+    var playlistId = parseInt(chip.getAttribute('data-playlist-id'));
+    var p = playlistMap[playlistId];
+    if (!p) return;
+
+    e.preventDefault();
+    paletteDragging = true;
+    paletteDragData = { playlistId: p.id, color: p.color || DEFAULT_COLOR, name: p.name };
+    chip.classList.add('dragging');
+
+    // Create floating ghost
+    touchGhost = document.createElement('div');
+    touchGhost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;' +
+      'padding:4px 10px;border-radius:5px;font-size:.75rem;font-weight:600;' +
+      'color:#fff;white-space:nowrap;background:' + paletteDragData.color +
+      ';box-shadow:0 2px 8px rgba(0,0,0,.3);transform:translate(-50%,-120%)';
+    touchGhost.textContent = p.name;
+    document.body.appendChild(touchGhost);
+
+    var touch = e.touches[0];
+    touchGhost.style.left = touch.clientX + 'px';
+    touchGhost.style.top = touch.clientY + 'px';
+
+    document.addEventListener('touchmove', onPaletteTouchMove, { passive: false });
+    document.addEventListener('touchend', onPaletteTouchEnd);
+    document.addEventListener('touchcancel', onPaletteTouchEnd);
+  }
+
+  function onPaletteTouchMove(e) {
+    if (!paletteDragData) return;
+    e.preventDefault();
+
+    var touch = e.touches[0];
+    if (touchGhost) {
+      touchGhost.style.left = touch.clientX + 'px';
+      touchGhost.style.top = touch.clientY + 'px';
+    }
+
+    // Find calendar column under finger
+    var col = getColumnAtPoint(touch.clientX, touch.clientY);
+
+    // Clear previous highlights
+    document.querySelectorAll('.cal-day-col.drag-over').forEach(function(c) {
+      if (c !== col) {
+        c.classList.remove('drag-over');
+        var pv = c.querySelector('.cal-preview');
+        if (pv) pv.style.display = 'none';
+      }
+    });
+
+    if (!col) return;
+    col.classList.add('drag-over');
+
+    // Auto-scroll near edges
+    var calWrap = document.querySelector('.cal-wrap');
+    if (calWrap) {
+      var wrapRect = calWrap.getBoundingClientRect();
+      var EDGE = 40, SPEED = 8;
+      if (touch.clientY - wrapRect.top < EDGE) calWrap.scrollTop -= SPEED;
+      else if (wrapRect.bottom - touch.clientY < EDGE) calWrap.scrollTop += SPEED;
+    }
+
+    // Show preview
+    var colRect = col.getBoundingClientRect();
+    var yInCol = touch.clientY - colRect.top;
+    var startMin = snapMinutes(Math.floor((yInCol / HOUR_H) * 60));
+    startMin = Math.max(0, Math.min(startMin, 23 * 60));
+    var endMin = Math.min(startMin + 60, 24 * 60);
+
+    var preview = col.querySelector('.cal-preview');
+    if (preview) {
+      preview.style.display = 'block';
+      preview.style.top = (startMin / 60) * HOUR_H + 'px';
+      preview.style.height = ((endMin - startMin) / 60) * HOUR_H + 'px';
+      preview.style.background = hexToRgba(paletteDragData.color, 0.3);
+      preview.style.borderColor = paletteDragData.color;
+      preview.style.color = '#fff';
+      preview.textContent = paletteDragData.name + '  ' +
+        formatTimeHHMM(startMin) + ' – ' + formatTimeHHMM(endMin);
+    }
+  }
+
+  function onPaletteTouchEnd(e) {
+    document.removeEventListener('touchmove', onPaletteTouchMove);
+    document.removeEventListener('touchend', onPaletteTouchEnd);
+    document.removeEventListener('touchcancel', onPaletteTouchEnd);
+
+    if (touchGhost) { touchGhost.remove(); touchGhost = null; }
+
+    if (!paletteDragData) return;
+
+    // Find column under final touch point
+    var touch = (e.changedTouches && e.changedTouches[0]) || null;
+    var col = touch ? getColumnAtPoint(touch.clientX, touch.clientY) : null;
+
+    if (col) {
+      var day = parseInt(col.getAttribute('data-day'));
+      var colRect = col.getBoundingClientRect();
+      var yInCol = touch.clientY - colRect.top;
+      var startMin = snapMinutes(Math.floor((yInCol / HOUR_H) * 60));
+      startMin = Math.max(0, Math.min(startMin, 23 * 60));
+      var endMin = Math.min(startMin + 60, 24 * 60);
+
+      var body = {
+        playlist_id: paletteDragData.playlistId,
+        days_of_week: [colToDow(day)],
+        start_date: null,
+        end_date: null,
+        start_time: formatTimeHHMM(startMin),
+        end_time: formatTimeHHMM(endMin),
+        priority: 0,
+        is_active: true
+      };
+
+      RendezVoxAPI.post('/admin/schedules', body)
+        .then(function() {
+          showToast('Schedule created');
+          loadSchedules();
+          notifyStreamReload();
+        })
+        .catch(function(err) {
+          showToast((err && err.error) || 'Create failed', 'error');
+        });
+    }
+
+    // Clean up
+    onPaletteDragEnd();
+  }
+
+  function getColumnAtPoint(x, y) {
+    var cols = document.querySelectorAll('.cal-day-col');
+    for (var i = 0; i < cols.length; i++) {
+      var rect = cols[i].getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return cols[i];
+      }
+    }
+    return null;
   }
 
   var MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -420,7 +591,7 @@ var RendezVoxSchedules = (function() {
       // Schedule blocks for this day
       schedules.forEach(function(s) {
         if (!s.playlist_active) return;
-        if (s.days_of_week !== null && s.days_of_week.indexOf(d) === -1) return;
+        if (s.days_of_week !== null && s.days_of_week.indexOf(colToDow(d)) === -1) return;
 
         var start = parseTime(s.start_time);
         var end = parseTime(s.end_time);
@@ -470,10 +641,11 @@ var RendezVoxSchedules = (function() {
 
     grid.innerHTML = html;
 
-    // Attach mousedown listeners to day columns and blocks
+    // Attach mousedown + touchstart listeners to day columns and blocks
     var cols = grid.querySelectorAll('.cal-day-col');
     cols.forEach(function(col) {
       col.addEventListener('mousedown', onDayMouseDown);
+      col.addEventListener('touchstart', onCalBlockTouchStart, { passive: false });
       // HTML5 DnD for palette drops
       col.addEventListener('dragover', onCalendarDragOver);
       col.addEventListener('dragleave', onCalendarDragLeave);
@@ -722,7 +894,7 @@ var RendezVoxSchedules = (function() {
         // Single-day schedule — just update time and optionally day
         var body = { start_time: newStart, end_time: newEnd };
         if (state.day !== state.origDay) {
-          body.days_of_week = [state.day];
+          body.days_of_week = [colToDow(state.day)];
         }
         RendezVoxAPI.put('/admin/schedules/' + state.schedule.id, body)
           .then(function() {
@@ -770,6 +942,103 @@ var RendezVoxSchedules = (function() {
     }
   }
 
+  // ── Touch handlers for calendar block move/resize ──
+  function onCalBlockTouchStart(e) {
+    if (paletteDragging) return; // palette touch drag takes priority
+    var block = e.target.closest('.cal-block');
+    if (!block) return; // only blocks — empty space scroll is native
+
+    var col = e.target.closest('.cal-day-col');
+    if (!col) return;
+
+    var schedId = parseInt(block.getAttribute('data-schedule-id'));
+    var schedule = schedules.find(function(s) { return s.id === schedId; });
+    if (!schedule || isSpecialSchedule(schedule)) return;
+
+    var touch = e.touches[0];
+    touchStartPos = { x: touch.clientX, y: touch.clientY };
+
+    // Long-press (300ms) to start drag — avoids conflict with scroll
+    clearTimeout(touchDragTimer);
+    touchDragTimer = setTimeout(function() {
+      if (!touchStartPos) return;
+      var day = parseInt(col.getAttribute('data-day'));
+      var rect = col.getBoundingClientRect();
+
+      // Detect resize by touch position relative to block edges (more reliable than target)
+      var blockRect = block.getBoundingClientRect();
+      var EDGE = 20; // px from edge = resize zone
+      var nearTop = touch.clientY - blockRect.top < EDGE;
+      var nearBottom = blockRect.bottom - touch.clientY < EDGE;
+
+      if (nearTop) {
+        var end = parseTime(schedule.end_time);
+        dragState = { type: 'resize-top', schedule: schedule, day: day, colRect: rect,
+          endMin: end.h * 60 + end.m, startY: touch.clientY };
+      } else if (nearBottom) {
+        var start = parseTime(schedule.start_time);
+        dragState = { type: 'resize-bottom', schedule: schedule, day: day, colRect: rect,
+          startMin: start.h * 60 + start.m, startY: touch.clientY };
+      } else {
+        var startT = parseTime(schedule.start_time);
+        var endT = parseTime(schedule.end_time);
+        var startMin = startT.h * 60 + startT.m;
+        var endMin = endT.h * 60 + endT.m;
+        var duration = endMin - startMin;
+        if (duration <= 0) duration += 24 * 60;
+        var offsetY = touch.clientY - blockRect.top;
+        dragState = { type: 'move', schedule: schedule, day: day, origDay: day, colRect: rect,
+          startMin: startMin, duration: duration, offsetY: offsetY,
+          startY: touch.clientY, hasMoved: false };
+        block.classList.add('dragging');
+      }
+      // Haptic feedback — double pulse for resize to signal different mode
+      if (navigator.vibrate) navigator.vibrate(nearTop || nearBottom ? [30, 50, 30] : 30);
+    }, 300);
+  }
+
+  function onCalBlockTouchMove(e) {
+    // Cancel long-press if finger moved too far before timer fires
+    if (touchStartPos && !dragState) {
+      var t = e.touches[0];
+      var dx = t.clientX - touchStartPos.x;
+      var dy = t.clientY - touchStartPos.y;
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        clearTimeout(touchDragTimer);
+        touchStartPos = null;
+      }
+      return;
+    }
+    if (!dragState) return;
+
+    e.preventDefault(); // block scroll while dragging
+    var touch = e.touches[0];
+
+    // Reuse the existing mouse logic by faking a clientX/clientY
+    var fakeEvent = { clientX: touch.clientX, clientY: touch.clientY, preventDefault: function() {} };
+    onMouseMove(fakeEvent);
+
+    // Auto-scroll near edges
+    var calWrap = document.querySelector('.cal-wrap');
+    if (calWrap) {
+      var wrapRect = calWrap.getBoundingClientRect();
+      var EDGE = 40, SPEED = 8;
+      if (touch.clientY - wrapRect.top < EDGE) calWrap.scrollTop -= SPEED;
+      else if (wrapRect.bottom - touch.clientY < EDGE) calWrap.scrollTop += SPEED;
+    }
+  }
+
+  function onCalBlockTouchEnd(e) {
+    clearTimeout(touchDragTimer);
+    touchStartPos = null;
+    if (!dragState) return;
+
+    var touch = (e.changedTouches && e.changedTouches[0]) || null;
+    // Reuse mouse up logic
+    var fakeEvent = { clientX: touch ? touch.clientX : 0, clientY: touch ? touch.clientY : 0 };
+    onMouseUp(fakeEvent);
+  }
+
   // ── Context menu (right-click) ─────────────────────
   var ctxMenu = null;
   var ctxScheduleId = null;
@@ -802,8 +1071,8 @@ var RendezVoxSchedules = (function() {
       if (!id) return;
       var s = schedules.find(function(x) { return x.id === id; });
       if (!s) return;
-      var today = getCurrentDay();
-      var todayActive = s.is_active && (s.days_of_week === null || s.days_of_week.indexOf(today) !== -1);
+      var todayDow = colToDow(getCurrentDay());
+      var todayActive = s.is_active && (s.days_of_week === null || s.days_of_week.indexOf(todayDow) !== -1);
       toggleActive(id, !todayActive);
     });
 
@@ -832,9 +1101,9 @@ var RendezVoxSchedules = (function() {
     var applyPresets = [
       { label: '24 hours',  days: null, fullDay: true },
       { label: 'All days',  days: null, fullDay: false },
-      { label: 'MWF',       days: [0, 2, 4], fullDay: false },
-      { label: 'TTh',       days: [1, 3], fullDay: false },
-      { label: 'Weekends',  days: [5, 6], fullDay: false }
+      { label: 'MWF',       days: [1, 3, 5], fullDay: false },
+      { label: 'TTh',       days: [2, 4], fullDay: false },
+      { label: 'Weekends',  days: [0, 6], fullDay: false }
     ];
 
     ctxApplyBtns = applyPresets.map(function(preset) {
@@ -864,7 +1133,7 @@ var RendezVoxSchedules = (function() {
       if (clipboard === null || day === null) return;
       var body = {
         playlist_id: clipboard.playlist_id,
-        days_of_week: [day],
+        days_of_week: [colToDow(day)],
         start_time: clipboard.start_time,
         end_time: clipboard.end_time,
         priority: clipboard.priority,
@@ -913,8 +1182,8 @@ var RendezVoxSchedules = (function() {
     if (isBlockMenu) {
       var s = schedules.find(function(x) { return x.id === schedId; });
       if (s && ctxToggleBtn) {
-        var today = getCurrentDay();
-        var todayActive = s.is_active && (s.days_of_week === null || s.days_of_week.indexOf(today) !== -1);
+        var todayDow = colToDow(getCurrentDay());
+        var todayActive = s.is_active && (s.days_of_week === null || s.days_of_week.indexOf(todayDow) !== -1);
         ctxToggleBtn.textContent = todayActive ? 'Disable for today' : 'Enable for today';
       }
     }
@@ -1010,7 +1279,7 @@ var RendezVoxSchedules = (function() {
 
     Promise.all(createPromises)
       .then(function() {
-        var addedLabel = freeDays.map(function(d) { return DAYS[d]; }).join(', ');
+        var addedLabel = freeDays.map(function(d) { return DAYS[dowToCol(d)]; }).join(', ');
         var msg = 'Added to ' + addedLabel;
         if (skipped > 0) msg += ' (' + skipped + ' skipped)';
         showToast(msg);
@@ -1031,12 +1300,16 @@ var RendezVoxSchedules = (function() {
    * then creates a new single-day schedule for targetDay with the new time.
    */
   function splitDaySchedule(schedule, origDay, targetDay, newStart, newEnd) {
+    // Convert column indices to DB day-of-week values
+    var origDow = colToDow(origDay);
+    var targetDow = colToDow(targetDay);
+
     // Build remaining days for the original schedule
     var allDays = schedule.days_of_week;
     if (allDays === null) {
       allDays = [0, 1, 2, 3, 4, 5, 6];
     }
-    var remaining = allDays.filter(function(d) { return d !== origDay; });
+    var remaining = allDays.filter(function(d) { return d !== origDow; });
 
     // Step 1: Update original schedule to remove the dragged day
     var updateBody = {};
@@ -1044,7 +1317,7 @@ var RendezVoxSchedules = (function() {
       // Was only one day after all — just update time and day
       updateBody.start_time = newStart;
       updateBody.end_time = newEnd;
-      if (targetDay !== origDay) updateBody.days_of_week = [targetDay];
+      if (targetDay !== origDay) updateBody.days_of_week = [targetDow];
       RendezVoxAPI.put('/admin/schedules/' + schedule.id, updateBody)
         .then(function() { showToast('Schedule moved'); loadSchedules(); notifyStreamReload(); })
         .catch(function(err) { showToast((err && err.error) || 'Move failed', 'error'); loadSchedules(); });
@@ -1058,7 +1331,7 @@ var RendezVoxSchedules = (function() {
         // Step 2: Create new schedule for just the dragged day
         var createBody = {
           playlist_id: schedule.playlist_id,
-          days_of_week: [targetDay],
+          days_of_week: [targetDow],
           start_date: schedule.start_date || null,
           end_date: schedule.end_date || null,
           start_time: newStart,
@@ -1082,13 +1355,13 @@ var RendezVoxSchedules = (function() {
   function toggleActive(id, active) {
     var s = schedules.find(function(x) { return x.id === id; });
     if (!s) return;
-    var today = getCurrentDay();
+    var todayDow = colToDow(getCurrentDay());
     var body;
 
     if (!active) {
       // Turning OFF — remove today only
       var days = s.days_of_week !== null ? s.days_of_week.slice() : [0,1,2,3,4,5,6];
-      var remaining = days.filter(function(d) { return d !== today; });
+      var remaining = days.filter(function(d) { return d !== todayDow; });
       if (remaining.length > 0 && remaining.length < days.length) {
         // Remove today, keep other days
         body = { days_of_week: remaining };
@@ -1104,8 +1377,8 @@ var RendezVoxSchedules = (function() {
       } else {
         // Schedule is active but today is missing — add today back
         var days = s.days_of_week !== null ? s.days_of_week.slice() : [0,1,2,3,4,5,6];
-        if (days.indexOf(today) === -1) {
-          days.push(today);
+        if (days.indexOf(todayDow) === -1) {
+          days.push(todayDow);
           days.sort(function(a, b) { return a - b; });
         }
         body = { days_of_week: days };
@@ -1315,7 +1588,7 @@ var RendezVoxSchedules = (function() {
           var pick = shuffled[(bi + d) % N];
           bulkSchedules.push({
             playlist_id: pick.id,
-            days_of_week: [d],
+            days_of_week: [colToDow(d)],
             start_time: formatTimeHHMM(c),
             end_time: formatTimeHHMM(blockEnd),
             priority: 0

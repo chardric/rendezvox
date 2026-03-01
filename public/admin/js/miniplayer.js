@@ -137,13 +137,33 @@ var RendezVoxMiniPlayer = (function() {
 
   function play() {
     if (!audio) return;
+    // Mark intent immediately so gesture-retry can pick it up even if blocked
+    sessionStorage.setItem(SK_PLAYING, 'true');
     audio.src = STREAM_URL + '?_=' + Date.now();
     audio.play().catch(function() {
-      // Autoplay may be blocked on new page load — keep intent in
-      // sessionStorage so we retry on next user gesture.
+      // Autoplay blocked by browser — retry on next user gesture
       playing = false;
       updateBtn();
+      setupGestureRetry();
     });
+  }
+
+  function setupGestureRetry() {
+    if (setupGestureRetry._bound) return;
+    setupGestureRetry._bound = true;
+    var resume = function() {
+      document.removeEventListener('click', resume, true);
+      document.removeEventListener('keydown', resume, true);
+      document.removeEventListener('touchend', resume, true);
+      setupGestureRetry._bound = false;
+      if (sessionStorage.getItem(SK_PLAYING) === 'true' && !playing) {
+        audio.src = STREAM_URL + '?_=' + Date.now();
+        audio.play().catch(function() { playing = false; updateBtn(); });
+      }
+    };
+    document.addEventListener('click', resume, true);
+    document.addEventListener('keydown', resume, true);
+    document.addEventListener('touchend', resume, true);
   }
 
   function stop() {
@@ -192,16 +212,6 @@ var RendezVoxMiniPlayer = (function() {
 
     if (sessionStorage.getItem(SK_PLAYING) === 'true') {
       play();
-      // If browser blocks autoplay, retry on first user interaction
-      var gestureResume = function() {
-        document.removeEventListener('click', gestureResume, true);
-        document.removeEventListener('keydown', gestureResume, true);
-        if (sessionStorage.getItem(SK_PLAYING) === 'true' && !playing) {
-          play();
-        }
-      };
-      document.addEventListener('click', gestureResume, true);
-      document.addEventListener('keydown', gestureResume, true);
     }
   }
 

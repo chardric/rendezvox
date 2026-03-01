@@ -149,7 +149,12 @@ var RendezVoxPlaylists = (function() {
       });
       updateBulkBar();
     });
+    document.getElementById('btnBulkMerge').addEventListener('click', openMergeModal);
     document.getElementById('btnBulkDelete').addEventListener('click', bulkDelete);
+    document.getElementById('btnCancelMerge').addEventListener('click', function() {
+      document.getElementById('mergeModal').classList.add('hidden');
+    });
+    document.getElementById('btnConfirmMerge').addEventListener('click', handleMerge);
     document.getElementById('btnBulkCancel').addEventListener('click', function() {
       document.querySelectorAll('#playlistTable .pl-row-check').forEach(function(cb) { cb.checked = false; });
       document.getElementById('plSelectAll').checked = false;
@@ -198,9 +203,7 @@ var RendezVoxPlaylists = (function() {
         : '';
       desc.innerHTML = '<strong>' + escHtml(ep.name) + '</strong> — ' + songLabel + ' ' + statusBadge + epStreamBadge;
       actions.innerHTML =
-        '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + ep.id + ')">' + RendezVoxIcons.view + '</button> ' +
-        '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + ep.id + ')">' + RendezVoxIcons.edit + '</button> ' +
-        '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + ep.id + ')">' + RendezVoxIcons.del + '</button>';
+        '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + ep.id + ')">' + RendezVoxIcons.view + '</button>';
     }
   }
 
@@ -669,7 +672,7 @@ var RendezVoxPlaylists = (function() {
         ? ' class="on-air" style="--pl-color:' + escHtml(p.color || '#ff7800') + '"'
         : '';
       html += '<tr' + trAttr + '>' +
-        '<td><input type="checkbox" class="pl-row-check" data-id="' + p.id + '" data-name="' + escHtml(p.name) + '"' + (isStreaming ? ' disabled title="Currently streaming"' : '') + ' style="width:16px;height:16px;cursor:' + (isStreaming ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent)"></td>' +
+        '<td><input type="checkbox" class="pl-row-check" data-id="' + p.id + '" data-name="' + escHtml(p.name) + '" data-color="' + escHtml(p.color || '#666') + '"' + (isStreaming ? ' disabled title="Currently streaming"' : '') + ' style="width:16px;height:16px;cursor:' + (isStreaming ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent)"></td>' +
         '<td>' + (startIdx + idx + 1) + '</td>' +
         '<td>' + swatch + escHtml(p.name) + streamingBadge + '</td>' +
         '<td><span class="badge ' + typeCls + '">' + typeLabel + '</span></td>' +
@@ -679,8 +682,8 @@ var RendezVoxPlaylists = (function() {
         '<td style="white-space:nowrap">' +
           '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + p.id + ')">' + RendezVoxIcons.view + '</button> ' +
           '<label class="icon-btn" title="Change color" style="position:relative;cursor:pointer;color:' + escHtml(p.color || '#ff7800') + '">' + RendezVoxIcons.palette + '<input type="color" value="' + escHtml(p.color || '#ff7800') + '" onchange="RendezVoxPlaylists.changeColor(' + p.id + ',this.value)" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></label> ' +
-          '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + p.id + ')">' + RendezVoxIcons.edit + '</button> ' +
-          '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + p.id + ')">' + RendezVoxIcons.del + '</button>' +
+          (p.type !== 'emergency' ? '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + p.id + ')">' + RendezVoxIcons.edit + '</button> ' : '') +
+          (p.type !== 'emergency' ? '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + p.id + ')">' + RendezVoxIcons.del + '</button>' : '') +
         '</td>' +
         '</tr>';
     });
@@ -711,7 +714,7 @@ var RendezVoxPlaylists = (function() {
     var checks = document.querySelectorAll('#playlistTable .pl-row-check:checked');
     var selected = [];
     checks.forEach(function(cb) {
-      selected.push({ id: parseInt(cb.getAttribute('data-id')), name: cb.getAttribute('data-name') });
+      selected.push({ id: parseInt(cb.getAttribute('data-id')), name: cb.getAttribute('data-name'), color: cb.getAttribute('data-color') || '#666' });
     });
     return selected;
   }
@@ -723,6 +726,7 @@ var RendezVoxPlaylists = (function() {
       bar.classList.remove('hidden');
       bar.style.display = 'flex';
       document.getElementById('bulkCount').textContent = selected.length + ' playlist' + (selected.length !== 1 ? 's' : '') + ' selected';
+      document.getElementById('btnBulkMerge').style.display = selected.length >= 2 ? '' : 'none';
     } else {
       hideBulkBar();
     }
@@ -781,6 +785,57 @@ var RendezVoxPlaylists = (function() {
         });
       }
       deleteNext();
+    });
+  }
+
+  // ── Merge Playlists ──────────────────────────────────
+
+  function openMergeModal() {
+    var selected = getSelectedPlaylists();
+    if (selected.length < 2) {
+      showToast('Select at least 2 playlists to merge', 'error');
+      return;
+    }
+    document.getElementById('mergeModalTitle').textContent = 'Merge ' + selected.length + ' Playlists';
+    var listHtml = selected.map(function(p) {
+      return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0">' +
+        '<span style="width:10px;height:10px;border-radius:50%;background:' + escHtml(p.color) + ';flex-shrink:0"></span>' +
+        '<span>' + escHtml(p.name) + '</span></div>';
+    }).join('');
+    document.getElementById('mergePlaylistList').innerHTML = listHtml;
+    document.getElementById('mergeName').value = 'Merged Playlist';
+    document.getElementById('mergeModal').classList.remove('hidden');
+    document.getElementById('mergeName').focus();
+    document.getElementById('mergeName').select();
+  }
+
+  function handleMerge() {
+    var selected = getSelectedPlaylists();
+    if (selected.length < 2) return;
+    var name = document.getElementById('mergeName').value.trim();
+    if (!name) {
+      showToast('Please enter a name for the merged playlist', 'error');
+      return;
+    }
+    var btn = document.getElementById('btnConfirmMerge');
+    btn.disabled = true;
+    btn.textContent = 'Merging…';
+
+    RendezVoxAPI.post('/admin/playlists/merge', {
+      source_ids: selected.map(function(p) { return p.id; }),
+      name: name
+    }).then(function(data) {
+      document.getElementById('mergeModal').classList.add('hidden');
+      showToast(data.message || 'Playlists merged');
+      hideBulkBar();
+      document.querySelectorAll('#playlistTable .pl-row-check').forEach(function(cb) { cb.checked = false; });
+      document.getElementById('plSelectAll').checked = false;
+      loadPlaylists();
+    }).catch(function(err) {
+      showToast((err && err.error) || 'Merge failed', 'error');
+    }).then(function() {
+      btn.disabled = false;
+      btn.textContent = 'Merge';
     });
   }
 
@@ -1814,6 +1869,7 @@ var RendezVoxPlaylists = (function() {
     var rows = tbody.querySelectorAll('tr[draggable]');
     var dragSrc = null;
 
+    // ── HTML5 drag-and-drop (desktop) ──
     rows.forEach(function(row) {
       row.addEventListener('dragstart', function(e) {
         dragSrc = this;
@@ -1845,6 +1901,83 @@ var RendezVoxPlaylists = (function() {
         rows.forEach(function(r) { r.style.borderTop = ''; });
       });
     });
+
+    // ── Touch drag (mobile) ──
+    var touchSrc = null;
+    var touchTimer = 0;
+    var touchStartY = 0;
+    var touchActive = false;
+
+    rows.forEach(function(row) {
+      row.addEventListener('touchstart', function(e) {
+        var self = this;
+        touchStartY = e.touches[0].clientY;
+        touchActive = false;
+        clearTimeout(touchTimer);
+        touchTimer = setTimeout(function() {
+          touchSrc = self;
+          touchActive = true;
+          self.style.opacity = '0.4';
+          if (navigator.vibrate) navigator.vibrate(30);
+        }, 300);
+      }, { passive: true });
+      row.addEventListener('contextmenu', function(e) {
+        if (touchActive || touchTimer) e.preventDefault();
+      });
+    });
+
+    function onReorderTouchMove(e) {
+      if (!touchActive || !touchSrc) {
+        // Cancel long-press if finger moved before timer
+        if (!touchActive) {
+          var dy = Math.abs(e.touches[0].clientY - touchStartY);
+          if (dy > 10) { clearTimeout(touchTimer); }
+        }
+        return;
+      }
+      e.preventDefault();
+      var touch = e.touches[0];
+      var target = getRowAtPoint(tbody, touch.clientX, touch.clientY);
+      rows.forEach(function(r) { r.style.borderTop = ''; });
+      if (target && target !== touchSrc) {
+        target.style.borderTop = '2px solid var(--accent)';
+      }
+      // Auto-scroll the detail panel
+      var panel = tbody.closest('.detail-songs-wrap') || tbody.parentElement;
+      if (panel) {
+        var rect = panel.getBoundingClientRect();
+        if (touch.clientY - rect.top < 40) panel.scrollTop -= 6;
+        else if (rect.bottom - touch.clientY < 40) panel.scrollTop += 6;
+      }
+    }
+
+    function onReorderTouchEnd(e) {
+      clearTimeout(touchTimer);
+      if (!touchActive || !touchSrc) { touchActive = false; return; }
+      var touch = (e.changedTouches && e.changedTouches[0]) || null;
+      var target = touch ? getRowAtPoint(tbody, touch.clientX, touch.clientY) : null;
+      if (target && target !== touchSrc) {
+        tbody.insertBefore(touchSrc, target);
+        saveOrder();
+      }
+      touchSrc.style.opacity = '';
+      rows.forEach(function(r) { r.style.borderTop = ''; });
+      touchSrc = null;
+      touchActive = false;
+    }
+
+    function getRowAtPoint(container, x, y) {
+      var trs = container.querySelectorAll('tr[draggable]');
+      for (var i = 0; i < trs.length; i++) {
+        var r = trs[i].getBoundingClientRect();
+        if (y >= r.top && y <= r.bottom) return trs[i];
+      }
+      return null;
+    }
+
+    document.addEventListener('touchmove', onReorderTouchMove, { passive: false });
+    document.addEventListener('touchend', onReorderTouchEnd);
+    document.addEventListener('touchcancel', onReorderTouchEnd);
   }
 
   function saveOrder() {

@@ -67,8 +67,8 @@
   </div>
   <footer class="site-footer">&copy; 2026 <a href="https://downstreamtech.net" target="_blank" rel="noopener">DownStreamTech</a>. All rights reserved.</footer>
 </div>
-<script src="/admin/js/api.js?v=20260226"></script>
-<script src="/admin/js/auth.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/auth.js?v=20260301"></script>
 <script>
 (function() {
   // Load station branding
@@ -76,6 +76,10 @@
     var name = cfg.station_name || 'RendezVox';
     document.getElementById('brandTitle').textContent = name;
     document.title = name + ' — Setup';
+    var accent = cfg.accent_color || '';
+    if (accent && /^#[0-9a-fA-F]{6}$/.test(accent) && localStorage.getItem('rendezvox_accent') !== accent) {
+      RendezVoxTheme.setAccent(accent);
+    }
   }).catch(function() {});
 
   // If already set up, redirect to login

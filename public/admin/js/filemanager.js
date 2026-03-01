@@ -29,6 +29,7 @@ var RendezVoxFileManager = (function () {
   var dragItems        = null;  // [{path,name,type}] — items being dragged
   var lasso            = { active: false, moved: false, startX: 0, startY: 0, el: null, origSel: null };
   var lassoWasDragged  = false;
+  var fmTouch          = { timer: 0, active: false, src: null, ghost: null, startY: 0 };
   var searchTerm       = '';
   var searchTimer      = null;
   var searchMode       = false;  // true when showing recursive search results
@@ -110,6 +111,9 @@ var RendezVoxFileManager = (function () {
 
     document.addEventListener('mousemove', onLassoMove);
     document.addEventListener('mouseup',   onLassoUp);
+    document.addEventListener('touchmove', onFmTouchMove, { passive: false });
+    document.addEventListener('touchend',  onFmTouchEnd);
+    document.addEventListener('touchcancel', onFmTouchEnd);
 
     elContent.addEventListener('mousedown', startLasso);
 
@@ -279,6 +283,42 @@ var RendezVoxFileManager = (function () {
         elContent.querySelectorAll('.fm-item').forEach(function (it) {
           it.classList.remove('dragging', 'drag-over');
         });
+      });
+
+      // ── Touch drag (mobile) ──
+      el.addEventListener('touchstart', function (e) {
+        var self = this;
+        var t = e.touches[0];
+        fmTouch.startY = t.clientY;
+        fmTouch.active = false;
+        clearTimeout(fmTouch.timer);
+        fmTouch.timer = setTimeout(function () {
+          if (!selSet.has(item.path)) {
+            selSet.clear();
+            selSet.add(item.path);
+            lastClickIdx = idx;
+            updateSelectionClasses();
+            updateToolbar();
+          }
+          fmTouch.src = self;
+          fmTouch.active = true;
+          dragItems = getSelectedItems();
+          self.classList.add('dragging');
+          if (navigator.vibrate) navigator.vibrate(30);
+          // Create floating label
+          fmTouch.ghost = document.createElement('div');
+          fmTouch.ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;' +
+            'padding:4px 10px;border-radius:5px;font-size:.75rem;font-weight:600;' +
+            'color:#fff;white-space:nowrap;background:var(--accent,#ff7800);' +
+            'box-shadow:0 2px 8px rgba(0,0,0,.3);transform:translate(-50%,-120%)';
+          fmTouch.ghost.textContent = dragItems.length > 1 ? dragItems.length + ' items' : item.name;
+          document.body.appendChild(fmTouch.ghost);
+          fmTouch.ghost.style.left = t.clientX + 'px';
+          fmTouch.ghost.style.top = t.clientY + 'px';
+        }, 300);
+      }, { passive: true });
+      el.addEventListener('contextmenu', function (e) {
+        if (fmTouch.active || fmTouch.timer) e.preventDefault();
       });
 
       // ── Drop target (folders only) ──
@@ -1238,6 +1278,87 @@ var RendezVoxFileManager = (function () {
       if (e.key === 'Enter')  submit();
       if (e.key === 'Escape') { e.preventDefault(); close(); }
     });
+  }
+
+  // ── Touch drag move/end for file manager ─────────────────────
+  function onFmTouchMove(e) {
+    if (!fmTouch.active) {
+      // Cancel long-press if finger moved before timer
+      if (fmTouch.timer) {
+        var dy = Math.abs(e.touches[0].clientY - fmTouch.startY);
+        if (dy > 10) { clearTimeout(fmTouch.timer); fmTouch.timer = 0; }
+      }
+      return;
+    }
+    e.preventDefault();
+    var touch = e.touches[0];
+    if (fmTouch.ghost) {
+      fmTouch.ghost.style.left = touch.clientX + 'px';
+      fmTouch.ghost.style.top = touch.clientY + 'px';
+    }
+    // Highlight folder under finger
+    elContent.querySelectorAll('.fm-item').forEach(function (it) { it.classList.remove('drag-over'); });
+    var target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (target) {
+      var folderEl = target.closest('.fm-item[data-type="folder"]');
+      if (folderEl && !dragItems.some(function (di) { return di.path === folderEl.dataset.path; })) {
+        folderEl.classList.add('drag-over');
+      }
+    }
+    // Also check tree sidebar
+    if (elTree) {
+      elTree.querySelectorAll('.fm-tn').forEach(function (ti) { ti.classList.remove('drag-over'); });
+      if (target) {
+        var treeItem = target.closest('.fm-tn');
+        if (treeItem) treeItem.classList.add('drag-over');
+      }
+    }
+  }
+
+  function onFmTouchEnd(e) {
+    clearTimeout(fmTouch.timer);
+    fmTouch.timer = 0;
+    if (!fmTouch.active) return;
+
+    var touch = (e.changedTouches && e.changedTouches[0]) || null;
+    var dropped = false;
+
+    if (touch && dragItems) {
+      var target = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (target) {
+        // Drop on a folder item
+        var folderEl = target.closest('.fm-item[data-type="folder"]');
+        if (folderEl) {
+          var destPath = folderEl.dataset.path;
+          var invalid = dragItems.some(function (di) {
+            return di.path === destPath || destPath.startsWith(di.path + '/');
+          });
+          if (!invalid) { doMove(dragItems, destPath); dropped = true; }
+        }
+        // Drop on tree sidebar folder
+        if (!dropped) {
+          var treeItem = target.closest('.fm-tn');
+          if (treeItem) {
+            var treePath = treeItem.dataset.path;
+            if (treePath) { doMove(dragItems, treePath); dropped = true; }
+          }
+        }
+        // Drop on content pane background (move to current folder)
+        if (!dropped && target === elContent) {
+          var fromDiff = dragItems.some(function (di) { return parentPath(di.path) !== currentPath; });
+          if (fromDiff) { doMove(dragItems, currentPath); dropped = true; }
+        }
+      }
+    }
+
+    // Cleanup
+    if (fmTouch.ghost) { fmTouch.ghost.remove(); fmTouch.ghost = null; }
+    if (fmTouch.src) { fmTouch.src.classList.remove('dragging'); }
+    dragItems = null;
+    fmTouch.active = false;
+    fmTouch.src = null;
+    elContent.querySelectorAll('.fm-item').forEach(function (it) { it.classList.remove('drag-over'); });
+    if (elTree) elTree.querySelectorAll('.fm-tn').forEach(function (ti) { ti.classList.remove('drag-over'); });
   }
 
   // ── Rubber-band / lasso selection ───────────────────────────

@@ -75,9 +75,9 @@ $filterIterator = new RecursiveCallbackFilterIterator(
     function ($current) {
         if ($current->isDir()) {
             $name = $current->getFilename();
-            // Skip hidden directories, organizer-managed directories, and upload staging
+            // Skip hidden directories and organizer-managed staging directory
             if (str_starts_with($name, '.')) return false;
-            return !in_array($name, ['tagged', 'untagged']);
+            return $name !== 'untagged';
         }
         return true;
     }

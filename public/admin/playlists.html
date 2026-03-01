@@ -102,7 +102,8 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
     <!-- ── Bulk action bar (hidden until selection) ── -->
     <div id="bulkBar" class="hidden" style="display:none;align-items:center;gap:12px;padding:8px 14px;margin-bottom:8px;background:rgba(0,200,160,.08);border:1px solid var(--accent);border-radius:8px">
       <span id="bulkCount" style="font-size:.85rem;font-weight:600"></span>
-      <button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff;margin-left:auto" id="btnBulkDelete">Delete Selected</button>
+      <button type="button" class="btn btn-sm btn-primary" style="margin-left:auto" id="btnBulkMerge">Merge</button>
+      <button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff" id="btnBulkDelete">Delete Selected</button>
       <button type="button" class="btn btn-sm btn-ghost" id="btnBulkCancel">Cancel</button>
     </div>
 
@@ -396,15 +397,32 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
   </div>
 </div>
 
+<!-- ── Merge Playlists Modal ────────────────────── -->
+<div class="modal-backdrop hidden" id="mergeModal">
+  <div class="modal" style="max-width:440px">
+    <button type="button" class="modal-close" onclick="this.closest('.modal-backdrop').classList.add('hidden')">&times;</button>
+    <h3 id="mergeModalTitle">Merge Playlists</h3>
+    <div class="compact-form">
+      <div id="mergePlaylistList" style="margin-bottom:12px;font-size:.85rem"></div>
+      <label for="mergeName">New Playlist Name *</label>
+      <input type="text" id="mergeName" required placeholder="Enter merged playlist name…">
+      <div class="modal-actions" style="margin-top:12px">
+        <button type="button" class="btn btn-ghost" id="btnCancelMerge">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmMerge">Merge</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toasts"></div>
 
 <script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260226"></script>
-<script src="/admin/js/auth.js?v=20260226"></script>
-<script src="/admin/js/nav.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/auth.js?v=20260301"></script>
+<script src="/admin/js/nav.js?v=20260301"></script>
 <script src="/admin/js/icons.js?v=20260226"></script>
 <script src="/admin/js/confirm.js?v=20260226"></script>
-<script src="/admin/js/playlists.js?v=20260226"></script>
+<script src="/admin/js/playlists.js?v=20260301"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

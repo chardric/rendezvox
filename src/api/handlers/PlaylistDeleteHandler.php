@@ -16,6 +16,19 @@ class PlaylistDeleteHandler
             return;
         }
 
+        // Block deletion of emergency playlists — they are the safety net
+        $stmt = $db->prepare('SELECT type FROM playlists WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            Response::error('Playlist not found', 404);
+            return;
+        }
+        if ($row['type'] === 'emergency') {
+            Response::error('Cannot delete the emergency playlist — it prevents dead air during schedule gaps', 403);
+            return;
+        }
+
         // Block deletion only if the station is actively playing from this playlist
         $stmt = $db->prepare('SELECT current_playlist_id, is_playing FROM rotation_state WHERE id = 1');
         $stmt->execute();
