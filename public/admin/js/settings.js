@@ -49,7 +49,6 @@ var RendezVoxSettings = (function() {
       loadAutoDedupSongs();
       loadBlockedWords();
       checkInitialScanStatus();
-      checkInitialCoverScanStatus();
       checkInitialSyncStatus();
       checkInitialDedupStatus();
       checkInitialDedupSongsStatus();
@@ -60,6 +59,7 @@ var RendezVoxSettings = (function() {
       loadAutoNorm();
       loadAutoSilence();
       loadAutoRename();
+      loadAppVersion();
       initEq();
       initLocationPicker();
       initAppearanceTab();
@@ -402,17 +402,21 @@ var RendezVoxSettings = (function() {
 
   var eqFreqs = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
   var eqLabels = ['32', '64', '125', '250', '500', '1K', '2K', '4K', '8K', '16K'];
-  var eqBands = {};
+  var eqCustomBands = null; // remembers custom slider positions
+  var eqApplyTimer = null;
   var eqPresets = {
-    flat:         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    bass_boost:   [6, 5, 4, 2, 0, 0, 0, 0, 0, 0],
-    treble_boost: [0, 0, 0, 0, 0, 2, 3, 4, 5, 6],
-    vocal:        [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1],
-    rock:         [4, 3, 1, -1, -2, 1, 3, 4, 4, 3],
-    pop:          [-1, 1, 3, 4, 3, 0, -1, -1, 1, 2],
-    jazz:         [3, 2, 0, 2, -2, -2, 0, 2, 3, 4],
-    classical:    [4, 3, 2, 1, 0, 0, 0, 1, 2, 3],
-    loudness:     [6, 4, 0, 0, -2, 0, -1, -4, 4, 2]
+    flat:           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    bass_boost:     [6, 5, 4, 2, 0, 0, 0, 0, 0, 0],
+    treble_boost:   [0, 0, 0, 0, 0, 2, 3, 4, 5, 6],
+    vocal:          [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1],
+    rock:           [4, 3, 1, -1, -2, 1, 3, 4, 4, 3],
+    pop:            [-1, 1, 3, 4, 3, 0, -1, -1, 1, 2],
+    jazz:           [3, 2, 0, 2, -2, -2, 0, 2, 3, 4],
+    classical:      [4, 3, 2, 1, 0, 0, 0, 1, 2, 3],
+    loudness:       [6, 4, 0, 0, -2, 0, -1, -4, 4, 2],
+    small_speakers: [5, 4, 3, 1, 0, 1, 2, 3, 3, 2],
+    earphones:      [-1, -1, 0, 1, 2, 2, 1, 0, -1, -2],
+    headphones:     [2, 1, 0, 0, -1, 0, 1, 2, 2, 1]
   };
 
   function initEq() {
@@ -436,7 +440,7 @@ var RendezVoxSettings = (function() {
     }
     container.innerHTML = html;
 
-    // Attach change listeners
+    // Attach slider listeners — auto-apply with debounce
     for (var j = 0; j < eqFreqs.length; j++) {
       (function(freq) {
         var slider = document.getElementById('eqBand_' + freq);
@@ -444,19 +448,35 @@ var RendezVoxSettings = (function() {
           slider.addEventListener('input', function() {
             document.getElementById('eqVal_' + freq).textContent = slider.value;
             document.getElementById('eqPreset').value = 'custom';
+            eqCustomBands = getEqSliderValues();
+            debouncedApplyEq();
           });
         }
       })(eqFreqs[j]);
     }
 
-    // Preset change
+    // Preset change — instant apply, save custom before switching
     var presetEl = document.getElementById('eqPreset');
     if (presetEl) {
       presetEl.addEventListener('change', function() {
         var p = presetEl.value;
-        if (p !== 'custom' && eqPresets[p]) {
+        if (p === 'custom') {
+          if (eqCustomBands) {
+            setEqSliders(eqCustomBands);
+          }
+          applyEq();
+        } else if (eqPresets[p]) {
           setEqSliders(eqPresets[p]);
+          applyEq();
         }
+      });
+    }
+
+    // Spatial change — instant apply
+    var spatialEl = document.getElementById('eqSpatial');
+    if (spatialEl) {
+      spatialEl.addEventListener('change', function() {
+        applyEq();
       });
     }
 
@@ -464,16 +484,29 @@ var RendezVoxSettings = (function() {
     loadEq();
   }
 
+  function debouncedApplyEq() {
+    if (eqApplyTimer) clearTimeout(eqApplyTimer);
+    eqApplyTimer = setTimeout(function() {
+      eqApplyTimer = null;
+      applyEq();
+    }, 300);
+  }
+
   function loadEq() {
     RendezVoxAPI.get('/admin/eq').then(function(data) {
       var presetEl = document.getElementById('eqPreset');
       if (presetEl && data.preset) presetEl.value = data.preset;
+      var spatialEl = document.getElementById('eqSpatial');
+      if (spatialEl && data.spatial) spatialEl.value = data.spatial;
       if (data.bands) {
         var vals = [];
         for (var i = 0; i < eqFreqs.length; i++) {
           vals.push(data.bands[String(eqFreqs[i])] || 0);
         }
         setEqSliders(vals);
+        if (data.preset === 'custom') {
+          eqCustomBands = vals;
+        }
       }
     }).catch(function() { /* ignore */ });
   }
@@ -489,6 +522,15 @@ var RendezVoxSettings = (function() {
     }
   }
 
+  function getEqSliderValues() {
+    var vals = [];
+    for (var i = 0; i < eqFreqs.length; i++) {
+      var slider = document.getElementById('eqBand_' + eqFreqs[i]);
+      vals.push(slider ? parseInt(slider.value, 10) : 0);
+    }
+    return vals;
+  }
+
   function getEqBands() {
     var bands = {};
     for (var i = 0; i < eqFreqs.length; i++) {
@@ -501,10 +543,11 @@ var RendezVoxSettings = (function() {
   function applyEq() {
     var preset = document.getElementById('eqPreset').value;
     var bands = getEqBands();
+    var spatial = document.getElementById('eqSpatial').value;
     var statusEl = document.getElementById('eqStatus');
     if (statusEl) statusEl.textContent = 'Applying…';
 
-    RendezVoxAPI.put('/admin/eq', { preset: preset, bands: bands })
+    RendezVoxAPI.put('/admin/eq', { preset: preset, bands: bands, spatial: spatial })
       .then(function(res) {
         if (res.bands) {
           var vals = [];
@@ -516,7 +559,6 @@ var RendezVoxSettings = (function() {
         if (res.preset && res.preset !== 'custom') {
           document.getElementById('eqPreset').value = res.preset;
         }
-        showToast('EQ applied: ' + preset.replace(/_/g, ' '));
         if (statusEl) statusEl.textContent = '';
       })
       .catch(function(err) {
@@ -526,7 +568,9 @@ var RendezVoxSettings = (function() {
   }
 
   function resetEq() {
+    eqCustomBands = null;
     document.getElementById('eqPreset').value = 'flat';
+    document.getElementById('eqSpatial').value = 'off';
     setEqSliders(eqPresets.flat);
     applyEq();
   }
@@ -783,23 +827,27 @@ var RendezVoxSettings = (function() {
   var scanWasAutoEnabled = false;
 
   function setScanButtons(scanning) {
-    var btnStart = document.getElementById('btnGenreScan');
-    var btnStop  = document.getElementById('btnStopScan');
+    var btnStart  = document.getElementById('btnGenreScan');
+    var btnRescan = document.getElementById('btnRescanAll');
+    var btnStop   = document.getElementById('btnStopScan');
     if (scanning) {
       btnStart.disabled = true;
       btnStart.textContent = 'Scanning…';
+      btnRescan.disabled = true;
       btnStop.classList.remove('hidden');
     } else {
       btnStart.disabled = false;
       btnStart.textContent = 'Scan and Tag';
+      btnRescan.disabled = false;
       btnStop.classList.add('hidden');
     }
   }
 
-  function startGenreScan() {
+  function startGenreScan(mode) {
     setScanButtons(true);
 
-    RendezVoxAPI.post('/admin/genre-scan', {})
+    var url = mode === 'all' ? '/admin/genre-scan?mode=all' : '/admin/genre-scan';
+    RendezVoxAPI.post(url, {})
       .then(function(res) {
         var msg = res.message || 'Scan started';
         var isBlocked = msg.indexOf('already running') !== -1;
@@ -888,113 +936,6 @@ var RendezVoxSettings = (function() {
           showScanProgress(data);
           setScanButtons(true);
           pollScanStatus();
-        }
-      })
-      .catch(function() { /* ignore */ });
-  }
-
-  // ── Cover Art Re-fetch ────────────────────────────
-  var coverPollTimer = null;
-
-  function setCoverScanButtons(scanning) {
-    var btnAll     = document.getElementById('btnCoverScanAll');
-    var btnMissing = document.getElementById('btnCoverScanMissing');
-    var btnStop    = document.getElementById('btnStopCoverScan');
-    if (scanning) {
-      btnAll.disabled = true;
-      btnAll.textContent = 'Scanning…';
-      btnMissing.disabled = true;
-      btnStop.classList.remove('hidden');
-    } else {
-      btnAll.disabled = false;
-      btnAll.textContent = 'Re-fetch All';
-      btnMissing.disabled = false;
-      btnStop.classList.add('hidden');
-    }
-  }
-
-  function startCoverScan(mode) {
-    setCoverScanButtons(true);
-
-    RendezVoxAPI.post('/admin/cover-scan?mode=' + encodeURIComponent(mode), {})
-      .then(function(res) {
-        var msg = res.message || 'Cover scan started';
-        var isBlocked = msg.indexOf('already running') !== -1;
-        showToast(msg, isBlocked ? 'error' : 'success');
-        if (res.progress) {
-          showCoverScanProgress(res.progress);
-          pollCoverScanStatus();
-        }
-      })
-      .catch(function(err) {
-        setCoverScanButtons(false);
-        showToast((err && err.error) || 'Failed to start cover scan', 'error');
-      });
-  }
-
-  function stopCoverScan() {
-    RendezVoxAPI.del('/admin/cover-scan')
-      .then(function(res) {
-        showToast(res.message || 'Stopping cover scan…');
-      })
-      .catch(function(err) {
-        showToast((err && err.error) || 'Failed to stop cover scan', 'error');
-      });
-  }
-
-  function pollCoverScanStatus() {
-    if (coverPollTimer) clearInterval(coverPollTimer);
-    coverPollTimer = setInterval(function() {
-      RendezVoxAPI.get('/admin/cover-scan')
-        .then(function(data) {
-          showCoverScanProgress(data);
-          if (data.status !== 'running') {
-            clearInterval(coverPollTimer);
-            coverPollTimer = null;
-            setCoverScanButtons(false);
-
-            if (data.status === 'done') {
-              showToast('Cover scan complete — ' + (data.updated || 0) + ' covers updated');
-            } else if (data.status === 'stopped') {
-              showToast('Cover scan stopped — ' + (data.updated || 0) + ' covers updated so far');
-            }
-            setTimeout(function() { document.getElementById('coverScanStatus').style.display = 'none'; }, 3000);
-          }
-        });
-    }, 2000);
-  }
-
-  function showCoverScanProgress(p) {
-    var wrap = document.getElementById('coverScanStatus');
-    if (!p || p.status === 'idle') {
-      wrap.style.display = 'none';
-      return;
-    }
-    wrap.style.display = 'block';
-
-    var total = p.total || 1;
-    var processed = p.processed || 0;
-    var pct = Math.round((processed / total) * 100);
-
-    var label = 'Fetching covers…';
-    if (p.status === 'done') label = 'Cover scan complete';
-    else if (p.status === 'stopped') label = 'Cover scan stopped';
-
-    document.getElementById('coverScanLabel').textContent = label;
-    document.getElementById('coverScanPct').textContent = pct + '%';
-    document.getElementById('coverScanBar').style.width = pct + '%';
-    var detail = processed + ' / ' + total + ' songs — ' +
-      (p.updated || 0) + ' updated, ' + (p.skipped || 0) + ' skipped';
-    document.getElementById('coverScanDetails').textContent = detail;
-  }
-
-  function checkInitialCoverScanStatus() {
-    RendezVoxAPI.get('/admin/cover-scan')
-      .then(function(data) {
-        if (data.status === 'running') {
-          showCoverScanProgress(data);
-          setCoverScanButtons(true);
-          pollCoverScanStatus();
         }
       })
       .catch(function() { /* ignore */ });
@@ -2254,6 +2195,55 @@ var RendezVoxSettings = (function() {
 
 
 
+  // ── App Version ─────────────────────────────────────
+
+  function loadAppVersion() {
+    var verInput = document.getElementById('appVersion');
+    var logInput = document.getElementById('appChangelog');
+    if (!verInput || !logInput) return;
+
+    var ver = settings['app_version'];
+    var log = settings['app_changelog'];
+    if (ver) verInput.value = ver.value || '1.0.0';
+    if (log) logInput.value = log.value || '';
+  }
+
+  function saveAppVersion() {
+    var verInput = document.getElementById('appVersion');
+    var logInput = document.getElementById('appChangelog');
+    var status = document.getElementById('appVersionStatus');
+    if (!verInput || !logInput) return;
+
+    var version = verInput.value.trim();
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      status.textContent = 'Invalid version format — use major.minor.patch';
+      status.style.color = 'var(--danger)';
+      return;
+    }
+
+    status.textContent = 'Saving…';
+    status.style.color = 'var(--text-dim)';
+
+    var changelog = logInput.value.trim();
+
+    Promise.all([
+      RendezVoxAPI.put('/admin/settings/app_version', { value: version }),
+      RendezVoxAPI.put('/admin/settings/app_changelog', { value: changelog })
+    ])
+    .then(function() {
+      if (settings['app_version']) settings['app_version'].value = version;
+      if (settings['app_changelog']) settings['app_changelog'].value = changelog;
+      status.textContent = 'Saved';
+      status.style.color = 'var(--success)';
+      showToast('App version updated to ' + version);
+      setTimeout(function() { status.textContent = ''; }, 3000);
+    })
+    .catch(function(err) {
+      status.textContent = (err && err.error) || 'Failed to save';
+      status.style.color = 'var(--danger)';
+    });
+  }
+
   // ── System Info tab ─────────────────────────────────
 
   function initSystemTab() {
@@ -2390,8 +2380,6 @@ var RendezVoxSettings = (function() {
     sendTestEmail: sendTestEmail,
     startGenreScan: startGenreScan,
     stopGenreScan: stopGenreScan,
-    startCoverScan: startCoverScan,
-    stopCoverScan: stopCoverScan,
     startLibrarySync: startLibrarySync,
     stopLibrarySync: stopLibrarySync,
     startArtistDedup: startArtistDedup,
@@ -2405,6 +2393,7 @@ var RendezVoxSettings = (function() {
     startRenamePaths: startRenamePaths,
     stopRenamePaths: stopRenamePaths,
     saveBlockedWords: saveBlockedWords,
+    saveAppVersion: saveAppVersion,
     applyEq: applyEq,
     resetEq: resetEq,
     toggleVis: toggleVis

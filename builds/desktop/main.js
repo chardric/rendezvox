@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, shell, nativeTheme, nativeImage, globalShortcut, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, nativeTheme, nativeImage, globalShortcut, ipcMain, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -175,6 +175,17 @@ ipcMain.handle('get-autostart', () => {
 
 ipcMain.handle('set-autostart', (_event, enabled) => {
   return setAutostartEnabled(enabled);
+});
+
+ipcMain.handle('check-update', async (_event, baseUrl) => {
+  try {
+    const url = `${baseUrl}/api/version`;
+    const response = await net.fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (_) {
+    return null;
+  }
 });
 
 // ── Second instance handler — show window if user launches again ──

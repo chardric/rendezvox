@@ -345,7 +345,9 @@ INSERT INTO settings (key, value, type, description) VALUES
     ('profanity_filter_enabled',   'true',   'boolean', 'Filter profanity in request names and messages'),
     ('profanity_custom_words',     '',       'string',  'Additional blocked words (comma-separated)'),
     ('organizer_enabled',          'true',   'boolean', 'Enable real-time media organizer'),
-    ('organizer_poll_secs',        '10',     'integer', 'Seconds between organizer scan cycles');
+    ('organizer_poll_secs',        '10',     'integer', 'Seconds between organizer scan cycles'),
+    ('app_version',                '1.0.0',  'string',  'Current published app version'),
+    ('app_changelog',              '',       'string',  'Changelog for current version');
 
 -- ============================================================
 -- 15. PASSWORD_RESET_TOKENS

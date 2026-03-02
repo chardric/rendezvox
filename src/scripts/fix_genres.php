@@ -3,8 +3,9 @@
  * Scan and Tag — runs in background, looks up metadata from MusicBrainz.
  *
  * Usage:
- *   php fix_genres.php           — scan all songs
+ *   php fix_genres.php           — scan untagged songs
  *   php fix_genres.php --auto    — scan only untagged songs (for cron)
+ *   php fix_genres.php --all     — re-scan ALL songs (re-tag + re-fetch covers)
  *   php fix_genres.php --dry-run — preview only, no changes
  *
  * Logic:
@@ -30,6 +31,7 @@ require __DIR__ . '/../core/ArtistNormalizer.php';
 
 $dryRun   = in_array('--dry-run', $argv ?? []);
 $autoMode = in_array('--auto', $argv ?? []);
+$allMode  = in_array('--all', $argv ?? []);
 
 $db = Database::get();
 
@@ -224,7 +226,13 @@ function titleFromFilename(string $filePath): string
 
 // ── Main ─────────────────────────────────────────────────
 
-// Get songs — only process untagged songs (both auto and manual)
+// --all mode: reset tagged_at so all songs get reprocessed
+if ($allMode && !$dryRun) {
+    $db->exec("UPDATE songs SET tagged_at = NULL");
+    logMsg('Re-scan all: reset tagged_at for all songs', $autoMode);
+}
+
+// Get songs to process
 $stmt = $db->query("
     SELECT s.id, s.title, s.year, s.file_path, s.artist_id,
            a.name AS artist_name, c.name AS current_genre
@@ -309,29 +317,36 @@ foreach ($allSongs as $song) {
         }
     }
 
-    // Step 2: AcoustID fingerprint lookup — results REPLACE existing values
+    // Step 2: AcoustID fingerprint lookup — tiered confidence
+    //   0.95+ = high confidence → overwrite title/artist
+    //   0.85–0.94 = moderate → only fill blanks
+    //   <0.85 = rejected by MetadataLookup
     if (file_exists($currentPath)) {
         $acoustResult = $lookup->lookupByFingerprint($currentPath);
 
         if ($acoustResult) {
             $gotExternalData = true;
+            $acoustScore = (float) ($acoustResult['score'] ?? 0);
+            $highConfidence = $acoustScore >= 0.95;
             $updates = [];
             $params  = ['id' => $songId];
 
-            // Always replace title from AcoustID
             if (!empty($acoustResult['title'])) {
-                $updates[] = 'title = :title';
-                $params['title'] = $acoustResult['title'];
-                $title = $acoustResult['title'];
+                if ($highConfidence || empty(trim($title))) {
+                    $updates[] = 'title = :title';
+                    $params['title'] = $acoustResult['title'];
+                    $title = $acoustResult['title'];
+                }
             }
 
-            // Always replace artist from AcoustID
             if (!empty($acoustResult['artist'])) {
-                $newArtistId = findOrCreateArtist($db, $acoustResult['artist'], $artistCache);
-                $updates[] = 'artist_id = :artist_id';
-                $params['artist_id'] = $newArtistId;
-                $artistName = $acoustResult['artist'];
-                $artistId = $newArtistId;
+                if ($highConfidence || empty(trim($artistName))) {
+                    $newArtistId = findOrCreateArtist($db, $acoustResult['artist'], $artistCache);
+                    $updates[] = 'artist_id = :artist_id';
+                    $params['artist_id'] = $newArtistId;
+                    $artistName = $acoustResult['artist'];
+                    $artistId = $newArtistId;
+                }
             }
 
             if (!empty($updates) && !$dryRun) {
@@ -479,10 +494,12 @@ foreach ($allSongs as $song) {
         if ($renamed) $currentPath = $renamed;
     }
 
-    // Step 8: Cover art — fetch external if missing, re-embed original if stripped
+    // Step 8: Cover art — re-fetch in --all mode, otherwise only if missing
     if (!$dryRun && file_exists($currentPath)) {
-        if (!MetadataLookup::hasCoverArt($currentPath)) {
-            // Try external cover art
+        $hasCover = MetadataLookup::hasCoverArt($currentPath);
+        $needsFetch = !$hasCover || $allMode;
+
+        if ($needsFetch) {
             $releaseId = $mbResult['release_id'] ?? null;
             $imageData = $lookup->lookupCoverArt($artistName, $title, $releaseId);
             if ($imageData) {
@@ -490,8 +507,10 @@ foreach ($allSongs as $song) {
                     $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")
                        ->execute(['id' => $songId]);
                     $progress['covers'] = ($progress['covers'] ?? 0) + 1;
+                    // Clear cached cover so CoverArtHandler serves the new one
+                    @unlink('/tmp/rendezvox_covers/' . $songId . '.jpg');
                 }
-            } elseif ($originalCoverArt) {
+            } elseif (!$hasCover && $originalCoverArt) {
                 // Re-embed original cover art that was stripped during tag clearing
                 if (MetadataLookup::embedCoverArt($currentPath, $originalCoverArt)) {
                     $db->prepare("UPDATE songs SET has_cover_art = TRUE WHERE id = :id")

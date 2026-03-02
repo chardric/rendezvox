@@ -88,7 +88,7 @@ class MetadataLookup
     /**
      * Fingerprint an audio file via fpcalc and look up metadata from AcoustID.
      *
-     * @return array{title?: string, artist?: string, album?: string, recording_id?: string}|null
+     * @return array{title?: string, artist?: string, album?: string, recording_id?: string, score?: float}|null
      */
     public function lookupByFingerprint(string $filePath): ?array
     {
@@ -129,7 +129,7 @@ class MetadataLookup
 
         $best  = $results[0];
         $score = (float) ($best['score'] ?? 0);
-        if ($score < 0.7) {
+        if ($score < 0.85) {
             return null;
         }
 
@@ -139,7 +139,7 @@ class MetadataLookup
         }
 
         $rec    = $recordings[0];
-        $result = [];
+        $result = ['score' => $score];
 
         if (!empty($rec['id'])) {
             $result['recording_id'] = $rec['id'];

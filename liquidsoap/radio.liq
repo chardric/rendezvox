@@ -111,6 +111,20 @@ radio = cue_cut(radio)
 
 radio = blank.skip(radio, max_blank=2.0, min_noise=0.5, threshold=-40.0)
 
+# ── De-esser & high-frequency smoothing ───────────────
+# Tame sibilance (harsh S/T/SH sounds) with a narrow cut at 6.5kHz
+# and a broad cut at 12kHz for overall high-frequency smoothness.
+
+radio = filter.iir.eq.peak(frequency=6500., q=2.0, gain=-3., radio)
+radio = filter.iir.eq.peak(frequency=12000., q=0.7, gain=-1.5, radio)
+
+# ── Limiter ───────────────────────────────────────────
+# Prevent clipping after loudness gain. High ratio acts as a
+# brick-wall limiter at -1dB true peak. Fast attack catches
+# transients; moderate release avoids pumping.
+
+radio = compress(ratio=10., threshold=-1., attack=5., release=50., radio)
+
 # ── Crossfade ─────────────────────────────────────────
 
 radio = crossfade(duration=crossfade_sec, radio)
@@ -222,7 +236,7 @@ radio_out = switch(track_sensitive=false, [({stream_active()}, radio)])
 output.icecast(
     id                  = "stream",
     fallible            = true,
-    %mp3(bitrate=192, samplerate=44100, stereo=true),
+    %mp3(bitrate=256, samplerate=44100, stereo=true),
     host                = icecast_host,
     port                = icecast_port,
     password            = icecast_password,

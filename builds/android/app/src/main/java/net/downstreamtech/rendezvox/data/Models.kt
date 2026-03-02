@@ -62,6 +62,12 @@ data class RecentPlaysResponse(
     val plays: List<RecentPlay> = emptyList()
 )
 
+data class VersionInfo(
+    val version: String = "",
+    val changelog: String = "",
+    val downloads: Map<String, String> = emptyMap()
+)
+
 data class NowPlayingState(
     val stationName: String = "RendezVox",
     val tagline: String = "Online Radio",
@@ -85,7 +91,10 @@ data class NowPlayingState(
     val baseUrl: String = ServerPrefs.DEFAULT_URL,
     val accentColor: String = "#ff7800",
     val recentPlays: List<RecentPlay> = emptyList(),
-    val showHistory: Boolean = false
+    val showHistory: Boolean = false,
+    val updateAvailable: Boolean = false,
+    val updateVersion: String = "",
+    val updateChangelog: String = ""
 ) {
     val coverArtUrl: String
         get() = if (hasCoverArt && songId > 0) "$baseUrl/api/cover?id=$songId" else ""

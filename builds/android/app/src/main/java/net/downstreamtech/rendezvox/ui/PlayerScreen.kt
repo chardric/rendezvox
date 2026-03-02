@@ -57,7 +57,8 @@ fun PlayerScreen(
     onVolumeChange: (Float) -> Unit,
     onRequestSong: () -> Unit,
     onChangeServer: () -> Unit = {},
-    onToggleHistory: () -> Unit = {}
+    onToggleHistory: () -> Unit = {},
+    onDismissUpdate: () -> Unit = {}
 ) {
     val accent = parseHexColor(state.accentColor)
     val accentLight = lightenColor(accent, 0.18f)
@@ -126,6 +127,50 @@ fun PlayerScreen(
                             color = Color(0xFFF87171),
                             fontSize = 12.sp
                         )
+                    }
+                }
+            }
+
+            // Update available banner
+            if (state.updateAvailable) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0x1FFF9800)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x4DFF9800))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Update available: v${state.updateVersion}",
+                                color = Color(0xFFFFCC80),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (state.updateChangelog.isNotBlank()) {
+                                Text(
+                                    state.updateChangelog,
+                                    color = Color(0xFFBBBBBB),
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = onDismissUpdate,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = Color(0xFFFFB74D),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }

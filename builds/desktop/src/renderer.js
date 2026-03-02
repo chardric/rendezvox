@@ -1,5 +1,6 @@
 'use strict';
 
+const APP_VERSION = '1.0.0';
 const DEFAULT_SERVER = 'https://radio.chadlinuxtech.net';
 let BASE_URL = DEFAULT_SERVER;
 let STREAM_URL = `${BASE_URL}/stream/live`;
@@ -649,6 +650,58 @@ $('server-connect').addEventListener('click', () => {
   }
 });
 
+// ── Update check ─────────────────────────────────────────
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va < vb) return -1;
+    if (va > vb) return 1;
+  }
+  return 0;
+}
+
+function showUpdateBanner(version, changelog) {
+  let banner = $('update-banner');
+  if (banner) return;
+  banner = document.createElement('div');
+  banner.id = 'update-banner';
+
+  const text = document.createElement('div');
+  text.className = 'update-text';
+  text.innerHTML = `<strong>Update available: v${esc(version)}</strong>`;
+  if (changelog) {
+    const lines = changelog.split('\n').filter(l => l.trim());
+    if (lines.length) {
+      text.innerHTML += '<div class="update-changelog">' + lines.map(l => esc(l)).join('<br>') + '</div>';
+    }
+  }
+
+  const dismiss = document.createElement('button');
+  dismiss.className = 'update-dismiss';
+  dismiss.textContent = '\u2715';
+  dismiss.addEventListener('click', () => banner.remove());
+
+  banner.appendChild(text);
+  banner.appendChild(dismiss);
+
+  const content = $('content');
+  content.parentNode.insertBefore(banner, content);
+}
+
+async function checkForUpdate() {
+  if (!window.electronAPI || !window.electronAPI.checkUpdate) return;
+  try {
+    const data = await window.electronAPI.checkUpdate(BASE_URL);
+    if (!data || !data.version) return;
+    if (compareVersions(APP_VERSION, data.version) < 0) {
+      showUpdateBanner(data.version, data.changelog || '');
+    }
+  } catch (_) {}
+}
+
 // ── App start ────────────────────────────────────────────
 let nowPlayingInterval = null;
 let tonearmInterval = null;
@@ -663,6 +716,7 @@ async function startApp() {
   listenerInterval = setInterval(fetchListeners, 15_000);
   tonearmInterval = setInterval(updateTonearm, 1000);
   fetchListeners();
+  checkForUpdate();
 }
 
 // ── Page Visibility API ─────────────────────────────────

@@ -23,6 +23,10 @@ import java.util.*
 
 class PlayerViewModel(private val context: Context, private val baseUrl: String) : ViewModel() {
 
+    companion object {
+        const val APP_VERSION = "1.0.0"
+    }
+
     private val _state = MutableStateFlow(NowPlayingState(baseUrl = baseUrl))
     val state: StateFlow<NowPlayingState> = _state.asStateFlow()
 
@@ -65,6 +69,38 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
         startPolling()
         startSSE()
         startListenerPolling()
+        checkForUpdate()
+    }
+
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            val info = api.fetchVersion() ?: return@launch
+            if (info.version.isNotBlank() && compareVersions(APP_VERSION, info.version) < 0) {
+                _state.update {
+                    it.copy(
+                        updateAvailable = true,
+                        updateVersion = info.version,
+                        updateChangelog = info.changelog
+                    )
+                }
+            }
+        }
+    }
+
+    private fun compareVersions(a: String, b: String): Int {
+        val pa = a.split(".").map { it.toIntOrNull() ?: 0 }
+        val pb = b.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until 3) {
+            val va = pa.getOrElse(i) { 0 }
+            val vb = pb.getOrElse(i) { 0 }
+            if (va < vb) return -1
+            if (va > vb) return 1
+        }
+        return 0
+    }
+
+    fun dismissUpdate() {
+        _state.update { it.copy(updateAvailable = false) }
     }
 
     private fun connectMediaController() {

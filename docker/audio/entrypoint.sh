@@ -18,9 +18,12 @@ apply_eq() {
 
     local filter
     filter=$(jq -r '
-        .bands | to_entries
-        | map("equalizer=f=\(.key):t=o:w=1:g=\(.value)")
-        | join(",")
+        (.bands | to_entries | map("equalizer=f=\(.key):t=o:w=1:g=\(.value)") | join(",")) as $eq |
+        (if .spatial == "stereo_wide" then ",stereowiden=delay=20:feedback=0.3:crossfeed=0.3:drymix=0.8"
+         elif .spatial == "surround" then ",haas=level_in=1:level_out=1:side_gain=0.4:middle_source=mid:middle_phase=false,extrastereo=m=1.5"
+         elif .spatial == "crossfeed" then ",crossfeed=strength=0.7:range=8000:level_in=1:level_out=1"
+         else "" end) as $sp |
+        $eq + $sp
     ' "$EQ_FILE" 2>/dev/null) || return
 
     if [ -n "$filter" ] && [ "$filter" != "null" ]; then
@@ -48,9 +51,10 @@ echo "  Stream:  $ICECAST_URL"
 echo "  Device:  $AUDIO_DEVICE"
 echo "  Socket:  $MPV_SOCKET"
 
-wait_for_stream
-
 while true; do
+    # Always wait for a live stream before starting mpv
+    wait_for_stream
+
     rm -f "$MPV_SOCKET"
 
     MPV_ARGS=(
@@ -60,7 +64,10 @@ while true; do
         --input-ipc-server="$MPV_SOCKET"
         --cache=yes
         --demuxer-max-bytes=512KiB
-        --demuxer-readahead-secs=5
+        --demuxer-readahead-secs=10
+        # Auto-reconnect on stream drop (lavf/ffmpeg handles it internally)
+        --demuxer-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=30
+        --network-timeout=30
     )
 
     if [ "$AUDIO_DEVICE" != "auto" ]; then

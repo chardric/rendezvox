@@ -76,6 +76,17 @@ class RadioApi(private val baseUrl: String) {
         }
     }
 
+    suspend fun fetchVersion(): VersionInfo? = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url("$baseUrl/api/version").build()
+        try {
+            val response = client.newCall(request).await()
+            val body = response.body?.string() ?: return@withContext null
+            gson.fromJson(body, VersionInfo::class.java)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun fetchRecentPlays(): List<RecentPlay> = withContext(Dispatchers.IO) {
         val request = Request.Builder().url("$baseUrl/api/recent-plays").build()
         try {
