@@ -87,6 +87,8 @@ CREATE TABLE songs (
     has_cover_art   BOOLEAN      NOT NULL DEFAULT FALSE, -- embedded cover art present
     loudness_lufs    NUMERIC(6,2),                      -- EBU R128 integrated loudness
     loudness_gain_db NUMERIC(6,2),                      -- gain to apply for target LUFS
+    cue_in           NUMERIC(8,3),                      -- silence-detect: skip leading silence (seconds)
+    cue_out          NUMERIC(8,3),                      -- silence-detect: trim trailing silence (seconds)
     trashed_at      TIMESTAMPTZ,                        -- soft-delete timestamp
     duplicate_of    INT          REFERENCES songs(id) ON DELETE SET NULL, -- canonical song for dedup
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -330,6 +332,9 @@ INSERT INTO settings (key, value, type, description) VALUES
     ('weather_barangay',           '',         'string', 'Weather location — barangay'),
     ('normalize_target_lufs',      '-14.0',   'string', 'Target loudness level in LUFS for normalization'),
     ('auto_normalize_enabled',     'false',  'boolean', 'Automatically normalize new songs in background'),
+    ('auto_silence_detect_enabled','true',   'boolean', 'Automatically detect silence cue points for new songs'),
+    ('eq_preset',                  'flat',   'string',  'Active equalizer preset (flat, bass_boost, treble_boost, vocal, rock, pop, jazz, classical, loudness, custom)'),
+    ('eq_bands',                   '{"32":0,"64":0,"125":0,"250":0,"500":0,"1000":0,"2000":0,"4000":0,"8000":0,"16000":0}', 'json', 'Equalizer band gains in dB (-12 to +12)'),
     ('smtp_host',                  '',       'string',  'SMTP server hostname'),
     ('smtp_port',                  '587',    'integer', 'SMTP server port'),
     ('smtp_username',              '',       'string',  'SMTP authentication username'),

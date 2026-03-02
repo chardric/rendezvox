@@ -76,6 +76,15 @@ services:
         limits:
           memory: 64M
 
+  # ── Audio Output — RPi hardware config ──────────────
+  audio:
+    environment:
+      AUDIO_DEVICE: alsa/plughw:0,0
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
   # ── Liquidsoap — constrained memory ─────────────────
   liquidsoap:
     deploy:

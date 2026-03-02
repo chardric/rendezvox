@@ -81,6 +81,7 @@ require __DIR__ . '/handlers/FileManagerDeleteHandler.php';
 require __DIR__ . '/handlers/FileManagerDeleteCheckHandler.php';
 require __DIR__ . '/handlers/SSEHandler.php';
 require __DIR__ . '/handlers/GenreScanHandler.php';
+require __DIR__ . '/handlers/CoverScanHandler.php';
 require __DIR__ . '/handlers/LibrarySyncHandler.php';
 require __DIR__ . '/handlers/ArtistDedupHandler.php';
 require __DIR__ . '/handlers/NormalizeHandler.php';
@@ -106,6 +107,8 @@ require __DIR__ . '/handlers/ActivateAccountHandler.php';
 require __DIR__ . '/handlers/LibraryStatsHandler.php';
 require __DIR__ . '/handlers/DiskSpaceHandler.php';
 require __DIR__ . '/handlers/RenamePathsHandler.php';
+require __DIR__ . '/handlers/SilenceDetectHandler.php';
+require __DIR__ . '/handlers/EqHandler.php';
 require __DIR__ . '/handlers/LogoUploadHandler.php';
 require __DIR__ . '/handlers/LogoServeHandler.php';
 require __DIR__ . '/handlers/CoverArtHandler.php';
@@ -250,6 +253,10 @@ Router::get('/cover',                  [CoverArtHandler::class,       'handle'])
 Router::get('/recent-plays',           [RecentPlaysPublicHandler::class, 'handle']);
 Router::get('/schedule',               [SchedulePublicHandler::class,    'handle']);
 
+// -- Equalizer (must be before /admin/settings/:key to avoid param capture) --
+Router::get('/admin/eq',    [EqHandler::class, 'get']);
+Router::put('/admin/eq',    [EqHandler::class, 'put']);
+
 // -- Settings --
 Router::get('/admin/settings',         [SettingsListHandler::class,   'handle']);
 Router::get('/admin/library-stats',    [LibraryStatsHandler::class,   'handle']);
@@ -269,6 +276,11 @@ Router::post('/admin/genre-scan',      [GenreScanHandler::class, 'start']);
 Router::get('/admin/genre-scan',       [GenreScanHandler::class, 'status']);
 Router::delete('/admin/genre-scan',    [GenreScanHandler::class, 'stop']);
 Router::get('/admin/auto-tag-status',  [GenreScanHandler::class, 'autoTagStatus']);
+
+// -- Cover re-fetch --
+Router::post('/admin/cover-scan',      [CoverScanHandler::class, 'start']);
+Router::get('/admin/cover-scan',       [CoverScanHandler::class, 'status']);
+Router::delete('/admin/cover-scan',    [CoverScanHandler::class, 'stop']);
 
 // -- Library sync --
 Router::post('/admin/library-sync',      [LibrarySyncHandler::class, 'start']);
@@ -293,6 +305,12 @@ Router::post('/admin/normalize',      [NormalizeHandler::class, 'start']);
 Router::get('/admin/normalize',       [NormalizeHandler::class, 'status']);
 Router::delete('/admin/normalize',    [NormalizeHandler::class, 'stop']);
 Router::get('/admin/auto-norm-status', [NormalizeHandler::class, 'autoNormStatus']);
+
+// -- Silence detection --
+Router::post('/admin/silence-detect',         [SilenceDetectHandler::class, 'start']);
+Router::get('/admin/silence-detect',          [SilenceDetectHandler::class, 'status']);
+Router::delete('/admin/silence-detect',       [SilenceDetectHandler::class, 'stop']);
+Router::get('/admin/auto-silence-status',     [SilenceDetectHandler::class, 'autoSilenceStatus']);
 
 // -- Path rename (title-case) --
 Router::post('/admin/rename-paths',        [RenamePathsHandler::class, 'start']);

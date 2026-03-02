@@ -266,31 +266,29 @@ class MetadataLookup
             return !empty($result) ? $result : null;
         }
 
-        // Find album + year + release_id
-        $albumTitle = null;
-        $year       = null;
-        $releaseId  = null;
+        // Find best release: Single > EP > Album > first available
+        $singleRelease = null;
+        $epRelease     = null;
+        $albumRelease  = null;
 
         foreach ($releases as $rel) {
-            $group   = $rel['release-group']['primary-type'] ?? '';
-            $relDate = $rel['date'] ?? '';
-            if (strtolower($group) === 'album') {
-                $albumTitle = trim($rel['title']);
-                $releaseId  = $rel['id'] ?? null;
-                if ($relDate && preg_match('/\b(19|20)\d{2}\b/', $relDate, $m)) {
-                    $year = (int) $m[0];
-                }
-                break;
+            $group = strtolower($rel['release-group']['primary-type'] ?? '');
+            if ($group === 'single' && !$singleRelease) {
+                $singleRelease = $rel;
+            } elseif ($group === 'ep' && !$epRelease) {
+                $epRelease = $rel;
+            } elseif ($group === 'album' && !$albumRelease) {
+                $albumRelease = $rel;
             }
         }
 
-        if ($albumTitle === null) {
-            $albumTitle = trim($releases[0]['title']);
-            $releaseId  = $releases[0]['id'] ?? null;
-            $relDate    = $releases[0]['date'] ?? '';
-            if ($relDate && preg_match('/\b(19|20)\d{2}\b/', $relDate, $m)) {
-                $year = (int) $m[0];
-            }
+        $bestRelease = $singleRelease ?? $epRelease ?? $albumRelease ?? $releases[0];
+        $albumTitle  = trim($bestRelease['title']);
+        $releaseId   = $bestRelease['id'] ?? null;
+        $year        = null;
+        $relDate     = $bestRelease['date'] ?? '';
+        if ($relDate && preg_match('/\b(19|20)\d{2}\b/', $relDate, $m)) {
+            $year = (int) $m[0];
         }
 
         if ($albumTitle) {
@@ -363,14 +361,17 @@ class MetadataLookup
     /**
      * Fetch cover art image bytes.
      *
-     * 1. Try Cover Art Archive via MusicBrainz release ID (free, no key)
-     * 2. Fall back to TheAudioDB if key is configured
+     * Fallback chain:
+     * 1. Cover Art Archive via MusicBrainz release ID (prefers singles)
+     * 2. TheAudioDB track/album thumbnail
+     * 3. TheAudioDB artist photo
+     * 4. App logo (icon-512x512.png)
      *
      * @return string|null Raw image bytes or null
      */
     public function lookupCoverArt(string $artist, string $title, ?string $releaseId = null): ?string
     {
-        // Try Cover Art Archive first (if we have a release ID)
+        // 1. Cover Art Archive (if we have a release ID)
         if ($releaseId) {
             $imageData = $this->fetchCoverArtArchive($releaseId);
             if ($imageData) {
@@ -378,7 +379,7 @@ class MetadataLookup
             }
         }
 
-        // Fall back to TheAudioDB
+        // 2. TheAudioDB track/album thumbnail
         if ($this->theAudioDbKey !== '') {
             $imageData = $this->fetchTheAudioDbCover($artist, $title);
             if ($imageData) {
@@ -386,7 +387,14 @@ class MetadataLookup
             }
         }
 
-        return null;
+        // 3. TheAudioDB artist photo
+        $imageData = $this->fetchArtistPhoto($artist);
+        if ($imageData) {
+            return $imageData;
+        }
+
+        // 4. App logo as final fallback
+        return self::getDefaultCoverArt();
     }
 
     /**
@@ -453,6 +461,64 @@ class MetadataLookup
             return $imageData;
         }
         return null;
+    }
+
+    /**
+     * Fetch artist photo from TheAudioDB as cover art fallback.
+     */
+    private function fetchArtistPhoto(string $artist): ?string
+    {
+        if ($this->theAudioDbKey === '' || $artist === '') {
+            return null;
+        }
+
+        $this->rateLimit('theaudiodb', 2.0);
+
+        $url = 'https://theaudiodb.com/api/v1/json/' . urlencode($this->theAudioDbKey)
+             . '/search.php?s=' . urlencode($artist);
+
+        $resp = @file_get_contents($url, false, $this->httpContext);
+        if (!$resp) {
+            return null;
+        }
+
+        $data    = json_decode($resp, true);
+        $artists = $data['artists'] ?? [];
+        if (empty($artists)) {
+            return null;
+        }
+
+        $thumbUrl = $artists[0]['strArtistThumb'] ?? '';
+        if ($thumbUrl === '') {
+            return null;
+        }
+
+        $ctx = stream_context_create(['http' => [
+            'header'          => "User-Agent: RendezVox/1.0 (cover-art)\r\n",
+            'timeout'         => 15,
+            'follow_location' => true,
+            'max_redirects'   => 3,
+        ]]);
+
+        $imageData = @file_get_contents($thumbUrl, false, $ctx);
+        if ($imageData && strlen($imageData) > 1000) {
+            return $imageData;
+        }
+        return null;
+    }
+
+    /**
+     * Get app logo as final cover art fallback.
+     * Returns raw PNG bytes from the app icon.
+     */
+    public static function getDefaultCoverArt(): ?string
+    {
+        $logoPath = '/var/www/html/public/assets/icon-512x512.png';
+        if (!file_exists($logoPath)) {
+            return null;
+        }
+        $data = file_get_contents($logoPath);
+        return ($data !== false && strlen($data) > 100) ? $data : null;
     }
 
     /**
