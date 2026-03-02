@@ -118,6 +118,8 @@ class NextTrackHandler
                         'duration_ms' => (int) $requestSong['duration_ms'],
                         'file_path'   => $requestSong['file_path'],
                         'gain_db'     => $requestSong['loudness_gain_db'] !== null ? (float) $requestSong['loudness_gain_db'] : 0.0,
+                        'cue_in'      => $requestSong['cue_in'] !== null ? (float) $requestSong['cue_in'] : null,
+                        'cue_out'     => $requestSong['cue_out'] !== null ? (float) $requestSong['cue_out'] : null,
                     ],
                     'source'      => 'request',
                     'request_id'  => (int) $requestSong['request_id'],
@@ -253,6 +255,8 @@ class NextTrackHandler
                 'duration_ms' => (int) $song['duration_ms'],
                 'file_path'   => $song['file_path'],
                 'gain_db'     => $song['loudness_gain_db'] !== null ? (float) $song['loudness_gain_db'] : 0.0,
+                'cue_in'      => $song['cue_in'] !== null ? (float) $song['cue_in'] : null,
+                'cue_out'     => $song['cue_out'] !== null ? (float) $song['cue_out'] : null,
             ],
             'source'       => $isEmergency ? 'emergency' : 'rotation',
             'is_emergency' => $isEmergency,
@@ -313,6 +317,8 @@ class NextTrackHandler
                 s.duration_ms,
                 s.artist_id,
                 s.loudness_gain_db,
+                s.cue_in,
+                s.cue_out,
                 a.name       AS artist_name,
                 c.name       AS category_name
             FROM playlist_songs ps
@@ -418,6 +424,8 @@ class NextTrackHandler
                 s.duration_ms,
                 s.artist_id,
                 s.loudness_gain_db,
+                s.cue_in,
+                s.cue_out,
                 a.name       AS artist_name,
                 c.name       AS category_name
             FROM songs s
@@ -503,6 +511,8 @@ class NextTrackHandler
                 s.duration_ms,
                 s.artist_id,
                 s.loudness_gain_db,
+                s.cue_in,
+                s.cue_out,
                 s.is_active,
                 a.name        AS artist_name,
                 c.name        AS category_name

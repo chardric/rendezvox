@@ -67,7 +67,7 @@ def get_next_track() =
 
     let result = string.trim(process.read(
         "resp=$(curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/next-track') && " ^
-        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring)) end'"
+        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring) + \"\\n\" + (.song.cue_in // \"\" | tostring) + \"\\n\" + (.song.cue_out // \"\" | tostring)) end'"
     ))
 
     let parts = string.split(separator="\n", result)
@@ -76,6 +76,8 @@ def get_next_track() =
     let gain_db = string.trim(list.nth(default="0", parts, 2))
     let source = string.trim(list.nth(default="rotation", parts, 3))
     let request_id = string.trim(list.nth(default="0", parts, 4))
+    let cue_in = string.trim(list.nth(default="", parts, 5))
+    let cue_out = string.trim(list.nth(default="", parts, 6))
 
     if file_path == "" or file_path == "null" then
         log.info("No active schedule — playing silence, will retry in 10s")
@@ -83,8 +85,12 @@ def get_next_track() =
     else
         # file_path may be absolute (starts with /) or relative — handle both
         let full_path = if string.sub(file_path, start=0, length=1) == "/" then file_path else "#{music_dir}/#{file_path}" end
-        log.important("Queued: #{full_path} (song_id=#{song_id}, gain=#{gain_db}dB, source=#{source})")
-        [request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\":#{full_path}")]
+        let cue_annotations =
+            if cue_in != "" and cue_out != "" then
+                ",liq_cue_in=\"#{cue_in}\",liq_cue_out=\"#{cue_out}\""
+            else "" end
+        log.important("Queued: #{full_path} (song_id=#{song_id}, gain=#{gain_db}dB, source=#{source}, cue_in=#{cue_in}, cue_out=#{cue_out})")
+        [request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\"#{cue_annotations}:#{full_path}")]
     end
 end
 
@@ -92,6 +98,18 @@ end
 
 radio = request.dynamic.list(get_next_track)
 radio = amplify(override="liq_amplify", 1., radio)
+
+# ── Cue-point trimming ──────────────────────────────
+# Apply pre-computed cue_in/cue_out from silence detection.
+# liq_cue_in/liq_cue_out metadata trims leading/trailing silence precisely.
+
+radio = cue_cut(radio)
+
+# ── Strip trailing silence (safety net) ──────────────
+# Fallback for songs without cue points. Ends tracks
+# when silence exceeds 2s at -40dB.
+
+radio = blank.skip(radio, max_blank=2.0, min_noise=0.5, threshold=-40.0)
 
 # ── Crossfade ─────────────────────────────────────────
 

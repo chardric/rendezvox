@@ -49,14 +49,18 @@ var RendezVoxSettings = (function() {
       loadAutoDedupSongs();
       loadBlockedWords();
       checkInitialScanStatus();
+      checkInitialCoverScanStatus();
       checkInitialSyncStatus();
       checkInitialDedupStatus();
       checkInitialDedupSongsStatus();
       checkInitialNormStatus();
+      checkInitialSilenceStatus();
       checkInitialRenameStatus();
       loadNormTarget();
       loadAutoNorm();
+      loadAutoSilence();
       loadAutoRename();
+      initEq();
       initLocationPicker();
       initAppearanceTab();
       initSystemTab();
@@ -392,6 +396,139 @@ var RendezVoxSettings = (function() {
         btn.disabled = false;
         btn.textContent = 'Save Key';
       });
+  }
+
+  // ── Audio Equalizer ─────────────────────────────────
+
+  var eqFreqs = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+  var eqLabels = ['32', '64', '125', '250', '500', '1K', '2K', '4K', '8K', '16K'];
+  var eqBands = {};
+  var eqPresets = {
+    flat:         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    bass_boost:   [6, 5, 4, 2, 0, 0, 0, 0, 0, 0],
+    treble_boost: [0, 0, 0, 0, 0, 2, 3, 4, 5, 6],
+    vocal:        [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1],
+    rock:         [4, 3, 1, -1, -2, 1, 3, 4, 4, 3],
+    pop:          [-1, 1, 3, 4, 3, 0, -1, -1, 1, 2],
+    jazz:         [3, 2, 0, 2, -2, -2, 0, 2, 3, 4],
+    classical:    [4, 3, 2, 1, 0, 0, 0, 1, 2, 3],
+    loudness:     [6, 4, 0, 0, -2, 0, -1, -4, 4, 2]
+  };
+
+  function initEq() {
+    var container = document.getElementById('eqSliders');
+    if (!container) return;
+
+    // Build slider columns
+    var html = '';
+    for (var i = 0; i < eqFreqs.length; i++) {
+      var freq = eqFreqs[i];
+      html += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0">' +
+        '<span id="eqVal_' + freq + '" style="font-size:.7rem;color:var(--text-dim);margin-bottom:4px;font-variant-numeric:tabular-nums">0</span>' +
+        '<div style="height:120px;display:flex;align-items:center;justify-content:center">' +
+        '<input type="range" id="eqBand_' + freq + '" min="-12" max="12" step="1" value="0" ' +
+        'orient="vertical" data-freq="' + freq + '" ' +
+        'style="writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;' +
+        'width:28px;height:110px;cursor:pointer;accent-color:var(--accent)">' +
+        '</div>' +
+        '<span style="font-size:.65rem;color:var(--text-dim);margin-top:4px">' + eqLabels[i] + '</span>' +
+        '</div>';
+    }
+    container.innerHTML = html;
+
+    // Attach change listeners
+    for (var j = 0; j < eqFreqs.length; j++) {
+      (function(freq) {
+        var slider = document.getElementById('eqBand_' + freq);
+        if (slider) {
+          slider.addEventListener('input', function() {
+            document.getElementById('eqVal_' + freq).textContent = slider.value;
+            document.getElementById('eqPreset').value = 'custom';
+          });
+        }
+      })(eqFreqs[j]);
+    }
+
+    // Preset change
+    var presetEl = document.getElementById('eqPreset');
+    if (presetEl) {
+      presetEl.addEventListener('change', function() {
+        var p = presetEl.value;
+        if (p !== 'custom' && eqPresets[p]) {
+          setEqSliders(eqPresets[p]);
+        }
+      });
+    }
+
+    // Load saved EQ from API
+    loadEq();
+  }
+
+  function loadEq() {
+    RendezVoxAPI.get('/admin/eq').then(function(data) {
+      var presetEl = document.getElementById('eqPreset');
+      if (presetEl && data.preset) presetEl.value = data.preset;
+      if (data.bands) {
+        var vals = [];
+        for (var i = 0; i < eqFreqs.length; i++) {
+          vals.push(data.bands[String(eqFreqs[i])] || 0);
+        }
+        setEqSliders(vals);
+      }
+    }).catch(function() { /* ignore */ });
+  }
+
+  function setEqSliders(values) {
+    for (var i = 0; i < eqFreqs.length; i++) {
+      var freq = eqFreqs[i];
+      var val = values[i] || 0;
+      var slider = document.getElementById('eqBand_' + freq);
+      var label = document.getElementById('eqVal_' + freq);
+      if (slider) slider.value = val;
+      if (label) label.textContent = val;
+    }
+  }
+
+  function getEqBands() {
+    var bands = {};
+    for (var i = 0; i < eqFreqs.length; i++) {
+      var slider = document.getElementById('eqBand_' + eqFreqs[i]);
+      bands[String(eqFreqs[i])] = slider ? parseInt(slider.value, 10) : 0;
+    }
+    return bands;
+  }
+
+  function applyEq() {
+    var preset = document.getElementById('eqPreset').value;
+    var bands = getEqBands();
+    var statusEl = document.getElementById('eqStatus');
+    if (statusEl) statusEl.textContent = 'Applying…';
+
+    RendezVoxAPI.put('/admin/eq', { preset: preset, bands: bands })
+      .then(function(res) {
+        if (res.bands) {
+          var vals = [];
+          for (var i = 0; i < eqFreqs.length; i++) {
+            vals.push(res.bands[String(eqFreqs[i])] || 0);
+          }
+          setEqSliders(vals);
+        }
+        if (res.preset && res.preset !== 'custom') {
+          document.getElementById('eqPreset').value = res.preset;
+        }
+        showToast('EQ applied: ' + preset.replace(/_/g, ' '));
+        if (statusEl) statusEl.textContent = '';
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Failed to apply EQ', 'error');
+        if (statusEl) statusEl.textContent = '';
+      });
+  }
+
+  function resetEq() {
+    document.getElementById('eqPreset').value = 'flat';
+    setEqSliders(eqPresets.flat);
+    applyEq();
   }
 
   // ── SMTP Settings ──────────────────────────────────
@@ -751,6 +888,113 @@ var RendezVoxSettings = (function() {
           showScanProgress(data);
           setScanButtons(true);
           pollScanStatus();
+        }
+      })
+      .catch(function() { /* ignore */ });
+  }
+
+  // ── Cover Art Re-fetch ────────────────────────────
+  var coverPollTimer = null;
+
+  function setCoverScanButtons(scanning) {
+    var btnAll     = document.getElementById('btnCoverScanAll');
+    var btnMissing = document.getElementById('btnCoverScanMissing');
+    var btnStop    = document.getElementById('btnStopCoverScan');
+    if (scanning) {
+      btnAll.disabled = true;
+      btnAll.textContent = 'Scanning…';
+      btnMissing.disabled = true;
+      btnStop.classList.remove('hidden');
+    } else {
+      btnAll.disabled = false;
+      btnAll.textContent = 'Re-fetch All';
+      btnMissing.disabled = false;
+      btnStop.classList.add('hidden');
+    }
+  }
+
+  function startCoverScan(mode) {
+    setCoverScanButtons(true);
+
+    RendezVoxAPI.post('/admin/cover-scan?mode=' + encodeURIComponent(mode), {})
+      .then(function(res) {
+        var msg = res.message || 'Cover scan started';
+        var isBlocked = msg.indexOf('already running') !== -1;
+        showToast(msg, isBlocked ? 'error' : 'success');
+        if (res.progress) {
+          showCoverScanProgress(res.progress);
+          pollCoverScanStatus();
+        }
+      })
+      .catch(function(err) {
+        setCoverScanButtons(false);
+        showToast((err && err.error) || 'Failed to start cover scan', 'error');
+      });
+  }
+
+  function stopCoverScan() {
+    RendezVoxAPI.del('/admin/cover-scan')
+      .then(function(res) {
+        showToast(res.message || 'Stopping cover scan…');
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Failed to stop cover scan', 'error');
+      });
+  }
+
+  function pollCoverScanStatus() {
+    if (coverPollTimer) clearInterval(coverPollTimer);
+    coverPollTimer = setInterval(function() {
+      RendezVoxAPI.get('/admin/cover-scan')
+        .then(function(data) {
+          showCoverScanProgress(data);
+          if (data.status !== 'running') {
+            clearInterval(coverPollTimer);
+            coverPollTimer = null;
+            setCoverScanButtons(false);
+
+            if (data.status === 'done') {
+              showToast('Cover scan complete — ' + (data.updated || 0) + ' covers updated');
+            } else if (data.status === 'stopped') {
+              showToast('Cover scan stopped — ' + (data.updated || 0) + ' covers updated so far');
+            }
+            setTimeout(function() { document.getElementById('coverScanStatus').style.display = 'none'; }, 3000);
+          }
+        });
+    }, 2000);
+  }
+
+  function showCoverScanProgress(p) {
+    var wrap = document.getElementById('coverScanStatus');
+    if (!p || p.status === 'idle') {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    var total = p.total || 1;
+    var processed = p.processed || 0;
+    var pct = Math.round((processed / total) * 100);
+
+    var label = 'Fetching covers…';
+    if (p.status === 'done') label = 'Cover scan complete';
+    else if (p.status === 'stopped') label = 'Cover scan stopped';
+
+    document.getElementById('coverScanLabel').textContent = label;
+    document.getElementById('coverScanPct').textContent = pct + '%';
+    document.getElementById('coverScanBar').style.width = pct + '%';
+    var detail = processed + ' / ' + total + ' songs — ' +
+      (p.updated || 0) + ' updated, ' + (p.skipped || 0) + ' skipped';
+    document.getElementById('coverScanDetails').textContent = detail;
+  }
+
+  function checkInitialCoverScanStatus() {
+    RendezVoxAPI.get('/admin/cover-scan')
+      .then(function(data) {
+        if (data.status === 'running') {
+          showCoverScanProgress(data);
+          setCoverScanButtons(true);
+          pollCoverScanStatus();
         }
       })
       .catch(function() { /* ignore */ });
@@ -1227,6 +1471,162 @@ var RendezVoxSettings = (function() {
           showNormProgress(data);
           setNormButtons(true);
           pollNormStatus();
+        }
+      })
+      .catch(function() { /* ignore */ });
+  }
+
+  // ── Silence Detection ────────────────────────────────
+
+  function loadAutoSilence() {
+    var s = settings['auto_silence_detect_enabled'];
+    var el = document.getElementById('autoSilenceEnabled');
+    if (s && el) el.checked = (s.value === 'true');
+    if (el) el.addEventListener('change', saveAutoSilence);
+    loadAutoSilenceStatus();
+  }
+
+  function loadAutoSilenceStatus() {
+    RendezVoxAPI.get('/admin/auto-silence-status').then(function(data) {
+      var el = document.getElementById('autoSilenceStatus');
+      if (!el) return;
+      if (!data.has_run) {
+        el.innerHTML = '<span style="opacity:.6">No auto-silence-detect runs yet</span>';
+      } else {
+        var d = new Date(data.ran_at);
+        var opts = RendezVoxAPI.tzOpts();
+        var timeStr = d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
+                      d.toLocaleTimeString('en-US', Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
+        el.innerHTML = 'Last run: <strong>' + timeStr + '</strong> — ' +
+          data.total + ' songs processed, ' + (data.analyzed || 0) + ' analyzed, ' + (data.skipped || 0) + ' skipped';
+      }
+    }).catch(function() {
+      var el = document.getElementById('autoSilenceStatus');
+      if (el) el.innerHTML = '<span style="opacity:.6">Could not load auto-silence-detect status</span>';
+    });
+  }
+
+  function saveAutoSilence() {
+    var el = document.getElementById('autoSilenceEnabled');
+    var val = el.checked ? 'true' : 'false';
+    RendezVoxAPI.put('/admin/settings/auto_silence_detect_enabled', { value: val })
+      .then(function() {
+        if (settings['auto_silence_detect_enabled']) settings['auto_silence_detect_enabled'].value = val;
+        showToast('Auto-silence-detect ' + (el.checked ? 'enabled' : 'disabled'));
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+        el.checked = !el.checked;
+      });
+  }
+
+  var silencePollTimer = null;
+  var silenceWasAutoEnabled = false;
+
+  function setSilenceButtons(running) {
+    var btnStart = document.getElementById('btnSilenceDetect');
+    var btnStop  = document.getElementById('btnStopSilence');
+    if (running) {
+      btnStart.disabled = true;
+      btnStart.textContent = 'Detecting…';
+      btnStop.classList.remove('hidden');
+    } else {
+      btnStart.disabled = false;
+      btnStart.textContent = 'Detect Silence';
+      btnStop.classList.add('hidden');
+    }
+  }
+
+  function startSilenceDetect() {
+    setSilenceButtons(true);
+
+    RendezVoxAPI.post('/admin/silence-detect', {})
+      .then(function(res) {
+        var msg = res.message || 'Silence detection started';
+        var isBlocked = msg.indexOf('already running') !== -1;
+        showToast(msg, isBlocked ? 'error' : 'success');
+        if (res.auto_silence_disabled) {
+          silenceWasAutoEnabled = true;
+          var el = document.getElementById('autoSilenceEnabled');
+          if (el) el.checked = false;
+          if (settings['auto_silence_detect_enabled']) settings['auto_silence_detect_enabled'].value = 'false';
+        }
+        if (res.progress) {
+          showSilenceProgress(res.progress);
+          pollSilenceStatus();
+        }
+      })
+      .catch(function(err) {
+        setSilenceButtons(false);
+        showToast((err && err.error) || 'Failed to start silence detection', 'error');
+      });
+  }
+
+  function stopSilenceDetect() {
+    RendezVoxAPI.del('/admin/silence-detect')
+      .then(function(res) {
+        showToast(res.message || 'Stopping silence detection…');
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Failed to stop silence detection', 'error');
+      });
+  }
+
+  function pollSilenceStatus() {
+    if (silencePollTimer) clearInterval(silencePollTimer);
+    silencePollTimer = setInterval(function() {
+      RendezVoxAPI.get('/admin/silence-detect')
+        .then(function(data) {
+          showSilenceProgress(data);
+          if (data.status !== 'running') {
+            clearInterval(silencePollTimer);
+            silencePollTimer = null;
+            setSilenceButtons(false);
+
+            if (data.status === 'done') {
+              showToast('Silence detection complete — ' + (data.analyzed || 0) + ' songs analyzed');
+            } else if (data.status === 'stopped') {
+              showToast('Silence detection stopped — ' + (data.analyzed || 0) + ' songs analyzed so far');
+            }
+            if (silenceWasAutoEnabled) restoreAuto('auto_silence_detect_enabled', 'autoSilenceEnabled');
+            silenceWasAutoEnabled = false;
+            setTimeout(function() { document.getElementById('silenceStatus').style.display = 'none'; }, 3000);
+          }
+        });
+    }, 2000);
+  }
+
+  function showSilenceProgress(p) {
+    var wrap = document.getElementById('silenceStatus');
+    if (!p || p.status === 'idle') {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    var total = p.total || 1;
+    var processed = p.processed || 0;
+    var pct = Math.round((processed / total) * 100);
+
+    var label = 'Detecting silence…';
+    if (p.status === 'done') label = 'Silence detection complete';
+    else if (p.status === 'stopped') label = 'Silence detection stopped';
+
+    document.getElementById('silenceLabel').textContent = label;
+    document.getElementById('silencePct').textContent = pct + '%';
+    document.getElementById('silenceBar').style.width = pct + '%';
+    document.getElementById('silenceDetails').textContent =
+      processed + ' / ' + total + ' songs — ' +
+      (p.analyzed || 0) + ' analyzed, ' + (p.skipped || 0) + ' skipped, ' + (p.failed || 0) + ' failed';
+  }
+
+  function checkInitialSilenceStatus() {
+    RendezVoxAPI.get('/admin/silence-detect')
+      .then(function(data) {
+        if (data.status === 'running') {
+          showSilenceProgress(data);
+          setSilenceButtons(true);
+          pollSilenceStatus();
         }
       })
       .catch(function() { /* ignore */ });
@@ -1990,6 +2390,8 @@ var RendezVoxSettings = (function() {
     sendTestEmail: sendTestEmail,
     startGenreScan: startGenreScan,
     stopGenreScan: stopGenreScan,
+    startCoverScan: startCoverScan,
+    stopCoverScan: stopCoverScan,
     startLibrarySync: startLibrarySync,
     stopLibrarySync: stopLibrarySync,
     startArtistDedup: startArtistDedup,
@@ -1998,9 +2400,13 @@ var RendezVoxSettings = (function() {
     stopDedupSongs: stopDedupSongs,
     startNormalize: startNormalize,
     stopNormalize: stopNormalize,
+    startSilenceDetect: startSilenceDetect,
+    stopSilenceDetect: stopSilenceDetect,
     startRenamePaths: startRenamePaths,
     stopRenamePaths: stopRenamePaths,
     saveBlockedWords: saveBlockedWords,
+    applyEq: applyEq,
+    resetEq: resetEq,
     toggleVis: toggleVis
   };
 })();

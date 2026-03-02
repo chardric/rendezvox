@@ -45,9 +45,15 @@ class CoverArtHandler
         $stmt->execute(['id' => $songId]);
         $row = $stmt->fetch();
 
-        if (!$row || !$row['has_cover_art']) {
+        if (!$row) {
             http_response_code(404);
-            echo 'No cover art';
+            echo 'Song not found';
+            return;
+        }
+
+        // If no embedded cover art, serve app logo
+        if (!$row['has_cover_art']) {
+            $this->serveFallbackLogo($cachePath);
             return;
         }
 
@@ -58,8 +64,7 @@ class CoverArtHandler
         // Path traversal prevention
         $real = realpath($filePath);
         if (!$real || strpos($real, $musicRoot) !== 0 || !file_exists($real)) {
-            http_response_code(404);
-            echo 'File not found';
+            $this->serveFallbackLogo($cachePath);
             return;
         }
 
@@ -71,12 +76,26 @@ class CoverArtHandler
 
         if ($exitCode !== 0 || !file_exists($cachePath) || filesize($cachePath) === 0) {
             @unlink($cachePath);
-            http_response_code(404);
-            echo 'Could not extract cover art';
+            $this->serveFallbackLogo($cachePath);
             return;
         }
 
         $this->serve($cachePath);
+    }
+
+    /**
+     * Serve app logo as fallback, caching a copy in the cover cache dir.
+     */
+    private function serveFallbackLogo(string $cachePath): void
+    {
+        $logoPath = '/var/www/html/public/assets/icon-512x512.png';
+        if (file_exists($logoPath)) {
+            @copy($logoPath, $cachePath);
+            $this->serve($cachePath);
+        } else {
+            http_response_code(404);
+            echo 'No cover art';
+        }
     }
 
     private function serve(string $path): void
