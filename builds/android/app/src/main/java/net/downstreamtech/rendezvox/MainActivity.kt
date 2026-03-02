@@ -88,7 +88,8 @@ private fun PlayerContent(
                 onVolumeChange = { viewModel.setVolume(it) },
                 onRequestSong = { showRequest = true },
                 onChangeServer = onChangeServer,
-                onToggleHistory = { viewModel.toggleHistory() }
+                onToggleHistory = { viewModel.toggleHistory() },
+                onDismissUpdate = { viewModel.dismissUpdate() }
             )
         }
 

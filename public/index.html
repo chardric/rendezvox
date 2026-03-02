@@ -352,6 +352,39 @@ body::after{
   background:radial-gradient(ellipse at center,var(--ambient,transparent),transparent 70%);
   transition:background 2s ease;
 }
+
+/* Listener EQ */
+.btn-eq{
+  width:32px;height:32px;border-radius:6px;
+  background:none;border:1px solid #333;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .2s;flex-shrink:0;
+}
+.btn-eq:hover{background:#232326}
+.btn-eq svg{width:16px;height:16px}
+.eq-modal .modal{max-width:340px;padding:16px 20px}
+.eq-controls{display:flex;gap:8px;margin-bottom:14px}
+.eq-ctrl-group{flex:1}
+.eq-ctrl-group label{font-size:.7rem;color:#666;display:block;margin-bottom:3px}
+.eq-ctrl-group select{
+  width:100%;background:#0a0a0c;color:#e0e0e0;border:1px solid #232326;
+  border-radius:6px;padding:6px 8px;font-size:.8rem;font-family:inherit;
+}
+.eq-sliders{display:flex;align-items:flex-end;justify-content:center;gap:0;margin:0 auto 8px}
+.eq-band{display:flex;flex-direction:column;align-items:center;width:28px}
+.eq-band input[type="range"]{
+  writing-mode:vertical-lr;direction:rtl;
+  height:80px;width:28px;accent-color:var(--accent);cursor:pointer;
+}
+.eq-band-label{font-size:.55rem;color:#666;margin-top:4px;white-space:nowrap}
+.eq-band-val{font-size:.55rem;color:#888;margin-bottom:2px;min-height:11px;text-align:center}
+.eq-reset-row{text-align:center;margin-top:8px}
+.eq-reset-btn{
+  background:#232326;color:#9ca3af;border:1px solid #333;border-radius:6px;
+  padding:6px 14px;font-size:.78rem;cursor:pointer;transition:background .2s;
+}
+.eq-reset-btn:hover{background:#2a2a2e;color:#fff}
+.eq-unavailable{text-align:center;color:#666;font-size:.85rem;padding:20px 0}
 </style>
 </head>
 <body>
@@ -457,6 +490,7 @@ body::after{
       </svg>
     </button>
     <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
+    <button type="button" class="btn-eq" id="btnEq" title="Equalizer"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="17" x2="3" y2="3"/><circle cx="3" cy="7" r="2" fill="currentColor" stroke="none"/><line x1="10" y1="17" x2="10" y2="3"/><circle cx="10" cy="13" r="2" fill="currentColor" stroke="none"/><line x1="17" y1="17" x2="17" y2="3"/><circle cx="17" cy="9" r="2" fill="currentColor" stroke="none"/></svg></button>
   </div>
 
   <div class="up-next" id="upNext">Up Next: <span>—</span></div>
@@ -474,10 +508,10 @@ body::after{
 
   <button type="button" class="btn-request" id="btnRequest">Request a Song</button>
   <div class="downloads">
-    <a href="/installers/mobile/release/RendezVox-1.0.0.apk" title="Download for Android"><svg viewBox="0 0 24 24"><path fill="#3DDC84" d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V7H6v11zM3.5 7C2.67 7 2 7.67 2 8.5v7c0 .83.67 1.5 1.5 1.5S5 16.33 5 15.5v-7C5 7.67 4.33 7 3.5 7zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48A5.84 5.84 0 0012 0c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31A5.983 5.983 0 006 6h12c0-2.21-1.2-4.15-2.97-5.18-.15-.09-.01.18 0 .16l-.5-.82zM10 4H9V3h1v1zm5 0h-1V3h1v1z"/></svg></a>
-    <a href="/installers/desktop/linux/rendezvox_1.0.0_amd64.deb" title="Download for Linux (DEB)"><svg viewBox="0 0 24 24"><path fill="#333" d="M12 1C9.5 1 8 3.3 8 5.5c0 .9.2 1.7.6 2.4C6.5 9.5 5 12.5 5 15c0 2.5 1.2 4.2 3 5.2V21c0 .6.4 1 1 1h6c.6 0 1-.4 1-1v-.8c1.8-1 3-2.7 3-5.2 0-2.5-1.5-5.5-3.6-7.1.4-.7.6-1.5.6-2.4C16 3.3 14.5 1 12 1z"/><ellipse fill="#FFF" cx="12" cy="14" rx="3.2" ry="4.5"/><ellipse fill="#F0C674" cx="12" cy="6.5" rx="1.6" ry=".6"/><circle fill="#FFF" cx="10.5" cy="4.5" r=".9"/><circle fill="#FFF" cx="13.5" cy="4.5" r=".9"/><circle fill="#333" cx="10.8" cy="4.5" r=".45"/><circle fill="#333" cx="13.2" cy="4.5" r=".45"/><ellipse fill="#F0C674" cx="10" cy="22.3" rx="1.8" ry=".7"/><ellipse fill="#F0C674" cx="14" cy="22.3" rx="1.8" ry=".7"/></svg></a>
-    <a href="/installers/desktop/linux/RendezVox-1.0.0.AppImage" title="Download for Linux (AppImage)"><svg viewBox="0 0 24 24"><rect x="3" y="2" width="18" height="20" rx="2" fill="#444"/><rect x="5" y="4" width="14" height="12" rx="1" fill="#1a1a2e"/><path d="M12 7l3 4h-2v3h-2v-3H9l3-4z" fill="#4ec9b0"/><rect x="6" y="18" width="12" height="2" rx="1" fill="#666"/></svg></a>
-    <a href="/installers/desktop/windows/RendezVox%20Setup%201.0.0.exe" title="Download for Windows"><svg viewBox="0 0 24 24"><path fill="#00ADEF" d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg></a>
+    <a id="dl-android" href="/installers/mobile/release/RendezVox-1.0.0.apk" title="Download for Android"><svg viewBox="0 0 24 24"><path fill="#3DDC84" d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V7H6v11zM3.5 7C2.67 7 2 7.67 2 8.5v7c0 .83.67 1.5 1.5 1.5S5 16.33 5 15.5v-7C5 7.67 4.33 7 3.5 7zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48A5.84 5.84 0 0012 0c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31A5.983 5.983 0 006 6h12c0-2.21-1.2-4.15-2.97-5.18-.15-.09-.01.18 0 .16l-.5-.82zM10 4H9V3h1v1zm5 0h-1V3h1v1z"/></svg></a>
+    <a id="dl-deb" href="/installers/desktop/linux/rendezvox_1.0.0_amd64.deb" title="Download for Linux (DEB)"><svg viewBox="0 0 24 24"><path fill="#333" d="M12 1C9.5 1 8 3.3 8 5.5c0 .9.2 1.7.6 2.4C6.5 9.5 5 12.5 5 15c0 2.5 1.2 4.2 3 5.2V21c0 .6.4 1 1 1h6c.6 0 1-.4 1-1v-.8c1.8-1 3-2.7 3-5.2 0-2.5-1.5-5.5-3.6-7.1.4-.7.6-1.5.6-2.4C16 3.3 14.5 1 12 1z"/><ellipse fill="#FFF" cx="12" cy="14" rx="3.2" ry="4.5"/><ellipse fill="#F0C674" cx="12" cy="6.5" rx="1.6" ry=".6"/><circle fill="#FFF" cx="10.5" cy="4.5" r=".9"/><circle fill="#FFF" cx="13.5" cy="4.5" r=".9"/><circle fill="#333" cx="10.8" cy="4.5" r=".45"/><circle fill="#333" cx="13.2" cy="4.5" r=".45"/><ellipse fill="#F0C674" cx="10" cy="22.3" rx="1.8" ry=".7"/><ellipse fill="#F0C674" cx="14" cy="22.3" rx="1.8" ry=".7"/></svg></a>
+    <a id="dl-appimage" href="/installers/desktop/linux/RendezVox-1.0.0.AppImage" title="Download for Linux (AppImage)"><svg viewBox="0 0 24 24"><rect x="3" y="2" width="18" height="20" rx="2" fill="#444"/><rect x="5" y="4" width="14" height="12" rx="1" fill="#1a1a2e"/><path d="M12 7l3 4h-2v3h-2v-3H9l3-4z" fill="#4ec9b0"/><rect x="6" y="18" width="12" height="2" rx="1" fill="#666"/></svg></a>
+    <a id="dl-windows" href="/installers/desktop/windows/RendezVox%20Setup%201.0.0.exe" title="Download for Windows"><svg viewBox="0 0 24 24"><path fill="#00ADEF" d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg></a>
     <button type="button" id="btnSchedule" title="Weekly Schedule" style="background:none;border:none;cursor:pointer"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#9ca3af" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
     <a href="https://github.com/chardric/rendezvox" target="_blank" rel="noopener" title="GitHub"><svg viewBox="0 0 24 24"><path fill="#9ca3af" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg></a>
     <button type="button" class="info-btn" id="btnAbout" title="About RendezVox">i</button>
@@ -501,6 +535,7 @@ body::after{
 <script>
 (function(){
   var audio     = new Audio();
+  window._rvxAudio = audio;
   var streamUrl = '/stream/live';
   var iceUrl    = '/stream';
   var playing   = false;
@@ -542,6 +577,22 @@ body::after{
     }
     rebuildArtwork();
     updateMediaSession(null, null);
+  }).catch(function() {});
+
+  // Update download links from version API
+  fetch('/api/version').then(function(r){ return r.json(); }).then(function(v) {
+    var map = {
+      'dl-android': v.downloads && v.downloads.android,
+      'dl-deb': v.downloads && v.downloads.deb_amd64,
+      'dl-appimage': v.downloads && v.downloads.appimage_x64,
+      'dl-windows': v.downloads && v.downloads.windows
+    };
+    for (var id in map) {
+      if (map[id]) {
+        var el = document.getElementById(id);
+        if (el) el.href = map[id];
+      }
+    }
   }).catch(function() {});
 
   var turntable    = document.getElementById('turntable');
@@ -1488,6 +1539,273 @@ body::after{
     d.textContent = s;
     return d.innerHTML;
   }
+})();
+</script>
+
+<!-- EQ modal -->
+<div class="modal-backdrop hidden eq-modal" id="eqModal">
+  <div class="modal" style="position:relative">
+    <button type="button" id="eqClose" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#f87171;font-size:1.4rem;font-weight:700;cursor:pointer;line-height:1;padding:2px 6px">&times;</button>
+    <h3 style="text-align:center">Equalizer</h3>
+    <div id="eqUnavailable" class="eq-unavailable" style="display:none">EQ requires audio playback to be active.</div>
+    <div id="eqControls">
+      <div class="eq-controls">
+        <div class="eq-ctrl-group">
+          <label>Preset</label>
+          <select id="eqPresetSel">
+            <option value="flat">Flat</option>
+            <option value="bass_boost">Bass Boost</option>
+            <option value="treble_boost">Treble Boost</option>
+            <option value="vocal">Vocal</option>
+            <option value="rock">Rock</option>
+            <option value="pop">Pop</option>
+            <option value="jazz">Jazz</option>
+            <option value="classical">Classical</option>
+            <option value="loudness">Loudness</option>
+            <option value="small_speakers">Small Speakers</option>
+            <option value="earphones">Earphones</option>
+            <option value="headphones">Headphones</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="eq-ctrl-group">
+          <label>Spatial</label>
+          <select id="eqSpatialSel">
+            <option value="off">Off</option>
+            <option value="stereo_wide">Stereo Wide</option>
+            <option value="surround">Surround</option>
+            <option value="crossfeed">Crossfeed</option>
+          </select>
+        </div>
+      </div>
+      <div class="eq-sliders" id="eqSliders"></div>
+      <div class="eq-reset-row">
+        <button type="button" class="eq-reset-btn" id="eqResetBtn">Reset to Flat</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var audio = window._rvxAudio;
+  if (!audio) return;
+
+  var audioCtx = null;
+  var eqFilters = [];
+  var spatialGains = {};
+  var spatialDelays = {};
+  var eqInited = false;
+
+  var EQ_FREQS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+  var FREQ_LABELS = ['32','64','125','250','500','1K','2K','4K','8K','16K'];
+  var EQ_PRESETS = {
+    flat:           [0,0,0,0,0,0,0,0,0,0],
+    bass_boost:     [6,5,4,2,0,0,0,0,0,0],
+    treble_boost:   [0,0,0,0,0,2,3,4,5,6],
+    vocal:          [-2,-1,0,2,4,4,3,1,0,-1],
+    rock:           [4,3,1,-1,-2,1,3,4,4,3],
+    pop:            [-1,1,3,4,3,0,-1,-1,1,2],
+    jazz:           [3,2,0,2,-2,-2,0,2,3,4],
+    classical:      [4,3,2,1,0,0,0,1,2,3],
+    loudness:       [6,4,0,0,-2,0,-1,-4,4,2],
+    small_speakers: [5,4,3,1,0,1,2,3,3,2],
+    earphones:      [-1,-1,0,1,2,2,1,0,-1,-2],
+    headphones:     [2,1,0,0,-1,0,1,2,2,1]
+  };
+
+  var currentPreset = 'flat';
+  var currentBands = [0,0,0,0,0,0,0,0,0,0];
+  var currentSpatial = 'off';
+  var customBands = [0,0,0,0,0,0,0,0,0,0];
+
+  try {
+    var saved = localStorage.getItem('rendezvox_listener_eq');
+    if (saved) {
+      var d = JSON.parse(saved);
+      currentPreset = d.preset || 'flat';
+      currentSpatial = d.spatial || 'off';
+      customBands = d.customBands || [0,0,0,0,0,0,0,0,0,0];
+      if (currentPreset === 'custom') {
+        currentBands = customBands.slice();
+      } else if (EQ_PRESETS[currentPreset]) {
+        currentBands = EQ_PRESETS[currentPreset].slice();
+      }
+    }
+  } catch(e) {}
+
+  function saveEq() {
+    try {
+      localStorage.setItem('rendezvox_listener_eq', JSON.stringify({
+        preset: currentPreset, bands: currentBands,
+        spatial: currentSpatial, customBands: customBands
+      }));
+    } catch(e) {}
+  }
+
+  function initAudioChain() {
+    if (eqInited) {
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      return;
+    }
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var source = audioCtx.createMediaElementSource(audio);
+
+      var prev = source;
+      EQ_FREQS.forEach(function(freq, i) {
+        var f = audioCtx.createBiquadFilter();
+        f.type = 'peaking';
+        f.frequency.value = freq;
+        f.Q.value = 1.4;
+        f.gain.value = currentBands[i] || 0;
+        prev.connect(f);
+        eqFilters.push(f);
+        prev = f;
+      });
+
+      var splitter = audioCtx.createChannelSplitter(2);
+      var merger = audioCtx.createChannelMerger(2);
+      spatialGains.lMain = audioCtx.createGain();
+      spatialGains.rMain = audioCtx.createGain();
+      spatialGains.lToR = audioCtx.createGain();
+      spatialGains.rToL = audioCtx.createGain();
+      spatialDelays.lToR = audioCtx.createDelay(0.1);
+      spatialDelays.rToL = audioCtx.createDelay(0.1);
+
+      prev.connect(splitter);
+      splitter.connect(spatialGains.lMain, 0);
+      spatialGains.lMain.connect(merger, 0, 0);
+      splitter.connect(spatialGains.rToL, 1);
+      spatialGains.rToL.connect(spatialDelays.rToL);
+      spatialDelays.rToL.connect(merger, 0, 0);
+      splitter.connect(spatialGains.rMain, 1);
+      spatialGains.rMain.connect(merger, 0, 1);
+      splitter.connect(spatialGains.lToR, 0);
+      spatialGains.lToR.connect(spatialDelays.lToR);
+      spatialDelays.lToR.connect(merger, 0, 1);
+      merger.connect(audioCtx.destination);
+
+      applySpatial();
+      eqInited = true;
+    } catch(e) { audioCtx = null; }
+  }
+
+  function applyBands() {
+    eqFilters.forEach(function(f, i) { f.gain.value = currentBands[i] || 0; });
+  }
+
+  function applySpatial() {
+    var modes = {
+      off:         {l:1,r:1,lr:0,rl:0,d:0},
+      stereo_wide: {l:1.15,r:1.15,lr:-0.25,rl:-0.25,d:0.012},
+      surround:    {l:1.3,r:1.3,lr:-0.4,rl:-0.4,d:0.018},
+      crossfeed:   {l:0.85,r:0.85,lr:0.3,rl:0.3,d:0.004}
+    };
+    var m = modes[currentSpatial] || modes.off;
+    if (spatialGains.lMain) {
+      spatialGains.lMain.gain.value = m.l;
+      spatialGains.rMain.gain.value = m.r;
+      spatialGains.lToR.gain.value = m.lr;
+      spatialGains.rToL.gain.value = m.rl;
+      spatialDelays.lToR.delayTime.value = m.d;
+      spatialDelays.rToL.delayTime.value = m.d;
+    }
+  }
+
+  document.getElementById('turntable').addEventListener('click', initAudioChain);
+  document.getElementById('tapOverlay').addEventListener('click', initAudioChain);
+
+  var eqModal = document.getElementById('eqModal');
+  var presetSel = document.getElementById('eqPresetSel');
+  var spatialSel = document.getElementById('eqSpatialSel');
+  var slidersWrap = document.getElementById('eqSliders');
+  var sliderInputs = [];
+
+  function fmtVal(v) { return v > 0 ? '+' + v : '' + v; }
+
+  function buildSliders() {
+    var html = '';
+    FREQ_LABELS.forEach(function(label, i) {
+      html += '<div class="eq-band">'
+        + '<div class="eq-band-val" id="eqVal' + i + '">' + fmtVal(currentBands[i]) + '</div>'
+        + '<input type="range" min="-12" max="12" step="1" value="' + currentBands[i] + '" data-idx="' + i + '" orient="vertical">'
+        + '<div class="eq-band-label">' + label + '</div></div>';
+    });
+    slidersWrap.innerHTML = html;
+    sliderInputs = [].slice.call(slidersWrap.querySelectorAll('input[type="range"]'));
+    sliderInputs.forEach(function(inp) {
+      inp.addEventListener('input', function() {
+        var idx = parseInt(this.dataset.idx, 10);
+        currentBands[idx] = parseInt(this.value, 10);
+        document.getElementById('eqVal' + idx).textContent = fmtVal(currentBands[idx]);
+        currentPreset = 'custom';
+        presetSel.value = 'custom';
+        customBands = currentBands.slice();
+        applyBands();
+        saveEq();
+      });
+    });
+  }
+
+  function updateSliders() {
+    sliderInputs.forEach(function(inp, i) {
+      inp.value = currentBands[i];
+      document.getElementById('eqVal' + i).textContent = fmtVal(currentBands[i]);
+    });
+  }
+
+  document.getElementById('btnEq').addEventListener('click', function() {
+    initAudioChain();
+    if (!sliderInputs.length) buildSliders();
+    updateSliders();
+    presetSel.value = currentPreset;
+    spatialSel.value = currentSpatial;
+    if (!eqInited) {
+      document.getElementById('eqUnavailable').style.display = '';
+      document.getElementById('eqControls').style.display = 'none';
+    } else {
+      document.getElementById('eqUnavailable').style.display = 'none';
+      document.getElementById('eqControls').style.display = '';
+    }
+    eqModal.classList.remove('hidden');
+  });
+
+  document.getElementById('eqClose').addEventListener('click', function() {
+    eqModal.classList.add('hidden');
+  });
+  eqModal.addEventListener('click', function(e) {
+    if (e.target === eqModal) eqModal.classList.add('hidden');
+  });
+
+  presetSel.addEventListener('change', function() {
+    currentPreset = this.value;
+    if (currentPreset === 'custom') {
+      currentBands = customBands.slice();
+    } else if (EQ_PRESETS[currentPreset]) {
+      currentBands = EQ_PRESETS[currentPreset].slice();
+    }
+    updateSliders();
+    applyBands();
+    saveEq();
+  });
+
+  spatialSel.addEventListener('change', function() {
+    currentSpatial = this.value;
+    applySpatial();
+    saveEq();
+  });
+
+  document.getElementById('eqResetBtn').addEventListener('click', function() {
+    currentPreset = 'flat';
+    currentBands = [0,0,0,0,0,0,0,0,0,0];
+    currentSpatial = 'off';
+    presetSel.value = 'flat';
+    spatialSel.value = 'off';
+    updateSliders();
+    applyBands();
+    applySpatial();
+    saveEq();
+  });
 })();
 </script>
 </body>

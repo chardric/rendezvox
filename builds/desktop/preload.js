@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('media-key', (_event, action) => callback(action));
   },
   getAutostart: () => ipcRenderer.invoke('get-autostart'),
-  setAutostart: (enabled) => ipcRenderer.invoke('set-autostart', enabled)
+  setAutostart: (enabled) => ipcRenderer.invoke('set-autostart', enabled),
+  checkUpdate: (baseUrl) => ipcRenderer.invoke('check-update', baseUrl)
 });

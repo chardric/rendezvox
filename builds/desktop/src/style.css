@@ -662,6 +662,31 @@ textarea.field-input {
   min-height: 16px;
 }
 
+/* ── Update banner ────────────────────────────────── */
+#update-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  background: rgba(255,152,0,0.12);
+  border: 1px solid rgba(255,152,0,0.30);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 0 0;
+  font-size: 12px;
+  color: #ffb74d;
+  box-sizing: border-box;
+}
+.update-text { flex: 1; line-height: 1.5; }
+.update-text strong { color: #ffcc80; }
+.update-changelog { margin-top: 4px; color: #bbb; font-size: 11px; }
+.update-dismiss {
+  background: none; border: none; color: #ffb74d;
+  font-size: 16px; cursor: pointer; padding: 0 2px;
+  line-height: 1; flex-shrink: 0; opacity: 0.7;
+}
+.update-dismiss:hover { opacity: 1; color: #fff; }
+
 /* ── Offline banner ───────────────────────────────── */
 #offline-banner {
   display: none;

@@ -53,7 +53,9 @@ class GenreScanHandler
         }
 
         // Launch background process (it creates its own lock file)
-        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . ' > /tmp/rendezvox_genre_scan.log 2>&1 &';
+        $mode = trim($_GET['mode'] ?? '');
+        $args = ($mode === 'all') ? ' --all' : '';
+        $cmd = 'php ' . escapeshellarg(self::SCRIPT) . $args . ' > /tmp/rendezvox_genre_scan.log 2>&1 &';
         exec($cmd);
 
         // Brief pause to let the script start and write initial progress

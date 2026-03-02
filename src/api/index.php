@@ -81,7 +81,6 @@ require __DIR__ . '/handlers/FileManagerDeleteHandler.php';
 require __DIR__ . '/handlers/FileManagerDeleteCheckHandler.php';
 require __DIR__ . '/handlers/SSEHandler.php';
 require __DIR__ . '/handlers/GenreScanHandler.php';
-require __DIR__ . '/handlers/CoverScanHandler.php';
 require __DIR__ . '/handlers/LibrarySyncHandler.php';
 require __DIR__ . '/handlers/ArtistDedupHandler.php';
 require __DIR__ . '/handlers/NormalizeHandler.php';
@@ -116,6 +115,7 @@ require __DIR__ . '/handlers/SetupHandler.php';
 require __DIR__ . '/handlers/SystemInfoHandler.php';
 require __DIR__ . '/handlers/RecentPlaysPublicHandler.php';
 require __DIR__ . '/handlers/SchedulePublicHandler.php';
+require __DIR__ . '/handlers/VersionHandler.php';
 
 // -- Route definitions --
 Router::get('/health',       [HealthHandler::class,      'handle']);
@@ -252,6 +252,7 @@ Router::get('/logo',                   [LogoServeHandler::class,      'handle'])
 Router::get('/cover',                  [CoverArtHandler::class,       'handle']);
 Router::get('/recent-plays',           [RecentPlaysPublicHandler::class, 'handle']);
 Router::get('/schedule',               [SchedulePublicHandler::class,    'handle']);
+Router::get('/version',                [VersionHandler::class,           'handle']);
 
 // -- Equalizer (must be before /admin/settings/:key to avoid param capture) --
 Router::get('/admin/eq',    [EqHandler::class, 'get']);
@@ -276,11 +277,6 @@ Router::post('/admin/genre-scan',      [GenreScanHandler::class, 'start']);
 Router::get('/admin/genre-scan',       [GenreScanHandler::class, 'status']);
 Router::delete('/admin/genre-scan',    [GenreScanHandler::class, 'stop']);
 Router::get('/admin/auto-tag-status',  [GenreScanHandler::class, 'autoTagStatus']);
-
-// -- Cover re-fetch --
-Router::post('/admin/cover-scan',      [CoverScanHandler::class, 'start']);
-Router::get('/admin/cover-scan',       [CoverScanHandler::class, 'status']);
-Router::delete('/admin/cover-scan',    [CoverScanHandler::class, 'stop']);
 
 // -- Library sync --
 Router::post('/admin/library-sync',      [LibrarySyncHandler::class, 'start']);
