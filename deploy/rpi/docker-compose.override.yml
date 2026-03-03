@@ -49,6 +49,7 @@ services:
       - ../public:/var/www/html/public
       - ../music:/var/lib/rendezvox/music
       - ../stationids:/var/lib/rendezvox/stationids
+      - ../tts:/var/lib/rendezvox/tts
       - ../data/avatars:/var/lib/rendezvox/avatars
       - ../data/logos:/var/lib/rendezvox/logos
       - ../data/logs:/var/log/rendezvox

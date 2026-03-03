@@ -46,71 +46,50 @@ class DuplicateResolveHandler
         // Verify all keep_ids and delete_ids exist
         $allIds = array_merge(array_keys($keepSet), $deleteSet);
         $placeholders = implode(',', array_fill(0, count($allIds), '?'));
-        $stmt = $db->prepare("SELECT id, file_path FROM songs WHERE id IN ({$placeholders})");
+        $stmt = $db->prepare("SELECT id FROM songs WHERE id IN ({$placeholders})");
         foreach ($allIds as $i => $id) {
             $stmt->bindValue($i + 1, $id, PDO::PARAM_INT);
         }
         $stmt->execute();
 
-        $songMap = [];
+        $foundIds = [];
         while ($row = $stmt->fetch()) {
-            $songMap[(int) $row['id']] = $row['file_path'];
+            $foundIds[(int) $row['id']] = true;
         }
 
         foreach ($deleteSet as $did) {
-            if (!isset($songMap[$did])) {
+            if (!isset($foundIds[$did])) {
                 Response::error('Song ID ' . $did . ' not found', 404);
                 return;
             }
         }
 
         foreach (array_keys($keepSet) as $kid) {
-            if (!isset($songMap[$kid])) {
+            if (!isset($foundIds[$kid])) {
                 Response::error('Keep song ID ' . $kid . ' not found', 404);
                 return;
             }
         }
 
-        // Mark duplicates — match each delete_id to its keep_id by file_hash
-        $marked = 0;
+        // Delete duplicate songs from DB (files are kept on disk)
+        // FK constraints use CASCADE/SET NULL so this is safe
+        $deleted = 0;
         $errors = [];
-
-        $hashStmt  = $db->prepare('SELECT file_hash FROM songs WHERE id = ?');
-        $markStmt  = $db->prepare('UPDATE songs SET duplicate_of = ? WHERE id = ?');
-
-        // Build hash → keep_id map from keepSet
-        $hashToKeep = [];
-        foreach (array_keys($keepSet) as $kid) {
-            $hashStmt->execute([$kid]);
-            $kHash = $hashStmt->fetchColumn();
-            if ($kHash) {
-                $hashToKeep[$kHash] = $kid;
-            }
-        }
+        $delStmt = $db->prepare('DELETE FROM songs WHERE id = ?');
 
         foreach ($deleteSet as $did) {
             try {
-                $hashStmt->execute([$did]);
-                $dHash = $hashStmt->fetchColumn();
-
-                // Find the canonical keep_id: prefer same-hash match, fallback to first keep_id
-                $keepId = ($dHash && isset($hashToKeep[$dHash]))
-                    ? $hashToKeep[$dHash]
-                    : (int) array_key_first($keepSet);
-
-                $markStmt->execute([$keepId, $did]);
-                $marked++;
+                $delStmt->execute([$did]);
+                $deleted++;
             } catch (\PDOException $e) {
-                error_log('DuplicateResolve DB error marking song ' . $did . ': ' . $e->getMessage());
-                $errors[] = 'DB error marking song ' . $did;
+                error_log('DuplicateResolve DB error deleting song ' . $did . ': ' . $e->getMessage());
+                $errors[] = 'DB error deleting song ' . $did;
             }
         }
 
         Response::json([
-            'deleted'     => $marked,
-            'marked'      => $marked,
-            'freed_bytes' => 0,
-            'errors'      => $errors,
+            'deleted' => $deleted,
+            'errors'  => $errors,
         ]);
     }
 }

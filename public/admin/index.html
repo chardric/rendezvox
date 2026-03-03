@@ -49,7 +49,7 @@
     document.title = name + ' Admin — Login';
     if (cfg.has_logo) {
       var img = document.createElement('img');
-      img.src = '/api/logo?v=' + Date.now();
+      img.src = '/api/logo';
       img.alt = name;
       img.style.cssText = 'width:64px;height:64px;object-fit:contain;border-radius:8px;margin:0 auto 12px;display:block';
       var box = document.querySelector('.login-box');

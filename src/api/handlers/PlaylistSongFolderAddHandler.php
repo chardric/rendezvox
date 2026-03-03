@@ -59,6 +59,9 @@ class PlaylistSongFolderAddHandler
         $newFiles = [];
         $this->findAudioFiles($absPath, $relPath, $recursive, $existingPaths, $newFiles);
 
+        // Track song IDs to add — includes both path-matched and canonical matches
+        $extraSongIds = [];
+
         $scanned = 0;
         if (!empty($newFiles)) {
             $categoryCache = [];
@@ -77,6 +80,42 @@ class PlaylistSongFolderAddHandler
 
                 $title  = $meta['title'] ?: pathinfo(basename($file['abs']), PATHINFO_FILENAME);
                 $artist = $meta['artist'] ?: 'Unknown Artist';
+
+                // Check for existing song by hash
+                $fileHash = hash_file('sha256', $file['abs']);
+                if ($fileHash) {
+                    $dupStmt = $db->prepare('
+                        SELECT id FROM songs
+                        WHERE file_hash = :hash AND duplicate_of IS NULL AND trashed_at IS NULL
+                        ORDER BY id LIMIT 1
+                    ');
+                    $dupStmt->execute(['hash' => $fileHash]);
+                    $cid = $dupStmt->fetchColumn();
+                    if ($cid !== false) {
+                        // Exact duplicate exists — use canonical copy in playlist
+                        $extraSongIds[] = (int) $cid;
+                        continue;
+                    }
+                }
+
+                // Check for existing song by title+artist (cross-format duplicate)
+                $matchStmt = $db->prepare('
+                    SELECT s.id FROM songs s
+                    JOIN artists a ON a.id = s.artist_id
+                    WHERE LOWER(s.title) = LOWER(:title)
+                      AND LOWER(a.name) = LOWER(:artist)
+                      AND s.duplicate_of IS NULL AND s.trashed_at IS NULL
+                    ORDER BY s.id LIMIT 1
+                ');
+                $matchStmt->execute(['title' => $title, 'artist' => $artist]);
+                $matchId = $matchStmt->fetchColumn();
+                if ($matchId !== false) {
+                    // Same song exists (different format) — use existing copy
+                    $extraSongIds[] = (int) $matchId;
+                    continue;
+                }
+
+                // Genuinely new file — import
                 $artistId = $this->findOrCreateArtist($db, $artist);
 
                 $catId = $defaultCatId;
@@ -88,19 +127,10 @@ class PlaylistSongFolderAddHandler
                     }
                 }
 
-                $fileHash = hash_file('sha256', $file['abs']);
-                $canonicalId = null;
-                if ($fileHash) {
-                    $dupStmt = $db->prepare('SELECT id FROM songs WHERE file_hash = :hash AND duplicate_of IS NULL ORDER BY id LIMIT 1');
-                    $dupStmt->execute(['hash' => $fileHash]);
-                    $cid = $dupStmt->fetchColumn();
-                    if ($cid !== false) $canonicalId = (int) $cid;
-                }
-
                 try {
                     $insertStmt = $db->prepare('
-                        INSERT INTO songs (title, artist_id, category_id, file_path, file_hash, duration_ms, year, duplicate_of)
-                        VALUES (:title, :artist_id, :category_id, :file_path, :file_hash, :duration_ms, :year, :duplicate_of)
+                        INSERT INTO songs (title, artist_id, category_id, file_path, file_hash, duration_ms, year)
+                        VALUES (:title, :artist_id, :category_id, :file_path, :file_hash, :duration_ms, :year)
                     ');
                     $insertStmt->execute([
                         'title'        => $title,
@@ -110,7 +140,6 @@ class PlaylistSongFolderAddHandler
                         'file_hash'    => $fileHash ?: null,
                         'duration_ms'  => $meta['duration_ms'],
                         'year'         => $meta['year'] ?: null,
-                        'duplicate_of' => $canonicalId,
                     ]);
                     $existingPaths[$file['rel']] = true;
                     $scanned++;
@@ -120,13 +149,14 @@ class PlaylistSongFolderAddHandler
             }
         }
 
-        // Now query songs from DB (including newly scanned)
+        // Query songs from DB by path (including newly scanned)
         if ($recursive) {
             $stmt = $db->prepare('
                 SELECT id FROM songs
                 WHERE  file_path LIKE :prefix
                   AND  is_active = true
                   AND  duplicate_of IS NULL
+                  AND  trashed_at IS NULL
                 ORDER BY file_path
             ');
             $stmt->execute(['prefix' => $prefix . '%']);
@@ -137,6 +167,7 @@ class PlaylistSongFolderAddHandler
                   AND  file_path NOT LIKE :subprefix
                   AND  is_active = true
                   AND  duplicate_of IS NULL
+                  AND  trashed_at IS NULL
                 ORDER BY file_path
             ');
             $stmt->execute([
@@ -145,7 +176,15 @@ class PlaylistSongFolderAddHandler
             ]);
         }
 
+        // Merge path-matched IDs with canonical matches (deduplicated)
         $songIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        $seen = array_flip($songIds);
+        foreach ($extraSongIds as $eid) {
+            if (!isset($seen[$eid])) {
+                $songIds[] = $eid;
+                $seen[$eid] = true;
+            }
+        }
 
         if (count($songIds) === 0) {
             Response::json([

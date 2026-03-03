@@ -111,6 +111,70 @@ class FileManagerDeleteHandler
         return null;
     }
 
+    /** Recursively delete all empty folders under a given path. */
+    public function deleteEmpty(): void
+    {
+        $rawPath = trim($_GET['path'] ?? '/');
+        $abs = FileManagerBrowseHandler::resolveVirtualPath($rawPath);
+        if ($abs === null || !is_dir($abs)) {
+            Response::error('Invalid path', 400);
+            return;
+        }
+
+        $base    = rtrim(realpath(MediaBrowseHandler::BASE_DIR) ?: MediaBrowseHandler::BASE_DIR, '/');
+        $deleted = 0;
+        self::removeEmptyDirs($abs, $base, $deleted);
+
+        Response::json([
+            'message' => $deleted > 0 ? $deleted . ' empty folder(s) deleted' : 'No empty folders found',
+            'deleted' => $deleted,
+        ]);
+    }
+
+    /**
+     * Recursively remove empty directories (bottom-up).
+     * A directory is "empty" if it contains no files and all subdirs are also empty.
+     * System folders are never removed.
+     */
+    private static function removeEmptyDirs(string $dir, string $base, int &$deleted): bool
+    {
+        $entries = scandir($dir);
+        if ($entries === false) {
+            return false;
+        }
+
+        $hasContent = false;
+        foreach ($entries as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $full = $dir . '/' . $item;
+            if (is_dir($full)) {
+                // Recurse — if subdir couldn't be removed, this dir has content
+                if (!self::removeEmptyDirs($full, $base, $deleted)) {
+                    $hasContent = true;
+                }
+            } else {
+                $hasContent = true;
+            }
+        }
+
+        if ($hasContent) {
+            return false;
+        }
+
+        // Check if this folder is protected
+        $rel = substr($dir, strlen($base) + 1);
+        if ($rel === false || $rel === '' || self::isProtected($rel)) {
+            return false;
+        }
+
+        @rmdir($dir);
+        if (!is_dir($dir)) {
+            $deleted++;
+            return true;
+        }
+        return false;
+    }
+
     private static function isProtected(string $rel): bool
     {
         if (!str_contains($rel, '/') && in_array($rel, self::SYSTEM_DIRS, true)) {

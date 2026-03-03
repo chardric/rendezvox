@@ -35,6 +35,9 @@ class SongListHandler
             $where[] = 's.trashed_at IS NULL';
         }
 
+        // Exclude duplicate-marked songs
+        $where[] = 's.duplicate_of IS NULL';
+
         if ($search !== '') {
             $where[]          = '(s.title ILIKE :search OR a.name ILIKE :search)';
             $params['search'] = '%' . $search . '%';

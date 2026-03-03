@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Station IDs</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
+<script src="/admin/js/theme.js?v=20260228"></script>
+<style>
+  .tts-card {
+    background: var(--bg-card, rgba(255,255,255,0.04));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .tts-card h3 {
+    margin: 0 0 16px 0;
+    font-size: .95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tts-card h3 .badge {
+    font-size: .7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+  .tts-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .tts-row label {
+    min-width: 80px;
+    font-size: .85rem;
+    color: var(--text-dim);
+  }
+  .tts-row input[type="text"],
+  .tts-row select {
+    flex: 1;
+    min-width: 140px;
+    max-width: 400px;
+  }
+  .tts-row input[type="range"] {
+    flex: 1;
+    min-width: 120px;
+    max-width: 300px;
+    accent-color: var(--accent);
+  }
+  .range-val {
+    font-size: .82rem;
+    color: var(--text-dim);
+    min-width: 40px;
+    text-align: right;
+  }
+  .tts-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .tts-toggle-row label {
+    font-size: .85rem;
+    color: var(--text-dim);
+  }
+  .placeholder-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .placeholder-chips span {
+    font-size: .72rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(0,200,160,0.12);
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .placeholder-chips span:hover {
+    background: rgba(0,200,160,0.22);
+  }
+  .btn-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .tts-sep {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+  .btn-play {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,.07); color: var(--text);
+    cursor: pointer; transition: background .15s, color .15s;
+    vertical-align: middle;
+  }
+  .btn-play:hover { background: rgba(0,200,160,.25); color: #fff; }
+  .btn-play.playing { background: var(--accent); color: #fff; }
+  .file-size { color: var(--text-dim); font-size: .85rem; }
+  .station-id-summary {
+    font-size: .82rem; color: var(--text-dim); margin-bottom: 12px;
+  }
+  .upload-inline {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .upload-inline .file-hint {
+    font-size: .72rem; color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <button id="hamburger" class="hamburger">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="overlay" class="overlay"></div>
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <main class="main">
+    <h1 class="page-title">Station IDs</h1>
+
+    <!-- TTS Generator -->
+    <div class="tts-card" id="voiceCard">
+      <h3>Generate from Text</h3>
+      <div class="tts-row">
+        <label for="ttsVoice">Voice</label>
+        <select id="ttsVoice">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+      <div class="tts-row">
+        <label for="ttsSpeed">Speed</label>
+        <input type="range" id="ttsSpeed" min="80" max="300" value="160">
+        <span class="range-val" id="ttsSpeedVal">160</span>
+      </div>
+      <hr class="tts-sep">
+      <div class="tts-row">
+        <label for="ttsStationText">Text</label>
+        <input type="text" id="ttsStationText" placeholder="You are listening to RendezVox Radio" value="">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-preview" id="btnPreview">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Preview
+        </button>
+        <button class="btn btn-primary" id="btnGenerateStationId">Save as Station ID</button>
+      </div>
+    </div>
+
+    <!-- Song Announcements -->
+    <div class="tts-card">
+      <h3>Song Announcements <span class="badge">plays before each song</span></h3>
+      <div class="tts-toggle-row">
+        <label class="switch"><input type="checkbox" id="ttsSongEnabled"><span class="slider"></span></label>
+        <label for="ttsSongEnabled">Enable song announcements</label>
+      </div>
+      <div class="tts-row">
+        <label for="ttsSongTemplate">Template</label>
+        <input type="text" id="ttsSongTemplate" value="Now playing {title} by {artist}">
+      </div>
+      <div class="placeholder-chips">
+        <span onclick="RendezVoxTts.insertPlaceholder('ttsSongTemplate','{title}')">{title}</span>
+        <span onclick="RendezVoxTts.insertPlaceholder('ttsSongTemplate','{artist}')">{artist}</span>
+      </div>
+    </div>
+
+    <!-- Time Announcements -->
+    <div class="tts-card">
+      <h3>Time Announcements <span class="badge">inserted between songs</span></h3>
+      <div class="tts-toggle-row">
+        <label class="switch"><input type="checkbox" id="ttsTimeEnabled"><span class="slider"></span></label>
+        <label for="ttsTimeEnabled">Enable time announcements</label>
+      </div>
+      <div class="tts-row">
+        <label for="ttsTimeInterval">Interval</label>
+        <select id="ttsTimeInterval">
+          <option value="30">Every 30 minutes</option>
+          <option value="60" selected>Every hour</option>
+        </select>
+      </div>
+      <div class="tts-row">
+        <label for="ttsTimeTemplate">Template</label>
+        <input type="text" id="ttsTimeTemplate" value="The time is {time}">
+      </div>
+      <div class="placeholder-chips">
+        <span onclick="RendezVoxTts.insertPlaceholder('ttsTimeTemplate','{time}')">{time}</span>
+      </div>
+    </div>
+
+    <!-- Saved Station IDs -->
+    <div class="tts-card">
+      <h3>Saved Station IDs</h3>
+      <div class="station-id-summary" id="stationIdSummary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Duration</th>
+              <th>Size</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="stationIdTable">
+            <tr><td colspan="5" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="upload-inline">
+        <input type="file" id="fileInput" accept=".mp3,.ogg,.wav,.flac,.aac,.m4a" multiple style="display:none">
+        <button class="btn btn-ghost" id="btnUpload">Upload Audio File</button>
+        <span class="file-hint">MP3, OGG, WAV, FLAC, AAC, M4A</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Audio players -->
+<audio id="ttsPreviewAudio" preload="none"></audio>
+<audio id="stationIdAudio" preload="none"></audio>
+
+<!-- Rename modal -->
+<div class="modal-backdrop hidden" id="renameModal">
+  <div class="modal compact-form">
+    <button class="modal-close" id="renameClose">&times;</button>
+    <h3>Rename Station ID</h3>
+    <input type="text" id="renameInput" placeholder="New filename" style="width:100%">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="renameCancel">Cancel</button>
+      <button class="btn btn-primary" id="renameSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="/assets/scroll-controls.js?v=20260226"></script>
+<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/auth.js?v=20260301"></script>
+<script src="/admin/js/nav.js?v=20260303b"></script>
+<script src="/admin/js/confirm.js?v=20260226"></script>
+<script src="/admin/js/icons.js?v=20260226"></script>
+<script src="/admin/js/tts.js?v=20260303b"></script>
+<script>
+  if (RendezVoxAuth.requireLogin()) {
+    RendezVoxNav.init();
+    RendezVoxTts.init();
+  }
+</script>
+</body>
+</html>

@@ -47,7 +47,7 @@ class LogoServeHandler
 
         header('Content-Type: ' . $contentType);
         header('Content-Length: ' . filesize($realPath));
-        header('Cache-Control: max-age=3600');
+        header('Cache-Control: public, max-age=86400, immutable');
         readfile($realPath);
         exit;
     }

@@ -6,7 +6,7 @@ class Router
 {
     private static array $routes = [];
 
-    private const INTERNAL_ROUTES = ['/next-track', '/track-started', '/track-played'];
+    private const INTERNAL_ROUTES = ['/next-track', '/track-started', '/track-played', '/tts/time-announcement'];
 
     private static function requireInternalSecret(string $path): void
     {
@@ -148,12 +148,13 @@ class Router
             Response::error('Method not allowed', 405);
         }
 
-        // Browser navigating to an unknown non-API path → redirect to listener page
+        // Browser navigating to an unknown non-API path → redirect to home
         $acceptsHtml = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'text/html');
         $isApiPath   = str_starts_with($uri, '/api/') || $uri === '/api';
         if ($acceptsHtml && !$isApiPath) {
+            $dest = str_starts_with($uri, '/admin') ? '/admin/' : '/';
             http_response_code(302);
-            header('Location: /');
+            header('Location: ' . $dest);
             exit;
         }
 

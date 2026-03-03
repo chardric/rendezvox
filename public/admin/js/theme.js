@@ -107,11 +107,11 @@ var RendezVoxTheme = (function () {
     img.onload = function() {
       var link = document.querySelector('link[rel="icon"]');
       if (link) {
-        link.href = '/api/logo?v=' + Date.now();
+        link.href = '/api/logo';
       } else {
         link = document.createElement('link');
         link.rel = 'icon';
-        link.href = '/api/logo?v=' + Date.now();
+        link.href = '/api/logo';
         document.head.appendChild(link);
       }
     };

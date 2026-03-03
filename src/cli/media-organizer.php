@@ -8,11 +8,12 @@ declare(strict_types=1);
  * Long-running CLI process that watches untagged/ for new audio files, validates
  * metadata, detects duplicates, and organizes files:
  *
- *   untagged/files/  → tagged/files/Genre/Artist/Title.ext   (individual uploads)
+ *   untagged/files/  → tagged/files/Artist/Title.ext   (individual uploads)
  *   untagged/folders/ → tagged/folders/FolderName/Artist - Title.ext (folder uploads)
  *
  * Files with missing required metadata stay in untagged/ and are imported with
- * available metadata. Duplicate files are tagged in DB (duplicate_of).
+ * available metadata. Exact duplicates (same hash) and lower-quality cross-format
+ * duplicates (same title+artist) are deleted to save disk space.
  *
  * Usage:
  *   php media-organizer.php [--dry-run] [--once]
@@ -181,6 +182,34 @@ function extractTrackNumber(string $filename): ?string
         return str_pad($m[1], 2, '0', STR_PAD_LEFT);
     }
     return null;
+}
+
+// -- Audio quality score for same-song comparison --
+// Higher score = better quality. Lossless formats score much higher than lossy.
+function audioQualityScore(string $filePath): int
+{
+    $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+    $lossless = in_array($ext, ['flac', 'wav', 'aiff', 'alac']);
+
+    // Base score: lossless gets a big boost
+    $score = $lossless ? 100000 : 0;
+
+    // Add bit rate from ffprobe
+    $cmd = sprintf(
+        'ffprobe -v quiet -print_format json -show_format -show_streams %s 2>/dev/null',
+        escapeshellarg($filePath)
+    );
+    $output = shell_exec($cmd);
+    $data = $output ? json_decode($output, true) : null;
+
+    if ($data) {
+        $bitRate = (int) ($data['streams'][0]['bit_rate'] ?? $data['format']['bit_rate'] ?? 0);
+        $sampleRate = (int) ($data['streams'][0]['sample_rate'] ?? 0);
+        $score += $bitRate;       // e.g., 320000 for 320kbps mp3, 1411200 for CD flac
+        $score += $sampleRate;    // e.g., 44100, 48000, 96000
+    }
+
+    return $score;
 }
 
 // -- Resolve filename conflicts --
@@ -451,7 +480,6 @@ function processFile(
     // Detect canonical song for duplicate tracking (non-destructive)
     // Only mark as duplicate if an active (non-trashed) canonical copy exists.
     // If the only existing copy is trashed, restore it instead of creating a duplicate.
-    $canonicalId    = null;
     $restoredSongId = null;
     $stmt = $db->prepare('
         SELECT id, trashed_at FROM songs
@@ -468,8 +496,13 @@ function processFile(
                ->execute(['id' => $restoredSongId]);
             log_msg("  RESTORED trashed song #{$restoredSongId} — re-uploaded same file");
         } else {
-            $canonicalId = (int) $existingRow['id'];
-            log_msg("  DUPLICATE of song #{$canonicalId} — will organize and tag as duplicate");
+            // Active duplicate — delete uploaded file and skip
+            log_msg("  DUPLICATE of song #{$existingRow['id']} — deleting upload to save space");
+            @unlink($absolutePath);
+            // Clean up sidecar if present
+            $sidecarPath = dirname($absolutePath) . '/.' . basename($absolutePath) . '.meta';
+            @unlink($sidecarPath);
+            return ['status' => 'done', 'action' => 'duplicate', 'path' => null, 'error' => null];
         }
     } elseif (isset($knownHashes[$hash]) && is_int($knownHashes[$hash])) {
         // Check if the cached canonical is still active
@@ -477,8 +510,12 @@ function processFile(
         $chkStmt->execute(['id' => $knownHashes[$hash]]);
         $chkRow = $chkStmt->fetch();
         if ($chkRow && $chkRow['trashed_at'] === null) {
-            $canonicalId = $knownHashes[$hash];
-            log_msg("  DUPLICATE of song #{$canonicalId} (hash cache) — will organize and tag as duplicate");
+            // Active duplicate — delete uploaded file and skip
+            log_msg("  DUPLICATE of song #{$knownHashes[$hash]} (hash cache) — deleting upload to save space");
+            @unlink($absolutePath);
+            $sidecarPath = dirname($absolutePath) . '/.' . basename($absolutePath) . '.meta';
+            @unlink($sidecarPath);
+            return ['status' => 'done', 'action' => 'duplicate', 'path' => null, 'error' => null];
         } elseif ($chkRow && $chkRow['trashed_at'] !== null) {
             $restoredSongId = (int) $chkRow['id'];
             $db->prepare('UPDATE songs SET trashed_at = NULL, is_active = true WHERE id = :id')
@@ -591,6 +628,46 @@ function processFile(
         }
     }
 
+    // -- Quality-aware cross-format duplicate check --
+    // Same title+artist but different encoding (e.g., FLAC vs MP3) — keep the better one
+    if (trim($meta['title']) !== '' && trim($meta['artist']) !== '') {
+        $qStmt = $db->prepare("
+            SELECT s.id, s.file_path
+            FROM songs s
+            JOIN artists a ON a.id = s.artist_id
+            WHERE LOWER(s.title) = LOWER(:title)
+              AND LOWER(a.name) = LOWER(:artist)
+              AND s.duplicate_of IS NULL
+              AND s.trashed_at IS NULL
+            LIMIT 1
+        ");
+        $qStmt->execute(['title' => trim($meta['title']), 'artist' => trim($meta['artist'])]);
+        $existingSong = $qStmt->fetch();
+
+        if ($existingSong) {
+            $existingAbsPath = $musicDir . '/' . $existingSong['file_path'];
+            if (file_exists($existingAbsPath)) {
+                $newScore = audioQualityScore($absolutePath);
+                $existingScore = audioQualityScore($existingAbsPath);
+
+                if ($newScore <= $existingScore) {
+                    // Existing is same or better quality — delete upload
+                    log_msg("  QUALITY SKIP: existing #{$existingSong['id']} (score {$existingScore}) >= new (score {$newScore}) — deleting upload");
+                    @unlink($absolutePath);
+                    $sidecarPath = dirname($absolutePath) . '/.' . basename($absolutePath) . '.meta';
+                    @unlink($sidecarPath);
+                    return ['status' => 'done', 'action' => 'duplicate', 'path' => null, 'error' => null];
+                }
+
+                // New file is better quality — trash old song and continue import
+                log_msg("  QUALITY UPGRADE: new (score {$newScore}) > existing #{$existingSong['id']} (score {$existingScore}) — replacing");
+                @unlink($existingAbsPath);
+                $db->prepare("UPDATE songs SET trashed_at = NOW(), is_active = false WHERE id = :id")
+                   ->execute(['id' => $existingSong['id']]);
+            }
+        }
+    }
+
     $missing = [];
 
     if ($meta['duration_ms'] <= 0) {
@@ -627,7 +704,7 @@ function processFile(
                     $db->prepare('UPDATE songs SET file_path = :fp, file_hash = :hash WHERE id = :id')
                        ->execute(['fp' => $relPath, 'hash' => $hash2, 'id' => $restoredSongId]);
                 } else {
-                    importSong($db, $destPath, $musicDir, $meta, $hash2, $dryRun, $sidecar, $canonicalId);
+                    importSong($db, $destPath, $musicDir, $meta, $hash2, $dryRun, $sidecar);
                 }
                 registerHash($db, $hash2, $destPath);
                 $knownHashes[$hash2] = true;
@@ -667,6 +744,19 @@ function processFile(
     if ($isFolder) {
         // Folder uploads → tagged/folders/{FolderName}/{Artist} - {Title}.ext
         $folderName   = sanitizeSegment(getFolderName($absolutePath, $musicDir));
+
+        // Case-insensitive match: if a folder with the same name (different case) already
+        // exists in tagged/folders/, use the existing name to avoid duplicates.
+        $taggedFoldersAbs = "{$musicDir}/{$taggedFoldersDir}";
+        foreach (scandir($taggedFoldersAbs) ?: [] as $existing) {
+            if ($existing === '.' || $existing === '..') continue;
+            if (strcasecmp($existing, $folderName) === 0 && $existing !== $folderName) {
+                log_msg("  Folder name matched (case-insensitive): \"{$folderName}\" → \"{$existing}\"");
+                $folderName = $existing;
+                break;
+            }
+        }
+
         $destFilename = "{$artist} - {$title}.{$ext}";
 
         if (mb_strlen($destFilename) > 255) {
@@ -676,7 +766,17 @@ function processFile(
 
         $destPath = "{$musicDir}/{$taggedFoldersDir}/{$folderName}/{$destFilename}";
     } else {
-        // Individual files → tagged/files/{Genre}/{Artist}/{Title}.ext
+        // Individual files → tagged/files/{Artist}/{Title}.ext
+        // Case-insensitive match for artist directory
+        $taggedFilesAbs = "{$musicDir}/{$taggedFilesDir}";
+        foreach (scandir($taggedFilesAbs) ?: [] as $existing) {
+            if ($existing === '.' || $existing === '..') continue;
+            if (strcasecmp($existing, $artist) === 0 && $existing !== $artist) {
+                $artist = $existing;
+                break;
+            }
+        }
+
         $destFilename = "{$title}.{$ext}";
 
         if (mb_strlen($destFilename) > 255) {
@@ -684,7 +784,7 @@ function processFile(
             $destFilename = "{$title}.{$ext}";
         }
 
-        $destPath = "{$musicDir}/{$taggedFilesDir}/{$genre}/{$artist}/{$destFilename}";
+        $destPath = "{$musicDir}/{$taggedFilesDir}/{$artist}/{$destFilename}";
     }
 
     $destPath = resolveConflict($destPath);
@@ -709,10 +809,9 @@ function processFile(
             $songId = $restoredSongId;
             log_msg("  UPDATED path for restored song #{$songId}");
         } else {
-            $songId = importSong($db, $destPath, $musicDir, $meta, $hash, $dryRun, $sidecar, $canonicalId);
+            $songId = importSong($db, $destPath, $musicDir, $meta, $hash, $dryRun, $sidecar);
             if ($songId !== null) {
-                $dupLabel = $canonicalId !== null ? " (dup of #{$canonicalId})" : '';
-                log_msg("  IMPORTED{$dupLabel} -> song #{$songId}");
+                log_msg("  IMPORTED -> song #{$songId}");
             }
         }
 
