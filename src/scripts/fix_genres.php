@@ -11,13 +11,15 @@
  * Logic:
  *   1. Songs with no title → derive title from filename (strip track numbers)
  *   2. If AcoustID API key is configured → fingerprint each song via fpcalc
- *      and look up title, artist, album, genre from AcoustID + MusicBrainz
- *   3. AI-type artists → extract genre from title parentheses
- *   4. Other artists → query MusicBrainz API (rate limited 1 req/sec)
- *      a. Look up artist → get genre from tags
- *      b. Look up recording by title+artist → get album name
- *   5. If no genre found → keep current genre
- *   6. Write updated tags back to the audio file via ffmpeg
+ *      and look up title, artist, album from AcoustID + MusicBrainz
+ *   3. Genre detection (priority order):
+ *      a. Embedded genre tag from audio file (ID3/Vorbis)
+ *      b. AI-type artists → extract genre from title parentheses
+ *      c. MusicBrainz recording genre (track-specific)
+ *      d. Title keyword heuristics (Christian, etc.)
+ *      e. MusicBrainz artist genre (last resort)
+ *      f. TheAudioDB fallback
+ *   4. Write updated tags back to the audio file via ffmpeg
  *
  * Progress is written to /tmp/rendezvox_genre_scan.json so the admin UI
  * can poll for status.
@@ -26,6 +28,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../core/Database.php';
+require __DIR__ . '/../core/MetadataExtractor.php';
 require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
@@ -175,6 +178,20 @@ function extractGenreFromTitle(string $title): ?string
         if (str_contains($hint, 'pop'))                                     return 'Pop';
         if (str_contains($hint, 'classical'))                               return 'Classical';
         if (str_contains($hint, 'electronic') || str_contains($hint, 'edm')) return 'Electronic';
+    }
+    return null;
+}
+
+// ── Detect genre from title keywords ─────────────────────
+function detectGenreByKeywords(string $title): ?string
+{
+    $lower = strtolower($title);
+    $christianWords = ['jesus', 'christ', 'god\'s', 'gospel', 'hymn', 'praise',
+        'worship', 'hallelujah', 'amen', 'blessed assurance', 'savior', 'saviour',
+        'calvary', 'redeemer', 'holy spirit', 'amazing grace', 'rugged cross',
+        'precious memories', 'how great thou art'];
+    foreach ($christianWords as $word) {
+        if (str_contains($lower, $word)) return 'Christian';
     }
     return null;
 }
@@ -359,35 +376,30 @@ foreach ($allSongs as $song) {
     }
 
     // Step 3: Determine genre
-    $isAiArtist = (stripos($artistName, 'a.i.') !== false
-                || stripos($artistName, 'ai ') !== false
-                || stripos($artistName, 'ai cover') !== false);
+    // Only detect genre for songs that are still "Uncategorized".
+    // Songs with an existing genre (set by admin or import) are preserved.
+    // Read embedded genre from file BEFORE Step 6 clears tags (needed for tag rewrite).
+    $embeddedGenre = '';
+    if (file_exists($currentPath)) {
+        $embeddedMeta = MetadataExtractor::extract($currentPath);
+        $embeddedGenre = trim($embeddedMeta['genre'] ?? '');
+    }
 
-    if ($isAiArtist) {
-        $extracted = extractGenreFromTitle($title);
-        if ($extracted && strtolower($extracted) !== strtolower($genre)) {
-            $genre = $extracted;
-            $catId = findOrCreateCategory($db, $genre, $categoryCache);
-            if (!$dryRun) {
-                $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
-                   ->execute(['cat' => $catId, 'id' => $songId]);
-            }
-            $progress['updated']++;
-            $tagsChanged = true;
-        }
-    } else {
-        // Genre lookup via MusicBrainz artist (cached per artist)
-        if (isset($artistGenreCache[$artistName])) {
-            $lookedUpGenre = $artistGenreCache[$artistName];
-        } else {
-            $lookedUpGenre = $lookup->lookupGenreByArtist($artistName);
-            $artistGenreCache[$artistName] = $lookedUpGenre;
-        }
+    $needsGenreDetection = (strtolower($genre) === 'uncategorized');
 
-        if ($lookedUpGenre) {
-            $gotExternalData = true;
-            if (strtolower($lookedUpGenre) !== strtolower($genre)) {
-                $genre = $lookedUpGenre;
+    if ($needsGenreDetection) {
+        $isAiArtist = (stripos($artistName, 'a.i.') !== false
+                    || stripos($artistName, 'ai ') !== false
+                    || stripos($artistName, 'ai cover') !== false);
+
+        // 3a: Embedded genre tag (highest priority for non-AI artists)
+        $genericTags = ['other', 'unknown', 'misc', 'none', ''];
+        if (!$isAiArtist && $embeddedGenre !== '' && !in_array(strtolower($embeddedGenre), $genericTags)) {
+            $mapped = MetadataLookup::mapGenre($embeddedGenre);
+            $resolvedGenre = $mapped ?: ucfirst(strtolower($embeddedGenre));
+
+            if (strtolower($resolvedGenre) !== strtolower($genre)) {
+                $genre = $resolvedGenre;
                 $catId = findOrCreateCategory($db, $genre, $categoryCache);
                 if (!$dryRun) {
                     $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
@@ -396,12 +408,25 @@ foreach ($allSongs as $song) {
                 $progress['updated']++;
                 $tagsChanged = true;
             }
-        } else {
-            $progress['skipped']++;
+        }
+
+        // 3b: AI artist — extract genre from title parentheses
+        if ($isAiArtist) {
+            $extracted = extractGenreFromTitle($title);
+            if ($extracted && strtolower($extracted) !== strtolower($genre)) {
+                $genre = $extracted;
+                $catId = findOrCreateCategory($db, $genre, $categoryCache);
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                       ->execute(['cat' => $catId, 'id' => $songId]);
+                }
+                $progress['updated']++;
+                $tagsChanged = true;
+            }
         }
     }
 
-    // Step 4: MusicBrainz recording lookup (year, album, release_id, genre)
+    // Step 4: MusicBrainz recording lookup (year, album, release_id)
     if (!empty(trim($title)) && !empty(trim($artistName))) {
         $mbResult = $lookup->lookupByArtistTitle($artistName, $title);
 
@@ -417,7 +442,7 @@ foreach ($allSongs as $song) {
                 $tagsChanged = true;
             }
 
-            // Use recording genre if we still don't have one
+            // 3c: Recording genre (if still uncategorized)
             if (!empty($mbResult['genre']) && strtolower($genre) === 'uncategorized') {
                 $genre = $mbResult['genre'];
                 $catId = findOrCreateCategory($db, $genre, $categoryCache);
@@ -431,7 +456,51 @@ foreach ($allSongs as $song) {
         }
     }
 
-    // Step 5: TheAudioDB metadata fallback (fill remaining gaps)
+    // 3d: Title keyword heuristics (if still uncategorized)
+    if (strtolower($genre) === 'uncategorized' && !empty(trim($title))) {
+        $keywordGenre = detectGenreByKeywords($title);
+        if ($keywordGenre) {
+            $genre = $keywordGenre;
+            $catId = findOrCreateCategory($db, $genre, $categoryCache);
+            if (!$dryRun) {
+                $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                   ->execute(['cat' => $catId, 'id' => $songId]);
+            }
+            $progress['updated']++;
+            $tagsChanged = true;
+        }
+    }
+
+    // 3e: MusicBrainz artist genre — last resort (if still uncategorized)
+    if (strtolower($genre) === 'uncategorized') {
+        $isAiCheck = (stripos($artistName, 'a.i.') !== false
+                   || stripos($artistName, 'ai ') !== false
+                   || stripos($artistName, 'ai cover') !== false);
+        if (!$isAiCheck) {
+            if (isset($artistGenreCache[$artistName])) {
+                $lookedUpGenre = $artistGenreCache[$artistName];
+            } else {
+                $lookedUpGenre = $lookup->lookupGenreByArtist($artistName);
+                $artistGenreCache[$artistName] = $lookedUpGenre;
+            }
+
+            if ($lookedUpGenre) {
+                $gotExternalData = true;
+                $genre = $lookedUpGenre;
+                $catId = findOrCreateCategory($db, $genre, $categoryCache);
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                       ->execute(['cat' => $catId, 'id' => $songId]);
+                }
+                $progress['updated']++;
+                $tagsChanged = true;
+            } else {
+                $progress['skipped']++;
+            }
+        }
+    }
+
+    // 3f: TheAudioDB metadata fallback (fill remaining gaps)
     $needGenre = strtolower($genre) === 'uncategorized';
     $needYear  = empty($song['year']) && empty($mbResult['year'] ?? null);
     if (!empty(trim($artistName)) && !empty(trim($title)) && ($needGenre || $needYear)) {
@@ -533,16 +602,15 @@ foreach ($allSongs as $song) {
     if (!$dryRun && file_exists($currentPath)) {
         $relPath = ltrim(str_replace($musicDir . '/', '', $currentPath), '/');
 
-        // untagged/files/ → tagged/files/ if all fields now filled
+        // untagged/files/ → tagged/files/{Artist}/ if all fields now filled
         if (str_starts_with($relPath, 'untagged/files/') && !empty($genre) && !empty($artistName) && !empty($title)
             && strtolower($genre) !== 'uncategorized') {
-            $safeGenre  = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($genre));
             $safeArtist = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($artistName));
             $safeTitle  = preg_replace('/[\/\\\\:*?"<>|]/', '', trim($title));
             $ext = strtolower(pathinfo($currentPath, PATHINFO_EXTENSION));
 
-            if ($safeGenre !== '' && $safeArtist !== '' && $safeTitle !== '') {
-                $newDir  = $musicDir . '/tagged/files/' . $safeGenre . '/' . $safeArtist;
+            if ($safeArtist !== '' && $safeTitle !== '') {
+                $newDir  = $musicDir . '/tagged/files/' . $safeArtist;
                 $newPath = $newDir . '/' . $safeTitle . '.' . $ext;
 
                 if (!file_exists($newPath)) {

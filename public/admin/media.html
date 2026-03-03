@@ -658,6 +658,9 @@
             <button class="btn btn-ghost btn-sm" id="fm-btnSelectAll" title="Select All (Ctrl+A)">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Select All
             </button>
+            <button class="btn btn-ghost btn-sm" id="fm-btnDeleteEmpty" title="Delete all empty folders in current directory">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="9" y1="14" x2="15" y2="14"/></svg>Delete Empty
+            </button>
             <span id="fm-status" class="fm-status"></span>
           </div>
 
@@ -693,12 +696,10 @@
         <div class="flex items-center justify-between" style="margin-bottom:12px">
           <div>
             <p class="text-dim" id="dupSummary" style="font-size:.85rem"></p>
-            <p class="text-dim" id="dupDiskInfo" style="font-size:.78rem;margin-top:2px"></p>
           </div>
           <div class="flex gap-8">
             <button class="btn btn-primary btn-sm" id="btnDupScan">Scan for Duplicates</button>
-            <button class="btn btn-sm" id="btnDupDeleteAll" style="display:none;background:var(--danger);color:#fff">Mark All as Duplicates</button>
-            <button class="btn btn-sm" id="btnDupPurge" style="display:none;background:var(--warn,#f59e0b);color:#000">Purge Duplicate Files</button>
+            <button class="btn btn-sm" id="btnDupDeleteAll" style="display:none;background:var(--danger);color:#fff">Remove All Duplicates</button>
           </div>
         </div>
         <div id="dupResults"></div>
@@ -753,7 +754,7 @@
         <span id="paginationInfo" style="font-size:.82rem;opacity:.5"></span>
         <div class="pagination-nav" id="paginationNav"></div>
       </div>
-      <div style="text-align:right;font-size:.82rem;margin:-8px 0 10px;opacity:.6">
+      <div id="perPageBar" style="text-align:right;font-size:.82rem;margin:-8px 0 10px;opacity:.6">
         Show
         <select id="perPageSel" class="pagination-show-sel">
           <option value="10">10</option>

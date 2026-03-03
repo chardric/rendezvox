@@ -11,6 +11,35 @@ ICECAST_HOST="${ICECAST_URL#http://}"
 ICECAST_PATH="/${ICECAST_HOST#*/}"
 ICECAST_HOST="${ICECAST_HOST%%/*}"
 
+stream_watchdog() {
+    # Monitor mpv for idle state (stream dropped, reconnect failed).
+    # When idle and Icecast is back, reload the stream URL.
+    sleep 15  # initial grace period for startup
+    while true; do
+        sleep 20
+        [ -S "$MPV_SOCKET" ] || continue
+
+        local idle
+        idle=$(printf '{"command": ["get_property", "idle-active"]}\n' \
+            | socat -T2 - UNIX-CONNECT:"$MPV_SOCKET" 2>/dev/null \
+            | jq -r '.data // false' 2>/dev/null) || continue
+
+        if [ "$idle" = "true" ]; then
+            # Check if stream is available before reloading
+            local response
+            response=$(printf "GET %s HTTP/1.0\r\nHost: %s\r\n\r\n" "$ICECAST_PATH" "${ICECAST_HOST%%:*}" \
+                | socat -T2 - "TCP:$ICECAST_HOST" 2>/dev/null | head -1) || true
+            if echo "$response" | grep -q "200"; then
+                echo "Watchdog: mpv is idle but stream is live — reloading..."
+                printf '{"command": ["loadfile", "%s"]}\n' "$ICECAST_URL" \
+                    | socat - UNIX-CONNECT:"$MPV_SOCKET" 2>/dev/null || true
+                sleep 5
+                apply_eq 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
 apply_eq() {
     if [ ! -f "$EQ_FILE" ] || [ ! -S "$MPV_SOCKET" ]; then
         return
@@ -90,8 +119,16 @@ while true; do
     # Apply saved EQ settings on startup
     apply_eq && echo "EQ applied from saved settings." || true
 
+    # Start watchdog to detect and recover from idle state
+    stream_watchdog &
+    WATCHDOG_PID=$!
+
     # Wait for mpv to exit (stream drop, error, etc.)
     wait $MPV_PID || true
+
+    # Kill watchdog before restarting
+    kill $WATCHDOG_PID 2>/dev/null || true
+    wait $WATCHDOG_PID 2>/dev/null || true
 
     echo "mpv exited, restarting in 5 seconds..."
     sleep 5

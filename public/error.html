@@ -22,5 +22,12 @@ a:hover{opacity:.85}
 <p>The page you requested is unavailable. Please try again later.</p>
 <a href="/">Go to Home</a>
 </div>
+<script>
+(function(){
+  if(location.pathname.indexOf('/admin')===0){
+    document.querySelector('a').href='/admin/';
+  }
+})();
+</script>
 </body>
 </html>

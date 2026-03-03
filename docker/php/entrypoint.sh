@@ -10,7 +10,7 @@ fi
 env | grep -E '^(RENDEZVOX_|ICECAST_|POSTGRES_|TZ=)' | sed 's/^/export /' > /etc/environment.rendezvox
 
 # Ensure media and log directories are writable by www-data
-for dir in /var/log/rendezvox /var/lib/rendezvox/music /var/lib/rendezvox/stationids /var/lib/rendezvox/avatars /var/lib/rendezvox/logos; do
+for dir in /var/log/rendezvox /var/lib/rendezvox/music /var/lib/rendezvox/stationids /var/lib/rendezvox/avatars /var/lib/rendezvox/logos /var/lib/rendezvox/tts; do
   mkdir -p "$dir"
   chown www-data:www-data "$dir" 2>/dev/null || true
   chmod 775 "$dir" 2>/dev/null || true
@@ -31,6 +31,9 @@ for pdir in tagged untagged; do
   chown www-data:www-data "/var/lib/rendezvox/music/$pdir" 2>/dev/null || true
   chmod 775 "/var/lib/rendezvox/music/$pdir" 2>/dev/null || true
 done
+# Clean TTS cache files older than 7 days
+find /var/lib/rendezvox/tts -name '*.mp3' -mtime +7 -delete 2>/dev/null || true
+
 # Clean up legacy directory names (empty after migration)
 for old in imports upload _untagged _duplicates Imports Upload Untagged _Untagged; do
   [ -d "/var/lib/rendezvox/music/$old" ] && rmdir "/var/lib/rendezvox/music/$old" 2>/dev/null || true

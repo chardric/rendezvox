@@ -73,6 +73,9 @@ var RendezVoxFileManager = (function () {
     elBtnDelete.addEventListener('click', cmdDelete);
     elBtnSelectAll.addEventListener('click', cmdSelectAll);
 
+    var elBtnDeleteEmpty = document.getElementById('fm-btnDeleteEmpty');
+    if (elBtnDeleteEmpty) elBtnDeleteEmpty.addEventListener('click', cmdDeleteEmpty);
+
     elSearch.addEventListener('input', function () {
       searchTerm = this.value.trim().toLowerCase();
       elBtnClearSearch.style.display = searchTerm ? '' : 'none';
@@ -851,6 +854,27 @@ var RendezVoxFileManager = (function () {
       doConfirmDelete(warning);
     }).catch(function () {
       doConfirmDelete('');
+    });
+  }
+
+  function cmdDeleteEmpty() {
+    RendezVoxConfirm('Recursively delete all empty folders under this directory?', {
+      title: 'Delete Empty Folders', okLabel: 'Delete', okClass: 'btn-danger'
+    }).then(function (ok) {
+      if (!ok) return;
+      RendezVoxAPI.post('/admin/files/delete-empty?path=' + encodeURIComponent(currentPath))
+        .then(function (data) {
+          if (data.deleted > 0) {
+            showToast(data.deleted + ' empty folder(s) deleted', 'success');
+            loadTree();
+            refreshView();
+          } else {
+            showToast('No empty folders found');
+          }
+        })
+        .catch(function (err) {
+          showToast((err && err.error) ? err.error : 'Delete failed', 'error');
+        });
     });
   }
 

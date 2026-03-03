@@ -67,7 +67,7 @@ def get_next_track() =
 
     let result = string.trim(process.read(
         "resp=$(curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/next-track') && " ^
-        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring) + \"\\n\" + (.song.cue_in // \"\" | tostring) + \"\\n\" + (.song.cue_out // \"\" | tostring)) end'"
+        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring) + \"\\n\" + (.song.cue_in // \"\" | tostring) + \"\\n\" + (.song.cue_out // \"\" | tostring) + \"\\n\" + (.tts_path // \"\" | tostring)) end'"
     ))
 
     let parts = string.split(separator="\n", result)
@@ -78,6 +78,7 @@ def get_next_track() =
     let request_id = string.trim(list.nth(default="0", parts, 4))
     let cue_in = string.trim(list.nth(default="", parts, 5))
     let cue_out = string.trim(list.nth(default="", parts, 6))
+    let tts_path = string.trim(list.nth(default="", parts, 7))
 
     if file_path == "" or file_path == "null" then
         log.info("No active schedule — playing silence, will retry in 10s")
@@ -89,8 +90,16 @@ def get_next_track() =
             if cue_in != "" and cue_out != "" then
                 ",liq_cue_in=\"#{cue_in}\",liq_cue_out=\"#{cue_out}\""
             else "" end
-        log.important("Queued: #{full_path} (song_id=#{song_id}, gain=#{gain_db}dB, source=#{source}, cue_in=#{cue_in}, cue_out=#{cue_out})")
-        [request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\"#{cue_annotations}:#{full_path}")]
+        let song_request = request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\"#{cue_annotations}:#{full_path}")
+
+        if tts_path != "" and tts_path != "null" then
+            log.important("TTS pre-roll: #{tts_path} → #{full_path} (song_id=#{song_id})")
+            let tts_request = request.create("annotate:song_id=\"0\",liq_amplify=\"0dB\",rendezvox_source=\"tts\",rendezvox_request_id=\"0\":#{tts_path}")
+            [tts_request, song_request]
+        else
+            log.important("Queued: #{full_path} (song_id=#{song_id}, gain=#{gain_db}dB, source=#{source}, cue_in=#{cue_in}, cue_out=#{cue_out})")
+            [song_request]
+        end
     end
 end
 
@@ -178,6 +187,7 @@ end)
 radio = mksafe(radio)
 
 # ── Station ID overlay (exactly one per hour at minute 0) ───
+# Plays a station ID followed by a time announcement (if enabled).
 stationids_dir = "/var/lib/rendezvox/stationids"
 stationid_state = "/tmp/stationid_last_index"
 
@@ -205,7 +215,19 @@ def pick_station_id() =
             []
         else
             log.important("Hourly station ID (sequential): #{path}")
-            [request.create(path)]
+            let requests = [request.create(path)]
+
+            # Fetch time announcement TTS from API (plays after station ID)
+            let time_tts = string.trim(process.read(
+                "curl -sf -H 'X-Internal-Secret: #{internal_secret}' " ^
+                "'#{api_base}/tts/time-announcement' | jq -r '.file_path // \"\"'"
+            ))
+            if time_tts != "" and time_tts != "null" then
+                log.important("Time announcement after station ID: #{time_tts}")
+                list.append(requests, [request.create(time_tts)])
+            else
+                requests
+            end
         end
     else
         []

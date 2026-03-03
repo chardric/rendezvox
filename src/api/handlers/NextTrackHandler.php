@@ -107,6 +107,8 @@ class NextTrackHandler
                     $db, $requestSong, (int) $playlistId, $scheduleId, $state, $cycle
                 );
 
+                $ttsPath = $this->generateTtsPreRoll($db, $state, $requestSong);
+
                 Response::json([
                     'song' => [
                         'id'          => (int) $requestSong['song_id'],
@@ -123,6 +125,7 @@ class NextTrackHandler
                     ],
                     'source'      => 'request',
                     'request_id'  => (int) $requestSong['request_id'],
+                    'tts_path'    => $ttsPath,
                     'position'    => (int) ($state['current_position'] ?? 0),
                     'cycle'       => $cycle,
                     'cycle_reset' => false,
@@ -243,7 +246,10 @@ class NextTrackHandler
             Response::error('Failed to commit play', 500);
         }
 
-        // ── 6. Return song data ───────────────────────────
+        // ── 6. TTS pre-roll ───────────────────────────────
+        $ttsPath = $this->generateTtsPreRoll($db, $state, $song);
+
+        // ── 7. Return song data ───────────────────────────
         Response::json([
             'song' => [
                 'id'          => (int) $song['song_id'],
@@ -261,6 +267,7 @@ class NextTrackHandler
             'source'       => $isEmergency ? 'emergency' : 'rotation',
             'is_emergency' => $isEmergency,
             'request_id'   => null,
+            'tts_path'     => $ttsPath,
             'position'    => (int) ($song['position'] ?? 0),
             'cycle'       => $cycle,
             'cycle_reset' => $cycleReset,
@@ -716,5 +723,66 @@ class NextTrackHandler
             INSERT INTO station_logs (level, component, message)
             VALUES ('info', 'emergency', 'Emergency mode auto-deactivated (schedule found)')
         ")->execute();
+    }
+
+    // ── TTS pre-roll generation ──────────────────────────────
+
+    /**
+     * Generate a TTS pre-roll audio file for the upcoming track.
+     * (Time announcements are handled by Liquidsoap's station ID overlay.)
+     * Returns the absolute path to the TTS MP3, or null if disabled/failed.
+     */
+    private function generateTtsPreRoll(PDO $db, array $state, array $song): ?string
+    {
+        $ttsSettings = $this->getTtsSettings($db);
+        if ($ttsSettings === null) {
+            return null;
+        }
+
+        require_once __DIR__ . '/../../core/TtsEngine.php';
+
+        return $this->trySongAnnounceTts($ttsSettings, $song);
+    }
+
+    /**
+     * Load TTS settings. Returns null if no TTS feature is enabled.
+     */
+    private function getTtsSettings(PDO $db): ?array
+    {
+        $stmt = $db->query("
+            SELECT key, value FROM settings
+            WHERE key LIKE 'tts_%' OR key = 'station_timezone'
+        ");
+        $settings = [];
+        while ($row = $stmt->fetch()) {
+            $settings[$row['key']] = $row['value'];
+        }
+
+        $anyEnabled = ($settings['tts_song_announce_enabled'] ?? 'false') === 'true';
+
+        return $anyEnabled ? $settings : null;
+    }
+
+    /**
+     * Generate a song announcement TTS if enabled.
+     */
+    private function trySongAnnounceTts(array $s, array $song): ?string
+    {
+        if (($s['tts_song_announce_enabled'] ?? 'false') !== 'true') {
+            return null;
+        }
+
+        $template = $s['tts_song_announce_template'] ?? 'Now playing {title} by {artist}';
+        $text     = str_replace(
+            ['{title}', '{artist}'],
+            [$song['title'] ?? '', $song['artist_name'] ?? ''],
+            $template
+        );
+
+        return TtsEngine::generate(
+            $text,
+            $s['tts_voice'] ?? 'male',
+            (int) ($s['tts_speed'] ?? 160)
+        );
     }
 }
