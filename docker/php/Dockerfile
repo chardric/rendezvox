@@ -1,7 +1,7 @@
 # ==========================================================
 # RendezVox — PHP-FPM 8.3
 # ==========================================================
-FROM php:8.3-fpm-alpine
+FROM php:8.5-fpm-alpine
 
 RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
     echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
