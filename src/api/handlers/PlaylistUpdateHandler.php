@@ -75,8 +75,22 @@ class PlaylistUpdateHandler
             return;
         }
 
+        // Fetch old playlist name before update (for schedule cascade)
+        $oldName = null;
+        if (array_key_exists('name', $body)) {
+            $oldStmt = $db->prepare('SELECT name FROM playlists WHERE id = :id');
+            $oldStmt->execute(['id' => $id]);
+            $oldName = $oldStmt->fetchColumn();
+        }
+
         $sql = 'UPDATE playlists SET ' . implode(', ', $sets) . ' WHERE id = :id';
         $db->prepare($sql)->execute($params);
+
+        // Cascade: update schedule entries whose name matched the old playlist name
+        if ($oldName !== null && trim($body['name']) !== '' && $oldName !== trim($body['name'])) {
+            $db->prepare('UPDATE schedules SET name = :new WHERE playlist_id = :pid AND name = :old')
+               ->execute(['new' => trim($body['name']), 'pid' => $id, 'old' => $oldName]);
+        }
 
         Response::json(['message' => 'Playlist updated']);
     }
