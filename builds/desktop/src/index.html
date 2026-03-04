@@ -144,6 +144,18 @@
 
       <button id="request-btn" type="button">Request a Song</button>
 
+      <!-- Feature buttons -->
+      <div id="feature-row">
+        <button id="btn-eq" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg>
+          <span>Equalizer</span>
+        </button>
+        <button id="btn-schedule" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+          <span>Schedule</span>
+        </button>
+      </div>
+
       <!-- Autostart toggle -->
       <div id="autostart-row">
         <span id="autostart-label">Start on login</span>
@@ -232,6 +244,61 @@
       <div id="modal-actions">
         <button class="btn-cancel" id="modal-cancel">Cancel</button>
         <button class="btn-submit" id="modal-submit">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule Modal -->
+  <div id="schedule-overlay">
+    <div id="schedule-modal">
+      <div id="schedule-header">
+        <span>Weekly Schedule</span>
+        <button id="schedule-close" aria-label="Close">&times;</button>
+      </div>
+      <div id="schedule-content"></div>
+    </div>
+  </div>
+
+  <!-- Equalizer Modal -->
+  <div id="eq-overlay">
+    <div id="eq-modal">
+      <div id="eq-header">
+        <span>Equalizer</span>
+        <button id="eq-close" aria-label="Close">&times;</button>
+      </div>
+      <div id="eq-unavailable">EQ requires audio playback to be active.</div>
+      <div id="eq-controls">
+        <div id="eq-ctrl-row">
+          <div class="eq-ctrl-group">
+            <label for="eq-preset">Preset</label>
+            <select id="eq-preset">
+              <option value="flat">Flat</option>
+              <option value="bass_boost">Bass Boost</option>
+              <option value="treble_boost">Treble Boost</option>
+              <option value="vocal">Vocal</option>
+              <option value="rock">Rock</option>
+              <option value="pop">Pop</option>
+              <option value="jazz">Jazz</option>
+              <option value="classical">Classical</option>
+              <option value="loudness">Loudness</option>
+              <option value="small_speakers">Small Speakers</option>
+              <option value="earphones">Earphones</option>
+              <option value="headphones">Headphones</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="eq-ctrl-group">
+            <label for="eq-spatial">Spatial</label>
+            <select id="eq-spatial">
+              <option value="off">Off</option>
+              <option value="stereo_wide">Stereo Wide</option>
+              <option value="surround">Surround</option>
+              <option value="crossfeed">Crossfeed</option>
+            </select>
+          </div>
+        </div>
+        <div id="eq-sliders"></div>
+        <button id="eq-reset" type="button">Reset to Flat</button>
       </div>
     </div>
   </div>

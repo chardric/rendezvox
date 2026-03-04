@@ -74,6 +74,8 @@ private fun PlayerContent(
         )
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val scheduleItems by viewModel.scheduleItems.collectAsStateWithLifecycle()
+    val eqState by viewModel.eqState.collectAsStateWithLifecycle()
     var showSplash by remember { mutableStateOf(true) }
     var showRequest by remember { mutableStateOf(false) }
 
@@ -89,7 +91,15 @@ private fun PlayerContent(
                 onRequestSong = { showRequest = true },
                 onChangeServer = onChangeServer,
                 onToggleHistory = { viewModel.toggleHistory() },
-                onDismissUpdate = { viewModel.dismissUpdate() }
+                onDismissUpdate = { viewModel.dismissUpdate() },
+                onOpenSchedule = { viewModel.fetchSchedule() },
+                onOpenEqualizer = { viewModel.initEqualizer() },
+                scheduleItems = scheduleItems,
+                eqState = eqState,
+                onEqPresetChange = { viewModel.setEqPreset(it) },
+                onEqSpatialChange = { viewModel.setSpatialMode(it) },
+                onEqBandChange = { idx, gain -> viewModel.setEqBand(idx, gain) },
+                onEqReset = { viewModel.resetEq() }
             )
         }
 

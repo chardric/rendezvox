@@ -87,6 +87,18 @@ class RadioApi(private val baseUrl: String) {
         }
     }
 
+    suspend fun fetchSchedule(): List<ScheduleItem> = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url("$baseUrl/api/schedule").build()
+        try {
+            val response = client.newCall(request).await()
+            val body = response.body?.string() ?: return@withContext emptyList()
+            val result = gson.fromJson(body, ScheduleResponse::class.java)
+            result.schedules
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     suspend fun fetchRecentPlays(): List<RecentPlay> = withContext(Dispatchers.IO) {
         val request = Request.Builder().url("$baseUrl/api/recent-plays").build()
         try {

@@ -17,8 +17,8 @@ class MediaMoveHandler
             return;
         }
 
-        $absSrc  = MediaBrowseHandler::safePath($srcPath);
-        $absDest = MediaBrowseHandler::safePath($destFolder);
+        $absSrc  = FileManagerBrowseHandler::resolveVirtualPath($srcPath);
+        $absDest = FileManagerBrowseHandler::resolveVirtualPath($destFolder);
 
         if ($absSrc === null || !file_exists($absSrc)) {
             Response::error('Source not found', 404);

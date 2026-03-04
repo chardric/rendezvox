@@ -33,6 +33,8 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
+        audioSessionId = player.audioSessionId
+
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
@@ -65,6 +67,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     companion object {
+        var audioSessionId: Int = 0
+
         fun buildMediaItem(streamUrl: String, title: String, artist: String, stationName: String): MediaItem {
             return MediaItem.Builder()
                 .setUri(streamUrl)

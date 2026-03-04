@@ -70,6 +70,8 @@ function createAudio() {
     setBuffering(false);
     if (isPlaying) setTimeout(() => startPlayback(), 5000);
   });
+
+  reconnectAudioChain();
 }
 
 function startPlayback() {
@@ -701,6 +703,316 @@ async function checkForUpdate() {
     }
   } catch (_) {}
 }
+
+// ── Schedule ──────────────────────────────────────────────
+let scheduleData = null;
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+$('btn-schedule').addEventListener('click', openSchedule);
+$('schedule-close').addEventListener('click', () => $('schedule-overlay').classList.remove('open'));
+$('schedule-overlay').addEventListener('click', e => {
+  if (e.target === $('schedule-overlay')) $('schedule-overlay').classList.remove('open');
+});
+
+async function openSchedule() {
+  $('schedule-overlay').classList.add('open');
+  if (!scheduleData) await fetchSchedule();
+  renderSchedule(scheduleData || []);
+}
+
+async function fetchSchedule() {
+  try {
+    const r = await fetch(`${BASE_URL}/api/schedule`);
+    if (r.ok) {
+      const json = await r.json();
+      scheduleData = json.schedules || [];
+    }
+  } catch (_) {}
+}
+
+function renderSchedule(schedules) {
+  const now = new Date();
+  const tz = 'Asia/Manila';
+  const todayDow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
+
+  const byDay = {};
+  for (let d = 0; d < 7; d++) byDay[d] = [];
+  schedules.forEach(s => {
+    if (s.days_of_week === null) {
+      for (let d = 0; d < 7; d++) byDay[d].push(s);
+    } else {
+      s.days_of_week.forEach(d => { if (byDay[d]) byDay[d].push(s); });
+    }
+  });
+
+  let html = '';
+  if (schedules.length === 0) {
+    html = '<div class="sched-empty">No schedules configured.</div>';
+  } else {
+    for (let i = 0; i < 7; i++) {
+      const dow = (todayDow + i) % 7;
+      const isToday = i === 0;
+      const items = byDay[dow];
+      html += `<div class="sched-day"><div class="sched-day-title">${DAY_NAMES[dow]}`;
+      if (isToday) html += ' <span class="sched-today">TODAY</span>';
+      html += '</div>';
+      if (items.length === 0) {
+        html += '<div class="sched-empty">No scheduled programs</div>';
+      } else {
+        items.forEach(s => {
+          const color = esc(s.playlist_color || '#666');
+          const showNow = isToday && isNowActive(s.start_time, s.end_time);
+          html += '<div class="sched-block">';
+          html += `<span class="sched-dot" style="background:${color}"></span>`;
+          html += `<span class="sched-time">${fmtTime(s.start_time)} \u2013 ${fmtTime(s.end_time)}</span>`;
+          html += `<span class="sched-name">${esc(s.name || s.playlist_name)}</span>`;
+          if (showNow) html += '<span class="sched-now">NOW</span>';
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    }
+  }
+  $('schedule-content').innerHTML = html;
+}
+
+function fmtTime(t) {
+  if (!t) return '';
+  const parts = t.split(':');
+  let h = parseInt(parts[0], 10);
+  const m = parts[1] || '00';
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+function isNowActive(start, end) {
+  const now = new Date();
+  const tz = 'Asia/Manila';
+  const nowStr = now.toLocaleString('en-US', { timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit' });
+  const nowParts = nowStr.split(':');
+  const nowMin = parseInt(nowParts[0], 10) * 60 + parseInt(nowParts[1], 10);
+  const sParts = start.split(':');
+  const sMin = parseInt(sParts[0], 10) * 60 + parseInt(sParts[1], 10);
+  const eParts = end.split(':');
+  let eMin = parseInt(eParts[0], 10) * 60 + parseInt(eParts[1], 10);
+  if (eMin <= sMin) return nowMin >= sMin || nowMin < eMin;
+  return nowMin >= sMin && nowMin < eMin;
+}
+
+// ── Equalizer ─────────────────────────────────────────────
+const EQ_FREQS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+const FREQ_LABELS = ['32','64','125','250','500','1K','2K','4K','8K','16K'];
+const EQ_PRESETS = {
+  flat:           [0,0,0,0,0,0,0,0,0,0],
+  bass_boost:     [6,5,4,2,0,0,0,0,0,0],
+  treble_boost:   [0,0,0,0,0,2,3,4,5,6],
+  vocal:          [-2,-1,0,2,4,4,3,1,0,-1],
+  rock:           [4,3,1,-1,-2,1,3,4,4,3],
+  pop:            [-1,1,3,4,3,0,-1,-1,1,2],
+  jazz:           [3,2,0,2,-2,-2,0,2,3,4],
+  classical:      [4,3,2,1,0,0,0,1,2,3],
+  loudness:       [6,4,0,0,-2,0,-1,-4,4,2],
+  small_speakers: [5,4,3,1,0,1,2,3,3,2],
+  earphones:      [-1,-1,0,1,2,2,1,0,-1,-2],
+  headphones:     [2,1,0,0,-1,0,1,2,2,1]
+};
+
+let audioCtx = null;
+let eqFilters = [];
+let spatialGains = {};
+let spatialDelays = {};
+let eqInited = false;
+let currentPreset = 'flat';
+let currentBands = [0,0,0,0,0,0,0,0,0,0];
+let currentSpatial = 'off';
+let customBands = [0,0,0,0,0,0,0,0,0,0];
+let eqSliderInputs = [];
+
+// Load saved EQ settings
+try {
+  const saved = localStorage.getItem('rendezvox_eq');
+  if (saved) {
+    const d = JSON.parse(saved);
+    currentPreset = d.preset || 'flat';
+    currentSpatial = d.spatial || 'off';
+    customBands = d.customBands || [0,0,0,0,0,0,0,0,0,0];
+    currentBands = currentPreset === 'custom'
+      ? customBands.slice()
+      : (EQ_PRESETS[currentPreset] || EQ_PRESETS.flat).slice();
+  }
+} catch (_) {}
+
+function saveEq() {
+  try {
+    localStorage.setItem('rendezvox_eq', JSON.stringify({
+      preset: currentPreset, spatial: currentSpatial, customBands
+    }));
+  } catch (_) {}
+}
+
+function initAudioChain() {
+  if (eqInited) {
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return;
+  }
+  if (!audio) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let prev = audioCtx.createMediaElementSource(audio);
+
+    eqFilters = [];
+    EQ_FREQS.forEach((freq, i) => {
+      const f = audioCtx.createBiquadFilter();
+      f.type = 'peaking';
+      f.frequency.value = freq;
+      f.Q.value = 1.4;
+      f.gain.value = currentBands[i] || 0;
+      prev.connect(f);
+      eqFilters.push(f);
+      prev = f;
+    });
+
+    const splitter = audioCtx.createChannelSplitter(2);
+    const merger = audioCtx.createChannelMerger(2);
+    spatialGains.lMain = audioCtx.createGain();
+    spatialGains.rMain = audioCtx.createGain();
+    spatialGains.lToR = audioCtx.createGain();
+    spatialGains.rToL = audioCtx.createGain();
+    spatialDelays.lToR = audioCtx.createDelay(0.1);
+    spatialDelays.rToL = audioCtx.createDelay(0.1);
+
+    prev.connect(splitter);
+    splitter.connect(spatialGains.lMain, 0);
+    spatialGains.lMain.connect(merger, 0, 0);
+    splitter.connect(spatialGains.rToL, 1);
+    spatialGains.rToL.connect(spatialDelays.rToL);
+    spatialDelays.rToL.connect(merger, 0, 0);
+    splitter.connect(spatialGains.rMain, 1);
+    spatialGains.rMain.connect(merger, 0, 1);
+    splitter.connect(spatialGains.lToR, 0);
+    spatialGains.lToR.connect(spatialDelays.lToR);
+    spatialDelays.lToR.connect(merger, 0, 1);
+    merger.connect(audioCtx.destination);
+
+    applySpatial();
+    eqInited = true;
+  } catch (_) { audioCtx = null; }
+}
+
+function reconnectAudioChain() {
+  if (!eqInited || !audioCtx || !audio) return;
+  try {
+    const newSource = audioCtx.createMediaElementSource(audio);
+    newSource.connect(eqFilters[0]);
+  } catch (_) {}
+}
+
+function applyBands() {
+  eqFilters.forEach((f, i) => { f.gain.value = currentBands[i] || 0; });
+}
+
+function applySpatial() {
+  const modes = {
+    off:          { l: 1, r: 1, lr: 0, rl: 0, d: 0 },
+    stereo_wide:  { l: 1.15, r: 1.15, lr: -0.25, rl: -0.25, d: 0.012 },
+    surround:     { l: 1.3, r: 1.3, lr: -0.4, rl: -0.4, d: 0.018 },
+    crossfeed:    { l: 0.85, r: 0.85, lr: 0.3, rl: 0.3, d: 0.004 }
+  };
+  const m = modes[currentSpatial] || modes.off;
+  if (spatialGains.lMain) {
+    spatialGains.lMain.gain.value = m.l;
+    spatialGains.rMain.gain.value = m.r;
+    spatialGains.lToR.gain.value = m.lr;
+    spatialGains.rToL.gain.value = m.rl;
+    spatialDelays.lToR.delayTime.value = m.d;
+    spatialDelays.rToL.delayTime.value = m.d;
+  }
+}
+
+function fmtEqVal(v) { return v > 0 ? '+' + v : '' + v; }
+
+function buildEqSliders() {
+  let html = '';
+  FREQ_LABELS.forEach((label, i) => {
+    html += `<div class="eq-band">`
+      + `<div class="eq-band-val" id="eq-val-${i}">${fmtEqVal(currentBands[i])}</div>`
+      + `<input type="range" min="-12" max="12" step="1" value="${currentBands[i]}" data-idx="${i}" orient="vertical">`
+      + `<div class="eq-band-label">${label}</div></div>`;
+  });
+  $('eq-sliders').innerHTML = html;
+  eqSliderInputs = Array.from($('eq-sliders').querySelectorAll('input[type="range"]'));
+  eqSliderInputs.forEach(inp => {
+    inp.addEventListener('input', function() {
+      const idx = parseInt(this.dataset.idx, 10);
+      currentBands[idx] = parseInt(this.value, 10);
+      $(`eq-val-${idx}`).textContent = fmtEqVal(currentBands[idx]);
+      currentPreset = 'custom';
+      $('eq-preset').value = 'custom';
+      customBands = currentBands.slice();
+      applyBands();
+      saveEq();
+    });
+  });
+}
+
+function updateEqSliders() {
+  eqSliderInputs.forEach((inp, i) => {
+    inp.value = currentBands[i];
+    $(`eq-val-${i}`).textContent = fmtEqVal(currentBands[i]);
+  });
+}
+
+// EQ modal handlers
+$('btn-eq').addEventListener('click', () => {
+  initAudioChain();
+  if (!eqSliderInputs.length) buildEqSliders();
+  updateEqSliders();
+  $('eq-preset').value = currentPreset;
+  $('eq-spatial').value = currentSpatial;
+  if (!eqInited) {
+    $('eq-unavailable').style.display = '';
+    $('eq-controls').style.display = 'none';
+  } else {
+    $('eq-unavailable').style.display = 'none';
+    $('eq-controls').style.display = '';
+  }
+  $('eq-overlay').classList.add('open');
+});
+
+$('eq-close').addEventListener('click', () => $('eq-overlay').classList.remove('open'));
+$('eq-overlay').addEventListener('click', e => {
+  if (e.target === $('eq-overlay')) $('eq-overlay').classList.remove('open');
+});
+
+$('eq-preset').addEventListener('change', function() {
+  currentPreset = this.value;
+  currentBands = currentPreset === 'custom'
+    ? customBands.slice()
+    : (EQ_PRESETS[currentPreset] || EQ_PRESETS.flat).slice();
+  updateEqSliders();
+  applyBands();
+  saveEq();
+});
+
+$('eq-spatial').addEventListener('change', function() {
+  currentSpatial = this.value;
+  applySpatial();
+  saveEq();
+});
+
+$('eq-reset').addEventListener('click', () => {
+  currentPreset = 'flat';
+  currentBands = EQ_PRESETS.flat.slice();
+  currentSpatial = 'off';
+  $('eq-preset').value = 'flat';
+  $('eq-spatial').value = 'off';
+  updateEqSliders();
+  applyBands();
+  applySpatial();
+  saveEq();
+});
 
 // ── App start ────────────────────────────────────────────
 let nowPlayingInterval = null;

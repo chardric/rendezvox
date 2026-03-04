@@ -47,6 +47,7 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import net.downstreamtech.rendezvox.data.NowPlayingState
 import net.downstreamtech.rendezvox.data.RecentPlay
+import net.downstreamtech.rendezvox.data.ScheduleItem
 import net.downstreamtech.rendezvox.ui.theme.*
 import java.util.Calendar
 
@@ -58,7 +59,15 @@ fun PlayerScreen(
     onRequestSong: () -> Unit,
     onChangeServer: () -> Unit = {},
     onToggleHistory: () -> Unit = {},
-    onDismissUpdate: () -> Unit = {}
+    onDismissUpdate: () -> Unit = {},
+    onOpenSchedule: () -> Unit = {},
+    onOpenEqualizer: () -> Unit = {},
+    scheduleItems: List<ScheduleItem> = emptyList(),
+    eqState: EqState = EqState(),
+    onEqPresetChange: (String) -> Unit = {},
+    onEqSpatialChange: (String) -> Unit = {},
+    onEqBandChange: (Int, Int) -> Unit = { _, _ -> },
+    onEqReset: () -> Unit = {}
 ) {
     val accent = parseHexColor(state.accentColor)
     val accentLight = lightenColor(accent, 0.18f)
@@ -396,6 +405,72 @@ fun PlayerScreen(
                 Text(
                     if (state.isEmergency) "Requests Unavailable" else "Request a Song",
                     fontSize = 13.sp
+                )
+            }
+
+            // Feature buttons (EQ + Schedule)
+            var showSchedule by remember { mutableStateOf(false) }
+            var showEqualizer by remember { mutableStateOf(false) }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        onOpenEqualizer()
+                        showEqualizer = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BgCard,
+                        contentColor = TextSecondary
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF232326))
+                ) {
+                    Icon(Icons.Default.Equalizer, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Equalizer", fontSize = 12.sp)
+                }
+                Button(
+                    onClick = {
+                        onOpenSchedule()
+                        showSchedule = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BgCard,
+                        contentColor = TextSecondary
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF232326))
+                ) {
+                    Icon(Icons.Default.CalendarMonth, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Schedule", fontSize = 12.sp)
+                }
+            }
+
+            if (showSchedule) {
+                ScheduleDialog(
+                    schedules = scheduleItems,
+                    accentColor = accent,
+                    onDismiss = { showSchedule = false }
+                )
+            }
+
+            if (showEqualizer) {
+                EqualizerDialog(
+                    eqState = eqState,
+                    accentColor = accent,
+                    onPresetChange = onEqPresetChange,
+                    onSpatialChange = onEqSpatialChange,
+                    onBandChange = onEqBandChange,
+                    onReset = onEqReset,
+                    onDismiss = { showEqualizer = false }
                 )
             }
 

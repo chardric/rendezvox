@@ -68,6 +68,19 @@ data class VersionInfo(
     val downloads: Map<String, String> = emptyMap()
 )
 
+data class ScheduleItem(
+    val name: String = "",
+    val days_of_week: List<Int>? = null,
+    val start_time: String = "",
+    val end_time: String = "",
+    val playlist_name: String = "",
+    val playlist_color: String? = null
+)
+
+data class ScheduleResponse(
+    val schedules: List<ScheduleItem> = emptyList()
+)
+
 data class NowPlayingState(
     val stationName: String = "RendezVox",
     val tagline: String = "Online Radio",

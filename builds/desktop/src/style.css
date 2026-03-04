@@ -790,6 +790,168 @@ textarea.field-input {
 }
 @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
+/* ── Feature buttons row ─────────────────────── */
+#feature-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+#feature-row button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #1e1e22;
+  color: #9ca3af;
+  border: 1px solid #232326;
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+#feature-row button:hover { background: #2a2a2e; color: #fff; }
+#feature-row button svg { flex-shrink: 0; }
+
+/* ── Schedule modal ──────────────────────────── */
+#schedule-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 200;
+  align-items: center; justify-content: center;
+}
+#schedule-overlay.open { display: flex; }
+#schedule-modal {
+  background: #141416; border-radius: 12px; padding: 20px;
+  width: 340px; max-height: 80vh; overflow-y: auto;
+}
+#schedule-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+#schedule-header span { color: #fff; font-size: 15px; font-weight: 600; }
+#schedule-header button {
+  background: none; border: none; color: #f87171; font-size: 22px; font-weight: 700;
+  cursor: pointer; opacity: 0.85;
+}
+#schedule-header button:hover { color: #fff; opacity: 1; }
+.sched-day { margin-bottom: 14px; }
+.sched-day:last-child { margin-bottom: 0; }
+.sched-day-title {
+  font-size: 11px; font-weight: 700; color: #fff;
+  margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.sched-today {
+  font-size: 9px; background: var(--accent); color: #fff;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+  text-transform: none; letter-spacing: 0; vertical-align: middle;
+}
+.sched-block {
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 0; font-size: 11px;
+}
+.sched-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.sched-time { color: var(--text-secondary); white-space: nowrap; }
+.sched-name { color: var(--text-primary); flex: 1; }
+.sched-now {
+  font-size: 8px; font-weight: 700; background: var(--accent); color: #fff;
+  padding: 1px 5px; border-radius: 6px; letter-spacing: 0.3px;
+}
+.sched-empty {
+  font-size: 11px; color: var(--text-dim); font-style: italic;
+  padding: 2px 0;
+}
+
+/* ── Equalizer modal ─────────────────────────── */
+#eq-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 200;
+  align-items: center; justify-content: center;
+}
+#eq-overlay.open { display: flex; }
+#eq-modal {
+  background: #141416; border-radius: 12px; padding: 20px;
+  width: 340px; max-height: 80vh; overflow-y: auto;
+}
+#eq-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+#eq-header span { color: #fff; font-size: 15px; font-weight: 600; }
+#eq-header button {
+  background: none; border: none; color: #f87171; font-size: 22px; font-weight: 700;
+  cursor: pointer; opacity: 0.85;
+}
+#eq-header button:hover { color: #fff; opacity: 1; }
+#eq-unavailable {
+  display: none;
+  text-align: center; color: var(--text-dim);
+  font-size: 12px; padding: 16px 0;
+}
+#eq-ctrl-row {
+  display: flex; gap: 10px; margin-bottom: 12px;
+}
+.eq-ctrl-group {
+  flex: 1; display: flex; flex-direction: column; gap: 3px;
+}
+.eq-ctrl-group label {
+  font-size: 10px; color: var(--text-dim); text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.eq-ctrl-group select {
+  background: var(--bg-dark); color: var(--text-primary);
+  border: 1px solid #333355; border-radius: 6px;
+  padding: 5px 8px; font-size: 12px; font-family: inherit;
+  outline: none; cursor: pointer;
+}
+.eq-ctrl-group select:focus { border-color: var(--accent); }
+#eq-sliders {
+  display: flex; align-items: flex-end; justify-content: center;
+  gap: 0; margin-bottom: 10px;
+}
+.eq-band {
+  display: flex; flex-direction: column; align-items: center;
+  width: 30px;
+}
+.eq-band-val {
+  font-size: 9px; color: var(--text-dim); margin-bottom: 2px;
+  text-align: center; width: 100%;
+}
+.eq-band input[type="range"] {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -webkit-appearance: slider-vertical;
+  width: 18px; height: 80px;
+  background: transparent; cursor: pointer;
+}
+.eq-band input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent); cursor: pointer;
+}
+.eq-band input[type="range"]::-webkit-slider-runnable-track {
+  width: 3px; background: #333355; border-radius: 2px;
+}
+.eq-band-label {
+  font-size: 8px; color: var(--text-dim); margin-top: 2px;
+}
+#eq-reset {
+  display: block; width: 100%;
+  background: transparent; border: 1px solid #333;
+  border-radius: 8px; color: var(--text-secondary);
+  padding: 6px 0; font-size: 11px; cursor: pointer;
+  font-family: inherit; transition: background 0.15s;
+}
+#eq-reset:hover { background: rgba(255,255,255,0.04); }
+
 /* ── Time-of-day ambient overlay ──────────────── */
 body::after {
   content: ''; position: fixed; inset: 0;
