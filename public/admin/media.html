@@ -213,6 +213,15 @@
     border-bottom-color: transparent;
     font-weight: 600;
   }
+  .view-tab.tab-uploading {
+    opacity: 0.9;
+    animation: tab-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes tab-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .view-tab.tab-uploading.active { animation: none; opacity: 1; }
   .trash-badge {
     display: inline-block;
     background: #f87171;
@@ -944,7 +953,7 @@
 <script src="/admin/js/icons.js?v=20260226"></script>
 <script src="/admin/js/confirm.js?v=20260226"></script>
 <script src="/admin/js/filemanager.js?v=20260301"></script>
-<script src="/admin/js/media.js?v=20260301"></script>
+<script src="/admin/js/media.js?v=20260304"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

@@ -26,6 +26,7 @@ var RendezVoxMedia = (function () {
   var folderPaths    = {};         // index → relative path for drag-drop folders
   var playingSongId  = null;       // currently previewing song ID
   var pickerSongIds  = [];         // song IDs being added to playlist
+  var uploadInProgress = false;    // true while batch upload is running
 
   // Pagination / filter state
   var currentPage = 1;
@@ -47,6 +48,24 @@ var RendezVoxMedia = (function () {
   // ── Init ──────────────────────────────────────────────
 
   function init() {
+    // Warn before leaving page during upload
+    window.addEventListener('beforeunload', function (e) {
+      if (uploadInProgress) { e.preventDefault(); e.returnValue = ''; }
+    });
+    document.querySelectorAll('.sidebar-nav a').forEach(function (link) {
+      link.addEventListener('click', function (e) {
+        if (!uploadInProgress) return;
+        e.preventDefault();
+        var href = link.href;
+        RendezVoxConfirm(
+          'An upload is in progress (' + document.getElementById('btnSubmitUpload').textContent + ').\nLeaving this page will cancel all remaining uploads.',
+          { title: 'Upload in Progress', okLabel: 'Leave Page', okClass: 'btn-danger', cancelLabel: 'Stay' }
+        ).then(function (leave) {
+          if (leave) { uploadInProgress = false; window.location.href = href; }
+        });
+      });
+    });
+
     loadArtists();
     loadCategories();
 
@@ -271,7 +290,7 @@ var RendezVoxMedia = (function () {
       songSection.classList.add('hidden');
       pagBar.style.display = 'none';
       perPageBar.style.display = 'none';
-      resetUploadForm();
+      if (!uploadInProgress) resetUploadForm();
     } else if (view === 'files') {
       tabFiles.classList.add('active');
       filesView.classList.remove('hidden');
@@ -492,6 +511,7 @@ var RendezVoxMedia = (function () {
   // ── Songs (server-side pagination) ────────────────────
 
   function loadSongs() {
+    if (currentView === 'upload' || currentView === 'files' || currentView === 'duplicates') return;
     var params = [];
 
     if (currentView === 'trash') {
@@ -624,6 +644,11 @@ var RendezVoxMedia = (function () {
     var bar  = document.getElementById('paginationBar');
     var info = document.getElementById('paginationInfo');
     var nav  = document.getElementById('paginationNav');
+
+    if (currentView === 'upload' || currentView === 'files' || currentView === 'duplicates') {
+      bar.style.display = 'none';
+      return;
+    }
 
     if (totalSongs === 0) {
       bar.style.display = 'none';
@@ -1088,6 +1113,12 @@ var RendezVoxMedia = (function () {
     document.getElementById('uploadProgressSize').textContent = '';
   }
 
+  function updateUploadTabIndicator() {
+    var tab = document.getElementById('tabUpload');
+    tab.textContent = uploadInProgress ? 'Upload \u25CF' : 'Upload';
+    tab.classList.toggle('tab-uploading', uploadInProgress);
+  }
+
   function setUploadFormDisabled(disabled) {
     var ids = ['uploadFiles', 'uploadGenreSel', 'uploadArtist', 'btnNewArtist', 'btnNewGenre', 'btnCancelUpload'];
     ids.forEach(function (id) {
@@ -1139,6 +1170,8 @@ var RendezVoxMedia = (function () {
   }
 
   function doUpload(files, genreId, artistId) {
+    uploadInProgress = true;
+    updateUploadTabIndicator();
     var btn = document.getElementById('btnSubmitUpload');
     btn.textContent = files.length > 1 ? 'Uploading ' + files.length + ' files...' : 'Uploading...';
 
@@ -1172,6 +1205,8 @@ var RendezVoxMedia = (function () {
           showToast((err && err.error) || 'Upload failed', 'error');
         })
         .finally(function () {
+          uploadInProgress = false;
+          updateUploadTabIndicator();
           btn.disabled    = false;
           btn.textContent = 'Upload';
           setUploadFormDisabled(false);
@@ -1223,6 +1258,8 @@ var RendezVoxMedia = (function () {
         }
         loadSongs();
         loadPendingCount();
+        uploadInProgress = false;
+        updateUploadTabIndicator();
         btn.disabled    = false;
         btn.textContent = 'Upload';
         setUploadFormDisabled(false);
