@@ -154,7 +154,13 @@ class SongCreateHandler
             return ['filename' => $originalName, 'status' => 'error', 'error' => 'Invalid folder path'];
         }
 
-        $destDir  = self::IMPORTS_DIR . '/' . dirname($safePath);
+        // If path has no folder component (just a filename), treat as regular upload
+        $dir = dirname($safePath);
+        if ($dir === '.') {
+            return $this->stageToUploads($tmpName, $originalName, $ext, $sidecar);
+        }
+
+        $destDir  = self::IMPORTS_DIR . '/' . $dir;
         $filename = basename($safePath);
 
         // Sanitize the filename portion

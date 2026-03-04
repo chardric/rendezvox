@@ -13,6 +13,7 @@ var RendezVoxMedia = (function () {
     pause: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>',
     addPl: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
     check: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 12 9 17 20 6"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
   };
 
   // ── State ─────────────────────────────────────────────
@@ -624,7 +625,7 @@ var RendezVoxMedia = (function () {
             '<input type="checkbox" class="song-check" data-id="' + s.id + '"' + isChecked + '>' +
           '</td>' +
           '<td style="text-align:center;color:var(--text-dim,rgba(255,255,255,0.35));font-size:0.78rem">' + numCell + '</td>' +
-          '<td>' + title + (!s.is_active && !isTrash && !isInactiveView() ? '<span class="badge-inactive">(off)</span>' : '') + '</td>' +
+          '<td>' + title + (s.meta_locked ? ' <span class="badge-locked" title="Manually edited — protected from re-scan">' + IC.lock + '</span>' : '') + (!s.is_active && !isTrash && !isInactiveView() ? '<span class="badge-inactive">(off)</span>' : '') + '</td>' +
           '<td>' + artist + '</td>' +
           '<td>' + genre  + '</td>' +
           '<td style="font-size:0.78rem;opacity:0.55;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(s.file_path || '') + '">' + escHtml(s.file_path || '') + '</td>' +
@@ -1328,6 +1329,12 @@ var RendezVoxMedia = (function () {
       document.getElementById('editArtist').value = s.artist_id;
       document.getElementById('editGenre').value  = s.category_id;
 
+      // Show tag-lock toggle (visible only for already-locked songs)
+      var lockRow = document.getElementById('editLockRow');
+      var lockCb  = document.getElementById('editMetaLocked');
+      lockCb.checked = s.meta_locked;
+      lockRow.classList.toggle('hidden', !s.meta_locked);
+
       document.getElementById('editModal').classList.remove('hidden');
     }).catch(function (err) {
       showToast((err && err.error) || 'Failed to load song', 'error');
@@ -1353,6 +1360,12 @@ var RendezVoxMedia = (function () {
       is_active:       document.getElementById('editActive').checked,
       is_requestable:  document.getElementById('editRequestable').checked,
     };
+
+    // If the lock toggle is visible (song was previously locked), send explicit value
+    var lockRow = document.getElementById('editLockRow');
+    if (!lockRow.classList.contains('hidden')) {
+      body.meta_locked = document.getElementById('editMetaLocked').checked;
+    }
 
     RendezVoxAPI.put('/admin/songs/' + id, body)
       .then(function () {

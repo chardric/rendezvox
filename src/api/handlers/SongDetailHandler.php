@@ -47,6 +47,7 @@ class SongDetailHandler
                 'last_played_at'  => $row['last_played_at'],
                 'is_active'       => (bool) $row['is_active'],
                 'is_requestable'  => (bool) $row['is_requestable'],
+                'meta_locked'     => (bool) ($row['meta_locked'] ?? false),
                 'created_at'      => $row['created_at'],
                 'updated_at'      => $row['updated_at'],
             ],

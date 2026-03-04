@@ -51,6 +51,7 @@
   .bulk-count { font-weight: 600; flex: 1; }
 
   .badge-inactive { color: #f87171; font-size: 0.7rem; margin-left: 4px; }
+  .badge-locked { color: var(--text-dim, rgba(255,255,255,0.35)); margin-left: 4px; vertical-align: middle; }
 
   /* ── Upload result list ────────────────────────────── */
   .upload-result-list { max-height: 180px; overflow-y: auto; margin-top: 8px; font-size: 0.82rem; }
@@ -880,6 +881,13 @@
               <span class="slider"></span>
             </label>
           </div>
+          <div id="editLockRow" style="display:flex;align-items:center;gap:6px" class="hidden">
+            <label style="margin:0" title="When locked, re-scan/re-tag will not overwrite this song's metadata">Tag-locked</label>
+            <label class="toggle toggle-sm" style="margin:0">
+              <input type="checkbox" id="editMetaLocked">
+              <span class="slider"></span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -953,7 +961,7 @@
 <script src="/admin/js/icons.js?v=20260226"></script>
 <script src="/admin/js/confirm.js?v=20260226"></script>
 <script src="/admin/js/filemanager.js?v=20260301"></script>
-<script src="/admin/js/media.js?v=20260304"></script>
+<script src="/admin/js/media.js?v=20260304b"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

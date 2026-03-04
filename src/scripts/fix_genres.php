@@ -243,13 +243,13 @@ function titleFromFilename(string $filePath): string
 
 // ── Main ─────────────────────────────────────────────────
 
-// --all mode: reset tagged_at so all songs get reprocessed
+// --all mode: reset tagged_at so all songs get reprocessed (but NOT meta_locked ones)
 if ($allMode && !$dryRun) {
-    $db->exec("UPDATE songs SET tagged_at = NULL");
-    logMsg('Re-scan all: reset tagged_at for all songs', $autoMode);
+    $db->exec("UPDATE songs SET tagged_at = NULL WHERE meta_locked = FALSE");
+    logMsg('Re-scan all: reset tagged_at for non-locked songs', $autoMode);
 }
 
-// Get songs to process
+// Get songs to process (skip meta_locked — those were manually edited by admin)
 $stmt = $db->query("
     SELECT s.id, s.title, s.year, s.file_path, s.artist_id,
            a.name AS artist_name, c.name AS current_genre
@@ -257,6 +257,7 @@ $stmt = $db->query("
     JOIN artists a ON a.id = s.artist_id
     JOIN categories c ON c.id = s.category_id
     WHERE s.tagged_at IS NULL
+      AND s.meta_locked = FALSE
     ORDER BY a.name, s.id
 ");
 $allSongs = $stmt->fetchAll();
