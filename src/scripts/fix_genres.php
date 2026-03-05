@@ -13,12 +13,12 @@
  *   2. If AcoustID API key is configured → fingerprint each song via fpcalc
  *      and look up title, artist, album from AcoustID + MusicBrainz
  *   3. Genre detection (priority order):
- *      a. Embedded genre tag from audio file (ID3/Vorbis)
- *      b. AI-type artists → extract genre from title parentheses
- *      c. MusicBrainz recording genre (track-specific)
- *      d. Title keyword heuristics (Christian, etc.)
- *      e. MusicBrainz artist genre (last resort)
- *      f. TheAudioDB fallback
+ *      a. AI-type artists → extract genre from title parentheses
+ *      b. MusicBrainz recording genre (track-specific, most accurate)
+ *      c. Title keyword heuristics (Christian, etc.)
+ *      d. MusicBrainz artist genre (artist-level)
+ *      e. TheAudioDB fallback
+ *      f. Embedded genre tag from audio file (ID3/Vorbis, least reliable)
  *   4. Write updated tags back to the audio file via ffmpeg
  *
  * Progress is written to /tmp/rendezvox_genre_scan.json so the admin UI
@@ -93,8 +93,9 @@ function writeProgress(array &$progress): void
 // ── Initialize MetadataLookup ────────────────────────────
 $lookup = new MetadataLookup();
 
-$stmt = $db->prepare("SELECT key, value FROM settings WHERE key IN ('acoustid_api_key', 'theaudiodb_api_key')");
+$stmt = $db->prepare("SELECT key, value FROM settings WHERE key IN ('acoustid_api_key', 'theaudiodb_api_key', 'gemini_api_key', 'ollama_url', 'ollama_model', 'ai_provider')");
 $stmt->execute();
+$aiProvider = 'gemini_ollama';
 while ($row = $stmt->fetch()) {
     if ($row['key'] === 'acoustid_api_key' && !empty(trim($row['value']))) {
         $lookup->setAcoustIdKey(trim($row['value']));
@@ -102,7 +103,21 @@ while ($row = $stmt->fetch()) {
     if ($row['key'] === 'theaudiodb_api_key' && !empty(trim($row['value']))) {
         $lookup->setTheAudioDbKey(trim($row['value']));
     }
+    if ($row['key'] === 'ai_provider') {
+        $aiProvider = trim($row['value']) ?: 'gemini_ollama';
+    }
+    if ($row['key'] === 'gemini_api_key' && !empty(trim($row['value']))) {
+        $lookup->setGeminiApiKey(trim($row['value']));
+    }
+    if ($row['key'] === 'ollama_url' && !empty(trim($row['value']))) {
+        $lookup->setOllamaUrl(trim($row['value']));
+    }
+    if ($row['key'] === 'ollama_model' && !empty(trim($row['value']))) {
+        $lookup->setOllamaModel(trim($row['value']));
+    }
 }
+$useGemini = in_array($aiProvider, ['gemini', 'gemini_ollama']);
+$useOllama = in_array($aiProvider, ['ollama', 'gemini_ollama']);
 
 $musicDir = '/var/lib/rendezvox/music';
 
@@ -393,25 +408,7 @@ foreach ($allSongs as $song) {
                     || stripos($artistName, 'ai ') !== false
                     || stripos($artistName, 'ai cover') !== false);
 
-        // 3a: Embedded genre tag (highest priority for non-AI artists)
-        $genericTags = ['other', 'unknown', 'misc', 'none', ''];
-        if (!$isAiArtist && $embeddedGenre !== '' && !in_array(strtolower($embeddedGenre), $genericTags)) {
-            $mapped = MetadataLookup::mapGenre($embeddedGenre);
-            $resolvedGenre = $mapped ?: ucfirst(strtolower($embeddedGenre));
-
-            if (strtolower($resolvedGenre) !== strtolower($genre)) {
-                $genre = $resolvedGenre;
-                $catId = findOrCreateCategory($db, $genre, $categoryCache);
-                if (!$dryRun) {
-                    $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
-                       ->execute(['cat' => $catId, 'id' => $songId]);
-                }
-                $progress['updated']++;
-                $tagsChanged = true;
-            }
-        }
-
-        // 3b: AI artist — extract genre from title parentheses
+        // 3a: AI artist — extract genre from title parentheses
         if ($isAiArtist) {
             $extracted = extractGenreFromTitle($title);
             if ($extracted && strtolower($extracted) !== strtolower($genre)) {
@@ -530,6 +527,110 @@ foreach ($allSongs as $song) {
         }
     }
 
+    // 3g: Gemini AI metadata enrichment — fill remaining gaps
+    // Triggers when: gaps remain OR no external source matched (artist/title may be wrong)
+    $aiResult = null;
+    $needAiGenre  = strtolower($genre) === 'uncategorized';
+    $needAiYear   = empty($song['year']) && empty($mbResult['year'] ?? null) && empty($audioDbResult['year'] ?? null);
+    $needAiArtist = MetadataLookup::looksLikeFilenameArtifact($artistName)
+                 || (!$gotExternalData && !empty(trim($artistName)));
+    $needAiTitle  = MetadataLookup::looksLikeFilenameArtifact($title)
+                 || (!$gotExternalData && !empty(trim($title)));
+    $needAiAlbum  = empty($mbResult['album'] ?? null) && empty($audioDbResult['album'] ?? null);
+    if ($aiProvider !== 'none' && ($needAiGenre || $needAiYear || $needAiArtist || $needAiTitle || $needAiAlbum)) {
+        $aiNeeds = [
+            'genre'  => $needAiGenre,
+            'year'   => $needAiYear,
+            'artist' => $needAiArtist,
+            'title'  => $needAiTitle,
+            'album'  => $needAiAlbum,
+        ];
+
+        if ($useGemini) {
+            $aiResult = $lookup->lookupByAI($artistName, $title, $aiNeeds);
+        }
+
+        if ((!$aiResult || isset($aiResult['_error'])) && $useOllama) {
+            $aiResult = $lookup->lookupByOllamaAI($artistName, $title, $aiNeeds);
+        }
+
+        if ($aiResult && !isset($aiResult['_error'])) {
+            $gotExternalData = true;
+
+            if (!empty($aiResult['genre']) && $needAiGenre) {
+                $genre = $aiResult['genre'];
+                $catId = findOrCreateCategory($db, $genre, $categoryCache);
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                       ->execute(['cat' => $catId, 'id' => $songId]);
+                }
+                $progress['updated']++;
+                $tagsChanged = true;
+            }
+
+            if (!empty($aiResult['year']) && $needAiYear && !$dryRun) {
+                $db->prepare("UPDATE songs SET year = :year WHERE id = :id")
+                   ->execute(['year' => $aiResult['year'], 'id' => $songId]);
+                $progress['updated']++;
+                $tagsChanged = true;
+            }
+
+            if (!empty($aiResult['artist']) && $needAiArtist) {
+                // Only override plausible-looking names when no external source confirmed them
+                $isArtifact = MetadataLookup::looksLikeFilenameArtifact($artistName);
+                if ($isArtifact || (!$gotExternalData && strtolower(trim($aiResult['artist'])) !== strtolower(trim($artistName)))) {
+                    $newArtistId = findOrCreateArtist($db, $aiResult['artist'], $artistCache);
+                    $artistName = $aiResult['artist'];
+                    $artistId = $newArtistId;
+                    if (!$dryRun) {
+                        $db->prepare("UPDATE songs SET artist_id = :aid WHERE id = :id")
+                           ->execute(['aid' => $newArtistId, 'id' => $songId]);
+                    }
+                    $progress['updated']++;
+                    $tagsChanged = true;
+                }
+            }
+
+            if (!empty($aiResult['title']) && $needAiTitle) {
+                $isArtifact = MetadataLookup::looksLikeFilenameArtifact($title);
+                if ($isArtifact || (!$gotExternalData && strtolower(trim($aiResult['title'])) !== strtolower(trim($title)))) {
+                    $title = $aiResult['title'];
+                    if (!$dryRun) {
+                        $db->prepare("UPDATE songs SET title = :title WHERE id = :id")
+                           ->execute(['title' => $title, 'id' => $songId]);
+                    }
+                    $progress['updated']++;
+                    $tagsChanged = true;
+                }
+            }
+        }
+    }
+
+    // 3h: Embedded genre tag — last resort before giving up
+    // Embedded ID3/Vorbis tags are often inaccurate, so only use when all
+    // external APIs (MusicBrainz, TheAudioDB) returned nothing.
+    if (strtolower($genre) === 'uncategorized') {
+        $isAiCheck = (stripos($artistName, 'a.i.') !== false
+                   || stripos($artistName, 'ai ') !== false
+                   || stripos($artistName, 'ai cover') !== false);
+        $genericTags = ['other', 'unknown', 'misc', 'none', ''];
+        if (!$isAiCheck && $embeddedGenre !== '' && !in_array(strtolower($embeddedGenre), $genericTags)) {
+            $mapped = MetadataLookup::mapGenre($embeddedGenre);
+            $resolvedGenre = $mapped ?: ucfirst(strtolower($embeddedGenre));
+
+            if (strtolower($resolvedGenre) !== strtolower($genre)) {
+                $genre = $resolvedGenre;
+                $catId = findOrCreateCategory($db, $genre, $categoryCache);
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                       ->execute(['cat' => $catId, 'id' => $songId]);
+                }
+                $progress['updated']++;
+                $tagsChanged = true;
+            }
+        }
+    }
+
     // Step 6: Clear ALL tags and write fresh metadata
     if (!$dryRun && file_exists($currentPath)) {
         // Extract original cover art before clearing
@@ -541,11 +642,11 @@ foreach ($allSongs as $song) {
             'artist' => $artistName,
             'genre'  => $genre,
         ];
-        $year = $mbResult['year'] ?? ($audioDbResult['year'] ?? ($song['year'] ?: null));
+        $year = $mbResult['year'] ?? ($audioDbResult['year'] ?? ($aiResult['year'] ?? ($song['year'] ?: null)));
         if ($year) {
             $freshTags['date'] = (string) $year;
         }
-        $album = $mbResult['album'] ?? ($audioDbResult['album'] ?? null);
+        $album = $mbResult['album'] ?? ($audioDbResult['album'] ?? ($aiResult['album'] ?? null));
         if ($album) {
             $freshTags['album'] = $album;
         }

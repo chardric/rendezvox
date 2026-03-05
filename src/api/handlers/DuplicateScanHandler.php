@@ -19,6 +19,18 @@ class DuplicateScanHandler
         $db = Database::get();
         $groups = [];
 
+        // Pre-load playlist membership for all songs (song_id → playlist names)
+        $plStmt = $db->query("
+            SELECT ps.song_id, p.name AS playlist_name
+            FROM playlist_songs ps
+            JOIN playlists p ON p.id = ps.playlist_id
+            ORDER BY ps.song_id
+        ");
+        $playlistMap = [];
+        while ($plRow = $plStmt->fetch()) {
+            $playlistMap[(int) $plRow['song_id']][] = $plRow['playlist_name'];
+        }
+
         // ── Tier 1: Exact duplicates (same file_hash) ──
         $stmt = $db->query("
             SELECT s.*, a.name AS artist_name
@@ -44,6 +56,7 @@ class DuplicateScanHandler
         foreach ($byHash as $hash => $rows) {
             $songs = [];
             $bestId = null;
+            $bestInPlaylist = false;
             $bestPlays = -1;
             $bestSize = -1;
 
@@ -55,7 +68,7 @@ class DuplicateScanHandler
                     $fileSize = (int) filesize($absPath);
                 }
 
-                $song = $this->formatSong($row, $fileSize, $fileExists);
+                $song = $this->formatSong($row, $fileSize, $fileExists, $playlistMap);
                 $songs[] = $song;
                 $exactSongIds[(int) $row['id']] = true;
 
@@ -64,11 +77,18 @@ class DuplicateScanHandler
                     continue;
                 }
 
+                $songId = (int) $row['id'];
+                $inPlaylist = !empty($playlistMap[$songId]);
                 $plays = (int) $row['play_count'];
-                if ($plays > $bestPlays || ($plays === $bestPlays && $fileSize > $bestSize)) {
+
+                // Prefer songs in playlists, then by play count, then file size
+                if ($inPlaylist && !$bestInPlaylist
+                    || ($inPlaylist === $bestInPlaylist && $plays > $bestPlays)
+                    || ($inPlaylist === $bestInPlaylist && $plays === $bestPlays && $fileSize > $bestSize)) {
+                    $bestInPlaylist = $inPlaylist;
                     $bestPlays = $plays;
                     $bestSize = $fileSize;
-                    $bestId = (int) $row['id'];
+                    $bestId = $songId;
                 }
             }
 
@@ -133,6 +153,7 @@ class DuplicateScanHandler
                 foreach ($likelyGroups as $idList) {
                     $songs = [];
                     $bestId = null;
+                    $bestInPlaylist = false;
                     $bestQuality = -1;
                     $bestPlays = -1;
 
@@ -146,7 +167,7 @@ class DuplicateScanHandler
                             $fileSize = (int) filesize($absPath);
                         }
 
-                        $song = $this->formatSong($row, $fileSize, $fileExists);
+                        $song = $this->formatSong($row, $fileSize, $fileExists, $playlistMap);
                         $songs[] = $song;
 
                         // Never recommend keeping a zero-byte or missing file
@@ -154,13 +175,18 @@ class DuplicateScanHandler
                             continue;
                         }
 
-                        // Best quality wins (lossless > lossy, then larger file = higher bitrate)
+                        $inPlaylist = !empty($playlistMap[$id]);
                         $quality = $this->qualityScore($absPath, $fileSize);
                         $plays = (int) $row['play_count'];
-                        if ($quality > $bestQuality || ($quality === $bestQuality && $plays > $bestPlays)) {
+
+                        // Prefer songs in playlists, then quality, then plays
+                        if ($inPlaylist && !$bestInPlaylist
+                            || ($inPlaylist === $bestInPlaylist && $quality > $bestQuality)
+                            || ($inPlaylist === $bestInPlaylist && $quality === $bestQuality && $plays > $bestPlays)) {
+                            $bestInPlaylist = $inPlaylist;
                             $bestQuality = $quality;
                             $bestPlays = $plays;
-                            $bestId = (int) $row['id'];
+                            $bestId = $id;
                         }
                     }
 
@@ -217,6 +243,7 @@ class DuplicateScanHandler
 
             $songs = [];
             $bestId = null;
+            $bestInPlaylist = false;
             $bestQuality = -1;
             $bestPlays = -1;
 
@@ -228,16 +255,22 @@ class DuplicateScanHandler
                     $fileSize = (int) filesize($absPath);
                 }
 
-                $songs[] = $this->formatSong($row, $fileSize, $fileExists);
+                $songs[] = $this->formatSong($row, $fileSize, $fileExists, $playlistMap);
 
                 if ($fileSize === 0) continue;
 
+                $songId = (int) $row['id'];
+                $inPlaylist = !empty($playlistMap[$songId]);
                 $quality = $this->qualityScore($absPath, $fileSize);
                 $plays = (int) $row['play_count'];
-                if ($quality > $bestQuality || ($quality === $bestQuality && $plays > $bestPlays)) {
+
+                if ($inPlaylist && !$bestInPlaylist
+                    || ($inPlaylist === $bestInPlaylist && $quality > $bestQuality)
+                    || ($inPlaylist === $bestInPlaylist && $quality === $bestQuality && $plays > $bestPlays)) {
+                    $bestInPlaylist = $inPlaylist;
                     $bestQuality = $quality;
                     $bestPlays = $plays;
-                    $bestId = (int) $row['id'];
+                    $bestId = $songId;
                 }
             }
 
@@ -282,10 +315,12 @@ class DuplicateScanHandler
         return ($lossless ? 100000 : 0) + $fileSize;
     }
 
-    private function formatSong(array $row, int $fileSize, bool $fileExists): array
+    private function formatSong(array $row, int $fileSize, bool $fileExists, array $playlistMap): array
     {
+        $songId = (int) $row['id'];
+        $playlists = $playlistMap[$songId] ?? [];
         return [
-            'id'           => (int) $row['id'],
+            'id'           => $songId,
             'title'        => $row['title'],
             'artist_id'    => (int) $row['artist_id'],
             'artist_name'  => $row['artist_name'],
@@ -299,6 +334,8 @@ class DuplicateScanHandler
             'is_active'    => (bool) $row['is_active'],
             'created_at'   => $row['created_at'],
             'duplicate_of' => $row['duplicate_of'] ? (int) $row['duplicate_of'] : null,
+            'in_playlist'  => !empty($playlists),
+            'playlists'    => $playlists,
         ];
     }
 

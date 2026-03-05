@@ -125,22 +125,92 @@ class PlaylistMergeHandler
                 }
             }
 
-            // Insert songs, skipping duplicates
-            $seen    = [];
-            $pos     = 0;
-            $added   = 0;
-            $skipped = 0;
-            $insert  = $db->prepare('
+            // Pre-load song metadata for content-based dedup (Spotify-style)
+            $uniqueSongIds = array_unique($allSongIds);
+            $songMeta = [];
+            if (!empty($uniqueSongIds)) {
+                $ph = implode(',', array_fill(0, count($uniqueSongIds), '?'));
+                $metaStmt = $db->prepare("
+                    SELECT s.id, s.file_hash, LOWER(s.title) AS title_lc,
+                           s.artist_id, s.duplicate_of
+                    FROM songs s WHERE s.id IN ({$ph})
+                ");
+                foreach (array_values($uniqueSongIds) as $i => $id) {
+                    $metaStmt->bindValue($i + 1, $id, \PDO::PARAM_INT);
+                }
+                $metaStmt->execute();
+                foreach ($metaStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                    $songMeta[(int) $row['id']] = $row;
+                }
+            }
+
+            // Cross-playlist dedup: pre-load song IDs from all other active non-emergency playlists
+            $crossStmt = $db->prepare('
+                SELECT DISTINCT ps.song_id
+                FROM playlist_songs ps
+                JOIN playlists p ON p.id = ps.playlist_id
+                WHERE p.id != :id
+                  AND p.is_active = true
+                  AND p.type != :emergency
+            ');
+            $crossStmt->execute(['id' => $newId, 'emergency' => 'emergency']);
+            $crossPlaylistSet = array_flip($crossStmt->fetchAll(\PDO::FETCH_COLUMN));
+
+            // Insert songs, skipping duplicates by ID, file hash, title+artist, and cross-playlist
+            $seenIds    = [];
+            $seenHashes = [];
+            $seenKeys   = [];
+            $pos        = 0;
+            $added      = 0;
+            $skipped    = 0;
+            $crossSkipped = 0;
+            $insert     = $db->prepare('
                 INSERT INTO playlist_songs (playlist_id, song_id, position)
                 VALUES (:pid, :sid, :pos)
             ');
 
             foreach ($allSongIds as $sid) {
-                if (isset($seen[$sid])) {
+                // Skip if same song ID already added
+                if (isset($seenIds[$sid])) {
                     $skipped++;
                     continue;
                 }
-                $seen[$sid] = true;
+
+                $meta = $songMeta[$sid] ?? null;
+                if ($meta) {
+                    // Resolve duplicate_of to canonical for dedup purposes
+                    $canonId = $meta['duplicate_of'] ? (int) $meta['duplicate_of'] : $sid;
+                    if ($canonId !== $sid && isset($seenIds[$canonId])) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Skip if same file hash already added
+                    $hash = $meta['file_hash'] ?? '';
+                    if ($hash !== '' && isset($seenHashes[$hash])) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Skip if same title+artist already added
+                    $contentKey = $meta['artist_id'] . '::' . $meta['title_lc'];
+                    if (isset($seenKeys[$contentKey])) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    if ($hash !== '') $seenHashes[$hash] = true;
+                    $seenKeys[$contentKey] = true;
+                    $seenIds[$canonId] = true;
+                }
+
+                // Skip if song already exists in another active non-emergency playlist
+                if (isset($crossPlaylistSet[$sid])) {
+                    $crossSkipped++;
+                    continue;
+                }
+
+                $seenIds[$sid] = true;
                 $pos++;
                 $insert->execute(['pid' => $newId, 'sid' => $sid, 'pos' => $pos]);
                 $added++;
@@ -153,11 +223,18 @@ class PlaylistMergeHandler
                 RotationEngine::generateCycleOrder($db, $newId);
             }
 
+            $msg = 'Merged ' . count($sourceIds) . ' playlists into "' . $name . '" (' . $added . ' songs, ' . $skipped . ' duplicates skipped';
+            if ($crossSkipped > 0) {
+                $msg .= ', ' . $crossSkipped . ' skipped (in another playlist)';
+            }
+            $msg .= ')';
+
             Response::json([
-                'id'      => $newId,
-                'message' => 'Merged ' . count($sourceIds) . ' playlists into "' . $name . '" (' . $added . ' songs, ' . $skipped . ' duplicates skipped)',
-                'added'   => $added,
-                'skipped' => $skipped,
+                'id'            => $newId,
+                'message'       => $msg,
+                'added'         => $added,
+                'skipped'       => $skipped,
+                'cross_skipped' => $crossSkipped,
             ], 201);
         } catch (\Exception $e) {
             $db->rollBack();

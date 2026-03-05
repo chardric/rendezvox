@@ -63,6 +63,10 @@ class PlaylistCreateHandler
 
         $id = (int) $stmt->fetchColumn();
 
+        if ($type === 'emergency') {
+            RotationEngine::autoFillEmergencyPlaylist($db, $id);
+        }
+
         Response::json(['id' => $id, 'message' => 'Playlist created'], 201);
     }
 }

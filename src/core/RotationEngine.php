@@ -390,6 +390,224 @@ class RotationEngine
         return false;
     }
 
+    /**
+     * Check if a song was played within the last N hours.
+     *
+     * @param PDO $db
+     * @param int $songId      The song to check.
+     * @param int $hoursWindow Number of hours to look back (default 24).
+     * @return bool True if the song was played within the window.
+     */
+    public static function isSongRecentlyPlayed(PDO $db, int $songId, int $hoursWindow = 24): bool
+    {
+        if ($hoursWindow <= 0) {
+            return false;
+        }
+
+        $stmt = $db->prepare('
+            SELECT 1 FROM play_history
+            WHERE song_id = :song_id
+              AND started_at > NOW() - make_interval(hours => :hours)
+            LIMIT 1
+        ');
+        $stmt->bindValue('song_id', $songId, PDO::PARAM_INT);
+        $stmt->bindValue('hours', $hoursWindow, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
+     * Auto-fill an emergency playlist with random songs from the library.
+     *
+     * Clears existing songs and fills with weighted-random picks up to
+     * the configured hours target. Called on cycle reset and after creation.
+     *
+     * @return int Number of songs added.
+     */
+    public static function autoFillEmergencyPlaylist(PDO $db, int $playlistId): int
+    {
+        $targetHours = self::getSettingInt($db, 'emergency_autofill_hours', 24);
+        $targetMs = $targetHours * 3600 * 1000;
+
+        $db->beginTransaction();
+        try {
+            // Clear existing songs
+            $db->prepare('DELETE FROM playlist_songs WHERE playlist_id = :id')
+                ->execute(['id' => $playlistId]);
+
+            // Fetch candidates: active, not duplicate, not trashed, not played in last 24h
+            $candidates = self::fetchEmergencyCandidates($db, true);
+
+            // Fallback: if pool is too small, include recently played songs
+            if (empty($candidates)) {
+                $candidates = self::fetchEmergencyCandidates($db, false);
+            }
+
+            if (empty($candidates)) {
+                $db->commit();
+                $db->prepare("
+                    INSERT INTO station_logs (level, component, message)
+                    VALUES ('warning', 'emergency', 'Auto-fill skipped: no songs in library')
+                ")->execute();
+                return 0;
+            }
+
+            // Weighted shuffle
+            $candidates = self::weightedShuffle($candidates);
+
+            // Walk shuffled list, accumulate duration until target reached
+            $picked = [];
+            $totalMs = 0;
+            foreach ($candidates as $song) {
+                $picked[] = $song;
+                $totalMs += (int) $song['duration_ms'];
+                if ($totalMs >= $targetMs) {
+                    break;
+                }
+            }
+
+            // Batch insert with sequential positions
+            $insert = $db->prepare('
+                INSERT INTO playlist_songs (playlist_id, song_id, position)
+                VALUES (:playlist_id, :song_id, :position)
+            ');
+            foreach ($picked as $idx => $song) {
+                $insert->execute([
+                    'playlist_id' => $playlistId,
+                    'song_id'     => $song['song_id'],
+                    'position'    => $idx + 1,
+                ]);
+            }
+
+            // Generate cycle order with artist/category/title separation
+            self::generateCycleOrder($db, $playlistId);
+
+            $db->commit();
+
+            $count = count($picked);
+            $hours = round($totalMs / 3600000, 1);
+            $db->prepare("
+                INSERT INTO station_logs (level, component, message)
+                VALUES ('info', 'emergency', :msg)
+            ")->execute(['msg' => "Auto-filled emergency playlist with {$count} songs (~{$hours}h)"]);
+
+            return $count;
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            error_log('Emergency auto-fill failed: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Fetch candidate songs for emergency auto-fill.
+     *
+     * Two layers of seasonal exclusion:
+     * 1. Category-based: categories with seasonal_start/end are excluded outside their window
+     * 2. Song-based: songs with is_christmas=true are excluded outside BER months (Sep 1–Jan 6)
+     */
+    private static function fetchEmergencyCandidates(PDO $db, bool $excludeRecent): array
+    {
+        $recentClause = $excludeRecent
+            ? 'AND s.id NOT IN (
+                   SELECT DISTINCT ph.song_id FROM play_history ph
+                   WHERE ph.started_at > NOW() - INTERVAL \'24 hours\'
+               )'
+            : '';
+
+        $tz = self::getSettingString($db, 'station_timezone', 'UTC');
+
+        // Exclude Christmas songs outside BER months (Sep 1 – Jan 6)
+        $christmasClause = self::isInChristmasSeason($tz)
+            ? ''
+            : 'AND s.is_christmas = false';
+
+        $stmt = $db->prepare("
+            SELECT
+                s.id AS song_id,
+                s.duration_ms,
+                s.artist_id,
+                s.category_id,
+                s.title,
+                (s.rotation_weight * c.rotation_weight) AS effective_weight
+            FROM songs s
+            JOIN categories c ON c.id = s.category_id
+            WHERE s.is_active = true
+              AND s.duplicate_of IS NULL
+              AND s.trashed_at IS NULL
+              AND (
+                  c.seasonal_start IS NULL
+                  OR CASE
+                      WHEN c.seasonal_start <= c.seasonal_end THEN
+                          TO_CHAR(NOW() AT TIME ZONE :tz, 'MM-DD') BETWEEN c.seasonal_start AND c.seasonal_end
+                      ELSE
+                          TO_CHAR(NOW() AT TIME ZONE :tz2, 'MM-DD') >= c.seasonal_start
+                          OR TO_CHAR(NOW() AT TIME ZONE :tz3, 'MM-DD') <= c.seasonal_end
+                  END
+              )
+              {$christmasClause}
+              {$recentClause}
+        ");
+        $stmt->execute(['tz' => $tz, 'tz2' => $tz, 'tz3' => $tz]);
+        return $stmt->fetchAll();
+    }
+
+    /** Christmas title keywords for automatic detection. */
+    private const CHRISTMAS_KEYWORDS = [
+        'christmas', 'xmas', 'jingle bell', 'silent night', 'holy night',
+        'rudolph', 'noel', 'manger', 'bethlehem', 'mistletoe',
+        'deck the hall', 'feliz navidad', 'white christmas', 'little drummer',
+        'hark the herald', 'away in a manger', 'o come all ye', 'first noel',
+        'we wish you a merry', 'chestnuts roasting', 'let it snow',
+        'sleigh ride', 'frosty the snowman', 'winter wonderland',
+        'santa claus', 'santa baby', 'have yourself a merry',
+        'do you hear what i hear', 'o holy night', 'o christmas tree',
+        'o tannenbaum', '12 days of christmas', 'twelve days of christmas',
+        'rockin around', 'carol of the bells', 'blue christmas',
+        'last christmas', 'all i want for christmas', 'mary did you know',
+        'go tell it on the mountain', 'angels we have heard',
+        'what child is this', 'it came upon a midnight',
+        'god rest ye merry', 'good king wenceslas',
+        'pasko', 'paskong', 'simbang gabi', 'noche buena',
+        'maligayang pasko', 'ang pasko', 'star ng pasko', 'himig ng pasko',
+    ];
+
+    /**
+     * Detect if a song title contains Christmas keywords.
+     *
+     * Uses word-boundary matching to avoid false positives
+     * (e.g. "Santa Fe" won't match "santa claus").
+     */
+    public static function isChristmasTitle(string $title): bool
+    {
+        $lower = mb_strtolower($title);
+        foreach (self::CHRISTMAS_KEYWORDS as $kw) {
+            if (preg_match('/\b' . preg_quote($kw, '/') . '/i', $lower)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if today falls within the Christmas season (Sep 1 – Jan 6).
+     */
+    private static function isInChristmasSeason(string $tz): bool
+    {
+        $today = (new \DateTime('now', new \DateTimeZone($tz)))->format('m-d');
+        // BER months: Sep 1 through Jan 6 (wraps around year boundary)
+        return $today >= '09-01' || $today <= '01-06';
+    }
+
+    private static function getSettingString(PDO $db, string $key, string $default): string
+    {
+        $stmt = $db->prepare('SELECT value FROM settings WHERE key = :key');
+        $stmt->execute(['key' => $key]);
+        $val = $stmt->fetchColumn();
+        return $val !== false ? (string) $val : $default;
+    }
+
     // ── Private helpers ──────────────────────────────────────────
 
     private static function hasArtistCollision(array $songs, int $i, int $minGap, ?int $skipPos = null): bool

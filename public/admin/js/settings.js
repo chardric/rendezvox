@@ -42,6 +42,9 @@ var RendezVoxSettings = (function() {
       loadTimezoneDisplay();
       loadApiKey();
       loadTheAudioDbKey();
+      loadAiProvider();
+      loadGeminiKey();
+      loadOllamaSettings();
       loadSmtp();
       loadAutoTag();
       loadAutoSync();
@@ -396,6 +399,110 @@ var RendezVoxSettings = (function() {
         btn.disabled = false;
         btn.textContent = 'Save Key';
       });
+  }
+
+  function loadAiProvider() {
+    var s = settings['ai_provider'];
+    var el = document.getElementById('aiProvider');
+    if (s && el) el.value = s.value || 'gemini_ollama';
+  }
+
+  function saveAiProvider() {
+    var el = document.getElementById('aiProvider');
+    var val = el ? el.value : 'gemini_ollama';
+    RendezVoxAPI.put('/admin/settings/ai_provider', { value: val })
+      .then(function() {
+        if (settings['ai_provider']) settings['ai_provider'].value = val;
+        showToast('AI provider saved');
+      })
+      .catch(function(err) { showToast((err && err.error) || 'Save failed', 'error'); });
+  }
+
+  function loadGeminiKey() {
+    var s = settings['gemini_api_key'];
+    var el = document.getElementById('geminiApiKey');
+    if (s && el) el.value = s.value || '';
+  }
+
+  function saveGeminiKey() {
+    var el = document.getElementById('geminiApiKey');
+    var val = el ? el.value.trim() : '';
+    var btn = document.getElementById('btnSaveGeminiKey');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    RendezVoxAPI.put('/admin/settings/gemini_api_key', { value: val })
+      .then(function() {
+        if (settings['gemini_api_key']) settings['gemini_api_key'].value = val;
+        showToast('Gemini API key saved');
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+      })
+      .then(function() {
+        btn.disabled = false;
+        btn.textContent = 'Save Key';
+      });
+  }
+
+  function loadOllamaSettings() {
+    var u = settings['ollama_url'];
+    var m = settings['ollama_model'];
+    var elUrl = document.getElementById('ollamaUrl');
+    var elModel = document.getElementById('ollamaModel');
+    if (u && elUrl) elUrl.value = u.value || '';
+    if (m && elModel) elModel.value = m.value || '';
+  }
+
+  function saveOllamaUrl() {
+    var el = document.getElementById('ollamaUrl');
+    var val = el ? el.value.trim() : '';
+    var btn = document.getElementById('btnSaveOllamaUrl');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    RendezVoxAPI.put('/admin/settings/ollama_url', { value: val })
+      .then(function() {
+        if (settings['ollama_url']) settings['ollama_url'].value = val;
+        showToast('Ollama URL saved');
+      })
+      .catch(function(err) { showToast((err && err.error) || 'Save failed', 'error'); })
+      .then(function() { btn.disabled = false; btn.textContent = 'Save'; });
+  }
+
+  function saveOllamaModel() {
+    var el = document.getElementById('ollamaModel');
+    var val = el ? el.value.trim() : '';
+    var btn = document.getElementById('btnSaveOllamaModel');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    RendezVoxAPI.put('/admin/settings/ollama_model', { value: val })
+      .then(function() {
+        if (settings['ollama_model']) settings['ollama_model'].value = val;
+        showToast('Ollama model saved');
+      })
+      .catch(function(err) { showToast((err && err.error) || 'Save failed', 'error'); })
+      .then(function() { btn.disabled = false; btn.textContent = 'Save'; });
+  }
+
+  function testOllama() {
+    var url = (document.getElementById('ollamaUrl').value || '').trim();
+    var model = (document.getElementById('ollamaModel').value || '').trim() || 'gemma3:1b';
+    var el = document.getElementById('ollamaTestResult');
+    var btn = document.getElementById('btnTestOllama');
+    if (!url) { el.innerHTML = '<span style="color:var(--danger)">Enter Ollama URL first</span>'; return; }
+    btn.disabled = true; btn.textContent = 'Testing…';
+    el.innerHTML = '<span style="color:var(--text-dim)">Connecting…</span>';
+
+    // Use the AI tag endpoint on a random song to test
+    RendezVoxAPI.get('/admin/songs?limit=1').then(function(data) {
+      if (!data.songs || !data.songs.length) throw { error: 'No songs in library' };
+      return RendezVoxAPI.post('/admin/songs/' + data.songs[0].id + '/ai-tag', {});
+    }).then(function(resp) {
+      var src = resp.source || 'unknown';
+      el.innerHTML = '<span style="color:var(--accent)">Connected! Response via ' + src + '</span>';
+    }).catch(function(err) {
+      el.innerHTML = '<span style="color:var(--danger)">' + ((err && err.error) || 'Connection failed') + '</span>';
+    }).then(function() {
+      btn.disabled = false; btn.textContent = 'Test';
+    });
   }
 
   // ── Audio Equalizer ─────────────────────────────────
@@ -2376,6 +2483,11 @@ var RendezVoxSettings = (function() {
     cancelChanges: cancelChanges,
     saveApiKey: saveApiKey,
     saveTheAudioDbKey: saveTheAudioDbKey,
+    saveAiProvider: saveAiProvider,
+    saveGeminiKey: saveGeminiKey,
+    saveOllamaUrl: saveOllamaUrl,
+    saveOllamaModel: saveOllamaModel,
+    testOllama: testOllama,
     saveSmtp: saveSmtp,
     sendTestEmail: sendTestEmail,
     startGenreScan: startGenreScan,

@@ -46,8 +46,10 @@ var RendezVoxPlaylists = (function() {
   var colorsFixed = false;
 
   // ── Special playlists state ──
-  var specialPlaylistIds = [];
-  var specialSlots = [{ start: 4, end: 6 }, { start: 11, end: 13 }]; // hours
+  var specialSlots = [
+    { enabled: false, playlist_id: null, start: 4, end: 6 },
+    { enabled: false, playlist_id: null, start: 11, end: 13 }
+  ];
 
   function init() {
     loadPlaylists();
@@ -201,7 +203,7 @@ var RendezVoxPlaylists = (function() {
       var epStreamBadge = (currentStreamingPlaylistId && ep.id === currentStreamingPlaylistId)
         ? ' <span class="streaming-icon" title="Now streaming">ON AIR</span>'
         : '';
-      desc.innerHTML = '<strong>' + escHtml(ep.name) + '</strong> — ' + songLabel + ' ' + statusBadge + epStreamBadge;
+      desc.innerHTML = '<strong>' + escHtml(ep.name) + '</strong> — ' + songLabel + ' <span style="opacity:.6;font-size:.85em">(auto-managed)</span> ' + statusBadge + epStreamBadge;
       actions.innerHTML =
         '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + ep.id + ')">' + RendezVoxIcons.view + '</button>';
     }
@@ -216,98 +218,120 @@ var RendezVoxPlaylists = (function() {
   }
 
   function populateSlotDropdowns() {
-    ['specialSlot1Start', 'specialSlot2Start'].forEach(function(id) {
-      var sel = document.getElementById(id);
-      sel.innerHTML = '<option value="">\u2014 Off \u2014</option>';
+    // Populate start/end hour dropdowns
+    [1, 2].forEach(function(n) {
+      var startSel = document.getElementById('specialSlot' + n + 'Start');
+      startSel.innerHTML = '';
       for (var h = 0; h < 24; h++) {
         var opt = document.createElement('option');
         opt.value = h;
         opt.textContent = formatHourLabel(h);
-        sel.appendChild(opt);
+        startSel.appendChild(opt);
       }
-    });
-    ['specialSlot1End', 'specialSlot2End'].forEach(function(id) {
-      var sel = document.getElementById(id);
-      sel.innerHTML = '';
+      var endSel = document.getElementById('specialSlot' + n + 'End');
+      endSel.innerHTML = '';
       for (var h = 1; h <= 24; h++) {
         var opt = document.createElement('option');
         opt.value = h;
         opt.textContent = formatHourLabel(h);
-        sel.appendChild(opt);
+        endSel.appendChild(opt);
       }
+      // Wire toggle to dim/undim the row controls
+      var toggle = document.getElementById('specialSlot' + n + 'Toggle');
+      toggle.addEventListener('change', function() {
+        updateSlotRowState(n);
+      });
     });
     applySlotValues();
   }
 
+  function populateSlotPlaylistDropdowns() {
+    var candidates = allPlaylists.filter(function(p) { return p.type !== 'emergency' && p.is_active; });
+    [1, 2].forEach(function(n) {
+      var i = n - 1;
+      var sel = document.getElementById('specialSlot' + n + 'Playlist');
+      // Prefer saved slot value over DOM value (DOM may be empty after rebuild)
+      var savedVal = specialSlots[i] && specialSlots[i].playlist_id ? String(specialSlots[i].playlist_id) : '';
+      var currentVal = sel.value || savedVal;
+      sel.innerHTML = '<option value="">— None —</option>';
+      candidates.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+      if (currentVal) sel.value = currentVal;
+    });
+  }
+
+  function updateSlotRowState(n) {
+    var toggle = document.getElementById('specialSlot' + n + 'Toggle');
+    var row = document.getElementById('specialSlot' + n + 'Row');
+    var controls = row.querySelectorAll('select');
+    var enabled = toggle.checked;
+    controls.forEach(function(c) { c.style.opacity = enabled ? '1' : '0.4'; });
+  }
+
   function applySlotValues() {
-    if (specialSlots[0]) {
-      document.getElementById('specialSlot1Start').value = specialSlots[0].start;
-      document.getElementById('specialSlot1End').value   = specialSlots[0].end;
-    } else {
-      document.getElementById('specialSlot1Start').value = '';
-    }
-    if (specialSlots[1]) {
-      document.getElementById('specialSlot2Start').value = specialSlots[1].start;
-      document.getElementById('specialSlot2End').value   = specialSlots[1].end;
-    } else {
-      document.getElementById('specialSlot2Start').value = '';
-    }
+    [0, 1].forEach(function(i) {
+      var n = i + 1;
+      var slot = specialSlots[i];
+      document.getElementById('specialSlot' + n + 'Toggle').checked = slot.enabled;
+      document.getElementById('specialSlot' + n + 'Start').value = slot.start;
+      document.getElementById('specialSlot' + n + 'End').value = slot.end;
+      if (slot.playlist_id) {
+        document.getElementById('specialSlot' + n + 'Playlist').value = slot.playlist_id;
+      }
+      updateSlotRowState(n);
+    });
   }
 
   function loadSpecialConfig() {
     RendezVoxAPI.get('/admin/settings').then(function(result) {
+      var rawSlots = null;
+      var oldPlaylistIds = null;
       (result.settings || []).forEach(function(s) {
-        if (s.key === 'schedule_special_playlists') {
-          try { specialPlaylistIds = JSON.parse(s.value || '[]'); } catch(e) { specialPlaylistIds = []; }
-        }
         if (s.key === 'schedule_special_slots') {
-          try { specialSlots = JSON.parse(s.value || '[]'); } catch(e) { specialSlots = []; }
+          try { rawSlots = JSON.parse(s.value || '[]'); } catch(e) { rawSlots = []; }
+        }
+        if (s.key === 'schedule_special_playlists') {
+          try { oldPlaylistIds = JSON.parse(s.value || '[]'); } catch(e) { oldPlaylistIds = []; }
         }
       });
-      // Strip out any emergency playlist IDs that may be in the setting
-      var emergencyIds = allPlaylists.filter(function(p) { return p.type === 'emergency'; }).map(function(p) { return p.id; });
-      specialPlaylistIds = specialPlaylistIds.filter(function(id) { return emergencyIds.indexOf(id) === -1; });
+      // Migrate from old format (slots without enabled/playlist_id) to new format
+      if (rawSlots && rawSlots.length > 0 && typeof rawSlots[0].enabled === 'undefined') {
+        // Old format: {start, end} — migrate
+        var emergencyIds = allPlaylists.filter(function(p) { return p.type === 'emergency'; }).map(function(p) { return p.id; });
+        var pool = (oldPlaylistIds || []).filter(function(id) { return emergencyIds.indexOf(id) === -1; });
+        for (var i = 0; i < 2; i++) {
+          var old = rawSlots[i] || specialSlots[i];
+          specialSlots[i] = {
+            enabled: pool.length > 0,
+            playlist_id: pool[i % pool.length] || null,
+            start: old.start,
+            end: old.end
+          };
+        }
+      } else if (rawSlots && rawSlots.length > 0) {
+        // New format
+        for (var i = 0; i < 2; i++) {
+          if (rawSlots[i]) specialSlots[i] = rawSlots[i];
+        }
+      }
+      populateSlotPlaylistDropdowns();
       applySlotValues();
-      renderSpecialCard(allPlaylists);
-    });
-  }
-
-  function renderSpecialCard(playlists) {
-    var container = document.getElementById('specialChips');
-    if (!container) return;
-    var candidates = playlists.filter(function(p) { return p.type !== 'emergency' && p.is_active; });
-    if (candidates.length === 0) {
-      container.innerHTML = '<span class="text-dim" style="font-size:.8rem">No active playlists</span>';
-      return;
-    }
-    container.innerHTML = '';
-    candidates.forEach(function(p) {
-      var isSelected = specialPlaylistIds.indexOf(p.id) !== -1;
-      var chip = document.createElement('button');
-      chip.type = 'button';
-      chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:16px;font-size:.8rem;cursor:pointer;border:2px solid ' + (isSelected ? 'var(--accent)' : 'transparent') + ';background:' + (p.color || '#666') + '22;color:var(--text);transition:all .15s;line-height:1';
-      chip.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:' + escHtml(p.color || '#666') + ';flex-shrink:0"></span>' +
-        escHtml(p.name) +
-        (isSelected ? ' <svg viewBox="0 0 16 16" width="12" height="12" fill="var(--accent)" style="flex-shrink:0"><path d="M6.5 12.5l-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg>' : '');
-      chip.addEventListener('click', function() {
-        var idx = specialPlaylistIds.indexOf(p.id);
-        if (idx !== -1) specialPlaylistIds.splice(idx, 1);
-        else specialPlaylistIds.push(p.id);
-        renderSpecialCard(allPlaylists);
-      });
-      container.appendChild(chip);
     });
   }
 
   function readSlotValues() {
-    specialSlots = [];
-    var s1 = document.getElementById('specialSlot1Start').value;
-    if (s1 !== '') {
-      specialSlots.push({ start: parseInt(s1), end: parseInt(document.getElementById('specialSlot1End').value) });
-    }
-    var s2 = document.getElementById('specialSlot2Start').value;
-    if (s2 !== '') {
-      specialSlots.push({ start: parseInt(s2), end: parseInt(document.getElementById('specialSlot2End').value) });
+    for (var i = 0; i < 2; i++) {
+      var n = i + 1;
+      specialSlots[i] = {
+        enabled: document.getElementById('specialSlot' + n + 'Toggle').checked,
+        playlist_id: parseInt(document.getElementById('specialSlot' + n + 'Playlist').value) || null,
+        start: parseInt(document.getElementById('specialSlot' + n + 'Start').value),
+        end: parseInt(document.getElementById('specialSlot' + n + 'End').value)
+      };
     }
   }
 
@@ -320,57 +344,37 @@ var RendezVoxPlaylists = (function() {
 
   function saveSpecialConfig() {
     readSlotValues();
-    for (var i = 0; i < specialSlots.length; i++) {
-      if (specialSlots[i].end <= specialSlots[i].start) {
-        showToast('Slot ' + (i + 1) + ': end must be after start', 'error');
-        return;
+    for (var i = 0; i < 2; i++) {
+      if (specialSlots[i].enabled) {
+        if (!specialSlots[i].playlist_id) {
+          showToast('Slot ' + (i + 1) + ': select a playlist', 'error');
+          return;
+        }
+        if (specialSlots[i].end <= specialSlots[i].start) {
+          showToast('Slot ' + (i + 1) + ': end must be after start', 'error');
+          return;
+        }
       }
     }
     var btn = document.getElementById('btnSaveSpecial');
     btn.disabled = true;
     btn.textContent = 'Saving…';
 
-    // Save settings
-    Promise.all([
-      RendezVoxAPI.put('/admin/settings/schedule_special_playlists', { value: JSON.stringify(specialPlaylistIds) }),
-      RendezVoxAPI.put('/admin/settings/schedule_special_slots', { value: JSON.stringify(specialSlots) })
-    ]).then(function() {
-      // Sync actual schedule entries: clear old special, create new ones
-      // Each slot gets ONE playlist per day. No same playlist repeats in a day.
-      // If more playlists than slots, rotate daily so all get airtime.
+    // Save unified setting
+    RendezVoxAPI.put('/admin/settings/schedule_special_slots', { value: JSON.stringify(specialSlots) })
+    .then(function() {
+      // Build schedule entries for enabled slots
       var entries = [];
-      if (specialPlaylistIds.length > 0 && specialSlots.length > 0) {
-        var pool = allPlaylists.filter(function(p) {
-          return specialPlaylistIds.indexOf(p.id) !== -1 && p.is_active && p.type !== 'emergency';
-        });
-        if (pool.length > 0) {
-          if (pool.length <= specialSlots.length) {
-            // Fixed assignment — same playlist per slot every day
-            var allDays = [0, 1, 2, 3, 4, 5, 6];
-            for (var si = 0; si < specialSlots.length; si++) {
-              entries.push({
-                playlist_id: pool[si % pool.length].id,
-                days_of_week: allDays,
-                start_time: fmtHHMM(specialSlots[si].start * 60),
-                end_time: fmtHHMM(specialSlots[si].end * 60),
-                priority: 99
-              });
-            }
-          } else {
-            // More playlists than slots — rotate daily
-            for (var d = 0; d < 7; d++) {
-              for (var si2 = 0; si2 < specialSlots.length; si2++) {
-                var pick = pool[(si2 + d) % pool.length];
-                entries.push({
-                  playlist_id: pick.id,
-                  days_of_week: [d],
-                  start_time: fmtHHMM(specialSlots[si2].start * 60),
-                  end_time: fmtHHMM(specialSlots[si2].end * 60),
-                  priority: 99
-                });
-              }
-            }
-          }
+      var allDays = [0, 1, 2, 3, 4, 5, 6];
+      for (var i = 0; i < 2; i++) {
+        if (specialSlots[i].enabled && specialSlots[i].playlist_id) {
+          entries.push({
+            playlist_id: specialSlots[i].playlist_id,
+            days_of_week: allDays,
+            start_time: fmtHHMM(specialSlots[i].start * 60),
+            end_time: fmtHHMM(specialSlots[i].end * 60),
+            priority: 99
+          });
         }
       }
       return RendezVoxAPI.post('/admin/schedules/bulk', {
@@ -559,7 +563,7 @@ var RendezVoxPlaylists = (function() {
   function fixDuplicateColors() {
     var render = function() {
       renderEmergencyCard(allPlaylists);
-      renderSpecialCard(allPlaylists);
+      populateSlotPlaylistDropdowns();
       var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
       renderTable(regular);
     };
@@ -804,6 +808,7 @@ var RendezVoxPlaylists = (function() {
     }).join('');
     document.getElementById('mergePlaylistList').innerHTML = listHtml;
     document.getElementById('mergeName').value = 'Merged Playlist';
+    document.getElementById('mergeDeleteSources').checked = false;
     document.getElementById('mergeModal').classList.remove('hidden');
     document.getElementById('mergeName').focus();
     document.getElementById('mergeName').select();
@@ -821,16 +826,42 @@ var RendezVoxPlaylists = (function() {
     btn.disabled = true;
     btn.textContent = 'Merging…';
 
+    var deleteSources = document.getElementById('mergeDeleteSources').checked;
+    var sourceIds = selected.map(function(p) { return p.id; });
+
     RendezVoxAPI.post('/admin/playlists/merge', {
-      source_ids: selected.map(function(p) { return p.id; }),
+      source_ids: sourceIds,
       name: name
     }).then(function(data) {
       document.getElementById('mergeModal').classList.add('hidden');
       showToast(data.message || 'Playlists merged');
-      hideBulkBar();
-      document.querySelectorAll('#playlistTable .pl-row-check').forEach(function(cb) { cb.checked = false; });
-      document.getElementById('plSelectAll').checked = false;
-      loadPlaylists();
+
+      if (!deleteSources) {
+        hideBulkBar();
+        document.querySelectorAll('#playlistTable .pl-row-check').forEach(function(cb) { cb.checked = false; });
+        document.getElementById('plSelectAll').checked = false;
+        loadPlaylists();
+        return;
+      }
+
+      // Delete source playlists sequentially
+      var chain = Promise.resolve();
+      var deleted = 0;
+      sourceIds.forEach(function(id) {
+        chain = chain.then(function() {
+          return RendezVoxAPI.del('/admin/playlists/' + id).then(function() { deleted++; });
+        });
+      });
+      return chain.then(function() {
+        showToast(deleted + ' source playlist(s) deleted');
+      }).catch(function() {
+        showToast('Some source playlists could not be deleted', 'error');
+      }).then(function() {
+        hideBulkBar();
+        document.querySelectorAll('#playlistTable .pl-row-check').forEach(function(cb) { cb.checked = false; });
+        document.getElementById('plSelectAll').checked = false;
+        loadPlaylists();
+      });
     }).catch(function(err) {
       showToast((err && err.error) || 'Merge failed', 'error');
     }).then(function() {
@@ -1007,11 +1038,12 @@ var RendezVoxPlaylists = (function() {
       document.getElementById('detailTitle').textContent =
         pl.name + (isAuto ? ' — ' + songCount + ' Matching Songs (dynamic)' : ' — ' + songCount + ' Songs');
 
-      // Show/hide controls
-      document.getElementById('btnShuffle').style.display     = '';
-      document.getElementById('btnAddSong').style.display     = isAuto ? 'none' : '';
-      document.getElementById('btnAddFolder').style.display   = isAuto ? 'none' : '';
-      document.getElementById('btnSurpriseMe').style.display  = isAuto ? 'none' : '';
+      // Show/hide controls — hide manual actions for auto and emergency playlists
+      var hideManual = isAuto || pl.type === 'emergency';
+      document.getElementById('btnShuffle').style.display     = pl.type === 'emergency' ? 'none' : '';
+      document.getElementById('btnAddSong').style.display     = hideManual ? 'none' : '';
+      document.getElementById('btnAddFolder').style.display   = hideManual ? 'none' : '';
+      document.getElementById('btnSurpriseMe').style.display  = hideManual ? 'none' : '';
       var note = document.getElementById('autoDetailNote');
       if (isAuto) note.classList.remove('hidden');
       else        note.classList.add('hidden');
@@ -1029,10 +1061,11 @@ var RendezVoxPlaylists = (function() {
     var thead  = document.getElementById('detailHead');
     var tbody  = document.getElementById('detailSongs');
 
-    thead.innerHTML = '<tr><th>#</th><th>Title</th><th>Artist</th><th>Genre/Category</th><th>Duration</th><th>Played</th><th>Actions</th></tr>';
+    var actionsCol = type === 'emergency' ? '' : '<th>Actions</th>';
+    thead.innerHTML = '<tr><th>#</th><th>Title</th><th>Artist</th><th>Genre/Category</th><th>Duration</th><th>Played</th>' + actionsCol + '</tr>';
 
     if (!songs || songs.length === 0) {
-      var msg = isAuto ? 'No songs match the current rules' : 'No songs in playlist';
+      var msg = isAuto ? 'No songs match the current rules' : (type === 'emergency' ? 'Auto-fill will populate on next cycle' : 'No songs in playlist');
       tbody.innerHTML = '<tr><td colspan="7" class="empty">' + msg + '</td></tr>';
       return;
     }
@@ -1089,8 +1122,9 @@ var RendezVoxPlaylists = (function() {
       } else {
         playedCol = 'No';
       }
-      var actionCell = '<button type="button" class="icon-btn danger" title="Remove" onclick="RendezVoxPlaylists.removeSong(' + s.song_id + ')">' + RendezVoxIcons.remove + '</button>';
-      var rowAttr    = isAuto
+      var isEmergency = type === 'emergency';
+      var actionCell = isEmergency ? '' : '<button type="button" class="icon-btn danger" title="Remove" onclick="RendezVoxPlaylists.removeSong(' + s.song_id + ')">' + RendezVoxIcons.remove + '</button>';
+      var rowAttr    = (isAuto || isEmergency)
         ? ''
         : ' draggable="true" data-song-id="' + s.song_id + '"';
 

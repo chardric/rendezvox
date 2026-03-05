@@ -80,11 +80,18 @@ services:
   # ── Audio Output — RPi hardware config ──────────────
   audio:
     environment:
-      AUDIO_DEVICE: alsa/plughw:0,0
+      AUDIO_DEVICE: alsa/plughw:CARD=Headphones,DEV=0
     deploy:
       resources:
         limits:
           memory: 128M
+
+  # ── Ollama — constrained memory for RPi ─────────────
+  ollama:
+    deploy:
+      resources:
+        limits:
+          memory: 3584M
 
   # ── Liquidsoap — constrained memory ─────────────────
   liquidsoap:

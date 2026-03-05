@@ -164,6 +164,10 @@ class NextTrackHandler
                     UPDATE playlists SET cycle_count = cycle_count + 1 WHERE id = :id
                 ')->execute(['id' => $playlistId]);
 
+                if ($isEmergency) {
+                    RotationEngine::autoFillEmergencyPlaylist($db, (int) $playlistId);
+                }
+
                 $song = $this->fetchNextSongWithBlock($db, (int) $playlistId, $artistBlockSize);
                 $cycleReset = true;
 
@@ -352,6 +356,9 @@ class NextTrackHandler
             if (RotationEngine::isTitleBlocked($db, $candidate['title'], (int) $candidate['song_id'])) {
                 continue;
             }
+            if (RotationEngine::isSongRecentlyPlayed($db, (int) $candidate['song_id'])) {
+                continue;
+            }
             return $candidate;
         }
 
@@ -467,6 +474,9 @@ class NextTrackHandler
             if (RotationEngine::isTitleBlocked($db, $candidate['title'], (int) $candidate['song_id'])) {
                 continue;
             }
+            if (RotationEngine::isSongRecentlyPlayed($db, (int) $candidate['song_id'])) {
+                continue;
+            }
             $eligible[] = $candidate;
         }
 
@@ -537,12 +547,23 @@ class NextTrackHandler
             return null;
         }
 
+        // Load current/next song IDs to prevent consecutive same-song plays
+        $stateStmt = $db->query('SELECT current_song_id, next_song_id FROM rotation_state WHERE id = 1');
+        $rotState = $stateStmt->fetch();
+        $currentSongId = $rotState ? (int) ($rotState['current_song_id'] ?? 0) : 0;
+        $nextSongId    = $rotState ? (int) ($rotState['next_song_id'] ?? 0) : 0;
+
         foreach ($candidates as $candidate) {
-            // Only reject if the song has been deactivated.
-            // Rotation rules (recently-played, artist-block) do NOT apply
-            // to requests — the listener explicitly asked for this song.
+            // Reject if the song has been deactivated
             if (!$candidate['is_active']) {
                 $this->rejectRequest($db, (int) $candidate['request_id'], (int) $candidate['queue_id'], 'song_inactive');
+                continue;
+            }
+
+            // Skip (don't reject) if same song is currently playing or queued next —
+            // leave it in the queue for a later rotation cycle to pick up
+            $candidateSongId = (int) $candidate['song_id'];
+            if ($candidateSongId === $currentSongId || $candidateSongId === $nextSongId) {
                 continue;
             }
 

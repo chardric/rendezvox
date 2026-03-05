@@ -71,13 +71,40 @@ class DuplicateResolveHandler
             }
         }
 
+        // Check which delete candidates are in playlists — protect them
+        $delPlaceholders = implode(',', array_fill(0, count($deleteSet), '?'));
+        $plStmt = $db->prepare("
+            SELECT DISTINCT ps.song_id, p.name AS playlist_name
+            FROM playlist_songs ps
+            JOIN playlists p ON p.id = ps.playlist_id
+            WHERE ps.song_id IN ({$delPlaceholders})
+        ");
+        foreach ($deleteSet as $i => $id) {
+            $plStmt->bindValue($i + 1, $id, PDO::PARAM_INT);
+        }
+        $plStmt->execute();
+
+        $protectedSongs = [];
+        while ($plRow = $plStmt->fetch()) {
+            $sid = (int) $plRow['song_id'];
+            $protectedSongs[$sid][] = $plRow['playlist_name'];
+        }
+
         // Delete duplicate songs from DB (files are kept on disk)
         // FK constraints use CASCADE/SET NULL so this is safe
         $deleted = 0;
+        $skipped = [];
         $errors = [];
         $delStmt = $db->prepare('DELETE FROM songs WHERE id = ?');
 
         foreach ($deleteSet as $did) {
+            if (isset($protectedSongs[$did])) {
+                $skipped[] = [
+                    'id' => $did,
+                    'reason' => 'In playlist: ' . implode(', ', $protectedSongs[$did]),
+                ];
+                continue;
+            }
             try {
                 $delStmt->execute([$did]);
                 $deleted++;
@@ -89,6 +116,7 @@ class DuplicateResolveHandler
 
         Response::json([
             'deleted' => $deleted,
+            'skipped' => $skipped,
             'errors'  => $errors,
         ]);
     }

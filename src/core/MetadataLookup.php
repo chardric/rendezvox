@@ -18,6 +18,9 @@ class MetadataLookup
 {
     private string $acoustIdKey = '';
     private string $theAudioDbKey = '';
+    private string $geminiApiKey = '';
+    private string $ollamaUrl = '';
+    private string $ollamaModel = 'qwen2.5:3b';
 
     /** @var array<string, float> Last request timestamps per API domain */
     private array $lastRequest = [];
@@ -61,6 +64,24 @@ class MetadataLookup
     public function setTheAudioDbKey(string $key): void
     {
         $this->theAudioDbKey = trim($key);
+    }
+
+    public function setGeminiApiKey(string $key): void
+    {
+        $this->geminiApiKey = trim($key);
+    }
+
+    public function setOllamaUrl(string $url): void
+    {
+        $this->ollamaUrl = rtrim(trim($url), '/');
+    }
+
+    public function setOllamaModel(string $model): void
+    {
+        $model = trim($model);
+        if ($model !== '') {
+            $this->ollamaModel = $model;
+        }
     }
 
     // ── Genre mapping (static, usable without instance) ──────
@@ -722,6 +743,336 @@ class MetadataLookup
 
         @unlink($tmpFile);
         return false;
+    }
+
+    // ── Gemini AI metadata lookup ─────────────────────────
+
+    /**
+     * Check if a string looks like a filename artifact rather than real metadata.
+     * Examples: "Unknown Artist", "01_track", "Track 3", "audio_file", etc.
+     */
+    public static function looksLikeFilenameArtifact(string $value): bool
+    {
+        $lower = strtolower(trim($value));
+        if ($lower === '') {
+            return true;
+        }
+
+        $artifacts = [
+            'unknown artist', 'unknown', 'various artists', 'various',
+            'untitled', 'no artist', 'n/a', 'none', 'track', 'audio',
+            'recording', 'file', 'document', 'media',
+        ];
+        if (in_array($lower, $artifacts, true)) {
+            return true;
+        }
+
+        // Patterns: "01_track", "track_03", "audio_001", pure numbers, timestamps
+        if (preg_match('/^(\d+[_\-\s]*(track|audio|file|recording)|(track|audio|file|recording)[_\-\s]*\d+|\d{6,}|\d+)$/i', $lower)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Look up missing metadata using Google Gemini Flash AI.
+     *
+     * Only fills gaps — never overrides existing high-confidence data.
+     *
+     * @param string $artist  Current artist name
+     * @param string $title   Current title
+     * @param array  $needs   Flags: 'genre', 'year', 'artist', 'title', 'album' (true if missing)
+     * @return array{genre?: string, year?: int, artist?: string, title?: string, album?: string}|null
+     */
+    public function lookupByAI(string $artist, string $title, array $needs): ?array
+    {
+        if ($this->geminiApiKey === '') {
+            return null;
+        }
+
+        // Nothing to ask for
+        $fields = array_filter($needs);
+        if (empty($fields)) {
+            return null;
+        }
+
+        // Build a dynamic prompt asking only for what's missing
+        $parts = [];
+        if (!empty($needs['genre'])) {
+            $parts[] = '"genre": the primary music genre (e.g. Rock, Pop, Country, Jazz, R&B, Hip Hop, Electronic, Classical, Folk, Blues, Soul, Funk, Reggae, Latin, Metal, Punk, Gospel, Christian, Disco, Easy Listening, New Age, World, Pop Rock)';
+        }
+        if (!empty($needs['year'])) {
+            $parts[] = '"year": the original release year as a number';
+        }
+        if (!empty($needs['artist'])) {
+            $parts[] = '"artist": the correct artist/performer name';
+        }
+        if (!empty($needs['title'])) {
+            $parts[] = '"title": the correct song title';
+        }
+        if (!empty($needs['album'])) {
+            $parts[] = '"album": the album or single this song was released on';
+        }
+
+        $fieldList = implode(",\n", $parts);
+
+        $prompt = "You are a music metadata expert. Given this song information:\n"
+                . "Artist: {$artist}\n"
+                . "Title: {$title}\n\n"
+                . "Return a JSON object with ONLY these fields (omit any you're unsure about):\n"
+                . $fieldList . "\n\n"
+                . "Rules:\n"
+                . "- Only return fields you are confident about\n"
+                . "- Genre must be a single primary genre, not a list\n"
+                . "- Year must be between 1900 and " . date('Y') . "\n"
+                . "- If you cannot determine a field with confidence, omit it entirely\n"
+                . "- Return valid JSON only, no markdown or explanation";
+
+        $this->rateLimit('gemini', 4.0); // 15 RPM free tier = ~4s between calls
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='
+             . urlencode($this->geminiApiKey);
+
+        $payload = json_encode([
+            'contents' => [
+                ['parts' => [['text' => $prompt]]]
+            ],
+            'generationConfig' => [
+                'responseMimeType' => 'application/json',
+                'temperature'      => 0.1,
+                'maxOutputTokens'  => 150,
+            ],
+        ]);
+
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\nUser-Agent: RendezVox/1.0\r\n",
+                'content'       => $payload,
+                'timeout'       => 15,
+                'ignore_errors' => true,
+            ],
+        ]);
+
+        $resp = @file_get_contents($url, false, $ctx);
+        if (!$resp) {
+            return null;
+        }
+
+        $data = json_decode($resp, true);
+        if (!$data) {
+            return null;
+        }
+
+        // Check for API errors (rate limit, auth, etc.)
+        if (isset($data['error'])) {
+            $code = (int) ($data['error']['code'] ?? 0);
+            if ($code === 429) {
+                return ['_error' => 'rate_limited', '_message' => 'Gemini API rate limit exceeded. Free tier resets daily.'];
+            }
+            if ($code === 403) {
+                return ['_error' => 'auth_failed', '_message' => 'Gemini API key is invalid or expired.'];
+            }
+            return ['_error' => 'api_error', '_message' => $data['error']['message'] ?? 'Unknown API error'];
+        }
+
+        // Extract text from Gemini response
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        if (!$text) {
+            return null;
+        }
+
+        $parsed = json_decode($text, true);
+        if (!is_array($parsed)) {
+            return null;
+        }
+
+        $result = [];
+
+        // Validate genre
+        if (!empty($parsed['genre']) && is_string($parsed['genre'])) {
+            $mapped = self::mapGenre($parsed['genre']);
+            if ($mapped) {
+                $result['genre'] = $mapped;
+            } else {
+                // Accept as-is if it's a reasonable genre name
+                $clean = ucfirst(strtolower(trim($parsed['genre'])));
+                if (strlen($clean) >= 2 && strlen($clean) <= 30) {
+                    $result['genre'] = $clean;
+                }
+            }
+        }
+
+        // Validate year
+        if (!empty($parsed['year'])) {
+            $year = (int) $parsed['year'];
+            if ($year >= 1900 && $year <= (int) date('Y')) {
+                $result['year'] = $year;
+            }
+        }
+
+        // Validate artist
+        if (!empty($parsed['artist']) && is_string($parsed['artist'])) {
+            $clean = trim($parsed['artist']);
+            if (strlen($clean) >= 2 && !self::looksLikeFilenameArtifact($clean)) {
+                $result['artist'] = $clean;
+            }
+        }
+
+        // Validate title
+        if (!empty($parsed['title']) && is_string($parsed['title'])) {
+            $clean = trim($parsed['title']);
+            if (strlen($clean) >= 2 && !self::looksLikeFilenameArtifact($clean)) {
+                $result['title'] = $clean;
+            }
+        }
+
+        // Validate album
+        if (!empty($parsed['album']) && is_string($parsed['album'])) {
+            $clean = trim($parsed['album']);
+            if (strlen($clean) >= 2) {
+                $result['album'] = $clean;
+            }
+        }
+
+        return !empty($result) ? $result : null;
+    }
+
+    /**
+     * Look up missing metadata using a local Ollama instance.
+     * Fallback when Gemini is unavailable or rate-limited.
+     *
+     * @param string $artist  Current artist name
+     * @param string $title   Current title
+     * @param array  $needs   Flags: 'genre', 'year', 'artist', 'title', 'album' (true if missing)
+     * @return array{genre?: string, year?: int, artist?: string, title?: string, album?: string}|null
+     */
+    public function lookupByOllamaAI(string $artist, string $title, array $needs): ?array
+    {
+        if ($this->ollamaUrl === '') {
+            return null;
+        }
+
+        $fields = array_filter($needs);
+        if (empty($fields)) {
+            return null;
+        }
+
+        // Build the same prompt as Gemini
+        $parts = [];
+        if (!empty($needs['genre'])) {
+            $parts[] = '"genre": the primary music genre (e.g. Rock, Pop, Country, Jazz, R&B, Hip Hop, Electronic, Classical, Folk, Blues, Soul, Funk, Reggae, Latin, Metal, Punk, Gospel, Christian, Disco, Easy Listening, New Age, World, Pop Rock)';
+        }
+        if (!empty($needs['year'])) {
+            $parts[] = '"year": the original release year as a number';
+        }
+        if (!empty($needs['artist'])) {
+            $parts[] = '"artist": the correct artist/performer name';
+        }
+        if (!empty($needs['title'])) {
+            $parts[] = '"title": the correct song title';
+        }
+        if (!empty($needs['album'])) {
+            $parts[] = '"album": the album or single this song was released on';
+        }
+
+        $fieldList = implode(",\n", $parts);
+
+        $prompt = "You are a music metadata expert. Given this song information:\n"
+                . "Artist: {$artist}\n"
+                . "Title: {$title}\n\n"
+                . "Return a JSON object with ONLY these fields (omit any you're unsure about):\n"
+                . $fieldList . "\n\n"
+                . "Rules:\n"
+                . "- Only return fields you are confident about\n"
+                . "- Genre must be a single primary genre, not a list\n"
+                . "- Year must be between 1900 and " . date('Y') . "\n"
+                . "- If you cannot determine a field with confidence, omit it entirely\n"
+                . "- Return valid JSON only, no markdown or explanation";
+
+        $url = $this->ollamaUrl . '/api/generate';
+
+        $payload = json_encode([
+            'model'  => $this->ollamaModel,
+            'prompt' => $prompt,
+            'format' => 'json',
+            'stream' => false,
+            'options' => [
+                'temperature'   => 0.1,
+                'num_predict'   => 150,
+            ],
+        ]);
+
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\nUser-Agent: RendezVox/1.0\r\n",
+                'content'       => $payload,
+                'timeout'       => 120, // Ollama on ARM can be slow
+                'ignore_errors' => true,
+            ],
+        ]);
+
+        $resp = @file_get_contents($url, false, $ctx);
+        if (!$resp) {
+            return null;
+        }
+
+        $data = json_decode($resp, true);
+        if (!$data || !isset($data['response'])) {
+            return null;
+        }
+
+        $parsed = json_decode($data['response'], true);
+        if (!is_array($parsed)) {
+            return null;
+        }
+
+        // Same validation as Gemini
+        $result = [];
+
+        if (!empty($parsed['genre']) && is_string($parsed['genre'])) {
+            $mapped = self::mapGenre($parsed['genre']);
+            if ($mapped) {
+                $result['genre'] = $mapped;
+            } else {
+                $clean = ucfirst(strtolower(trim($parsed['genre'])));
+                if (strlen($clean) >= 2 && strlen($clean) <= 30) {
+                    $result['genre'] = $clean;
+                }
+            }
+        }
+
+        if (!empty($parsed['year'])) {
+            $year = (int) $parsed['year'];
+            if ($year >= 1900 && $year <= (int) date('Y')) {
+                $result['year'] = $year;
+            }
+        }
+
+        if (!empty($parsed['artist']) && is_string($parsed['artist'])) {
+            $clean = trim($parsed['artist']);
+            if (strlen($clean) >= 2 && !self::looksLikeFilenameArtifact($clean)) {
+                $result['artist'] = $clean;
+            }
+        }
+
+        if (!empty($parsed['title']) && is_string($parsed['title'])) {
+            $clean = trim($parsed['title']);
+            if (strlen($clean) >= 2 && !self::looksLikeFilenameArtifact($clean)) {
+                $result['title'] = $clean;
+            }
+        }
+
+        if (!empty($parsed['album']) && is_string($parsed['album'])) {
+            $clean = trim($parsed['album']);
+            if (strlen($clean) >= 2) {
+                $result['album'] = $clean;
+            }
+        }
+
+        return !empty($result) ? $result : null;
     }
 
     // ── Rate limiting ────────────────────────────────────────

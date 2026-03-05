@@ -19,6 +19,7 @@ require __DIR__ . '/../core/Database.php';
 require __DIR__ . '/../core/MetadataExtractor.php';
 require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
+require __DIR__ . '/../core/RotationEngine.php';
 
 // -- Configuration --
 $musicDir   = '/var/lib/rendezvox/music';
@@ -135,9 +136,9 @@ foreach ($iterator as $fileInfo) {
     try {
         $stmt2 = $db->prepare('
             INSERT INTO songs (title, artist_id, category_id, file_path, file_hash,
-                               duration_ms, year, has_cover_art, duplicate_of)
+                               duration_ms, year, has_cover_art, duplicate_of, is_christmas)
             VALUES (:title, :artist_id, :category_id, :file_path, :file_hash,
-                    :duration_ms, :year, :has_cover_art, :duplicate_of)
+                    :duration_ms, :year, :has_cover_art, :duplicate_of, :is_christmas)
             RETURNING id
         ');
         $stmt2->execute([
@@ -150,6 +151,7 @@ foreach ($iterator as $fileInfo) {
             'year'          => $meta['year'] ?: null,
             'has_cover_art' => $hasCoverArt ? 'true' : 'false',
             'duplicate_of'  => $canonicalId,
+            'is_christmas'  => RotationEngine::isChristmasTitle($title) ? 'true' : 'false',
         ]);
 
         $newId = (int) $stmt2->fetchColumn();

@@ -129,8 +129,8 @@ class PlaylistSongFolderAddHandler
 
                 try {
                     $insertStmt = $db->prepare('
-                        INSERT INTO songs (title, artist_id, category_id, file_path, file_hash, duration_ms, year)
-                        VALUES (:title, :artist_id, :category_id, :file_path, :file_hash, :duration_ms, :year)
+                        INSERT INTO songs (title, artist_id, category_id, file_path, file_hash, duration_ms, year, is_christmas)
+                        VALUES (:title, :artist_id, :category_id, :file_path, :file_hash, :duration_ms, :year, :is_christmas)
                     ');
                     $insertStmt->execute([
                         'title'        => $title,
@@ -140,6 +140,7 @@ class PlaylistSongFolderAddHandler
                         'file_hash'    => $fileHash ?: null,
                         'duration_ms'  => $meta['duration_ms'],
                         'year'         => $meta['year'] ?: null,
+                        'is_christmas' => RotationEngine::isChristmasTitle($title) ? 'true' : 'false',
                     ]);
                     $existingPaths[$file['rel']] = true;
                     $scanned++;

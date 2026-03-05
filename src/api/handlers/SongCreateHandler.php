@@ -263,17 +263,18 @@ class SongCreateHandler
         }
 
         $stmt = $db->prepare('
-            INSERT INTO songs (title, artist_id, category_id, file_path, duration_ms, rotation_weight)
-            VALUES (:title, :artist_id, :category_id, :file_path, :duration_ms, :weight)
+            INSERT INTO songs (title, artist_id, category_id, file_path, duration_ms, rotation_weight, is_christmas)
+            VALUES (:title, :artist_id, :category_id, :file_path, :duration_ms, :weight, :is_christmas)
             RETURNING id
         ');
         $stmt->execute([
-            'title'       => $title,
-            'artist_id'   => $artistId,
-            'category_id' => $categoryId,
-            'file_path'   => $filePath,
-            'duration_ms' => $durationMs,
-            'weight'      => $weight,
+            'title'        => $title,
+            'artist_id'    => $artistId,
+            'category_id'  => $categoryId,
+            'file_path'    => $filePath,
+            'duration_ms'  => $durationMs,
+            'weight'       => $weight,
+            'is_christmas' => RotationEngine::isChristmasTitle($title) ? 'true' : 'false',
         ]);
 
         Response::json(['id' => (int) $stmt->fetchColumn(), 'message' => 'Song created successfully'], 201);

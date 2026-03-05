@@ -14,6 +14,7 @@ var RendezVoxMedia = (function () {
     addPl: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
     check: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 12 9 17 20 6"/></svg>',
     lock: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+    ai: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74L12 2z"/><path d="M5 19l1.5-3L10 15"/><path d="M19 19l-1.5-3L14 15"/></svg>',
   };
 
   // ── State ─────────────────────────────────────────────
@@ -607,6 +608,7 @@ var RendezVoxMedia = (function () {
         dateLabel = 'Added';
         actions =
           '<button type="button" class="icon-btn" title="Add to playlist" onclick="RendezVoxMedia.addToPlaylist(' + s.id + ')">' + IC.addPl + '</button>' +
+          '<button type="button" class="icon-btn" title="AI Tag" onclick="RendezVoxMedia.aiTagSong(' + s.id + ')" style="color:var(--accent)">' + IC.ai + '</button>' +
           '<button type="button" class="icon-btn" title="Edit metadata" onclick="RendezVoxMedia.editSong(' + s.id + ')">' + IC.edit + '</button>' +
           '<button type="button" class="icon-btn danger" title="Move to trash" onclick="RendezVoxMedia.trashSong(' + s.id + ')">' + IC.del + '</button>';
       }
@@ -1335,6 +1337,8 @@ var RendezVoxMedia = (function () {
       lockCb.checked = s.meta_locked;
       lockRow.classList.toggle('hidden', !s.meta_locked);
 
+      document.getElementById('aiSuggestBar').classList.add('hidden');
+      document.getElementById('btnAiApply').classList.add('hidden');
       document.getElementById('editModal').classList.remove('hidden');
     }).catch(function (err) {
       showToast((err && err.error) || 'Failed to load song', 'error');
@@ -1376,6 +1380,147 @@ var RendezVoxMedia = (function () {
       .catch(function (err) {
         showToast((err && err.error) || 'Update failed', 'error');
       });
+  }
+
+  // ── AI Tag Song ──────────────────────────────────────
+
+  function aiTagSong(id) {
+    // Open the edit modal first, then call AI in background
+    Promise.all([
+      RendezVoxAPI.get('/admin/artists').then(function (data) {
+        artists = data.artists || [];
+        populateArtistSelects();
+      }).catch(function () {}),
+      RendezVoxAPI.get('/admin/categories').then(function (data) {
+        categories = data.categories || [];
+        populateGenreSelects();
+      }).catch(function () {}),
+      RendezVoxAPI.get('/admin/songs/' + id)
+    ]).then(function (results) {
+      var s = results[2].song;
+
+      document.getElementById('editId').value            = s.id;
+      document.getElementById('editTitle').value          = s.title || '';
+      document.getElementById('editYear').value           = s.year || '';
+      document.getElementById('editWeight').value         = s.rotation_weight;
+      document.getElementById('editActive').checked       = s.is_active;
+      document.getElementById('editRequestable').checked  = s.is_requestable;
+      document.getElementById('editDuration').textContent = formatDuration(s.duration_ms);
+      document.getElementById('editPlayCount').textContent = (s.play_count || 0) + ' plays';
+      document.getElementById('editYearInfo').textContent = s.year || '-';
+      document.getElementById('editArtist').value = s.artist_id;
+      document.getElementById('editGenre').value  = s.category_id;
+
+      var lockRow = document.getElementById('editLockRow');
+      var lockCb  = document.getElementById('editMetaLocked');
+      lockCb.checked = s.meta_locked;
+      lockRow.classList.toggle('hidden', !s.meta_locked);
+
+      document.getElementById('editModal').classList.remove('hidden');
+
+      // Show AI loading state
+      var aiBar = document.getElementById('aiSuggestBar');
+      aiBar.innerHTML = '<span style="color:var(--text-dim)">Asking AI...</span>';
+      aiBar.classList.remove('hidden');
+      var btnApply = document.getElementById('btnAiApply');
+      btnApply.classList.add('hidden');
+
+      // Call AI endpoint
+      RendezVoxAPI.post('/admin/songs/' + id + '/ai-tag', {})
+        .then(function (resp) {
+          var sug = resp.suggestions;
+          var cur = resp.current;
+          if (!sug || Object.keys(sug).length === 0) {
+            aiBar.innerHTML = '<span style="color:var(--text-dim)">AI found no suggestions for this song.</span>';
+            return;
+          }
+
+          // Build comparison display
+          var html = '<div style="font-size:.82rem;line-height:1.6">';
+          var srcLabel = resp.source === 'ollama' ? 'Ollama' : 'Gemini';
+          html += '<strong style="color:var(--accent)">AI Suggestions</strong> <span style="opacity:.4;font-size:.75rem">via ' + srcLabel + '</span><br>';
+
+          var changes = {};
+          if (sug.title && sug.title !== cur.title) {
+            html += '<span style="color:var(--text-dim)">Title:</span> ' + escHtml(sug.title) + (cur.title ? ' <span style="opacity:.4">(was: ' + escHtml(cur.title) + ')</span>' : '') + '<br>';
+            changes.title = sug.title;
+          }
+          if (sug.artist && sug.artist !== cur.artist) {
+            html += '<span style="color:var(--text-dim)">Artist:</span> ' + escHtml(sug.artist) + (cur.artist ? ' <span style="opacity:.4">(was: ' + escHtml(cur.artist) + ')</span>' : '') + '<br>';
+            changes.artist = sug.artist;
+          }
+          if (sug.genre && sug.genre !== cur.genre) {
+            html += '<span style="color:var(--text-dim)">Genre:</span> ' + escHtml(sug.genre) + (cur.genre ? ' <span style="opacity:.4">(was: ' + escHtml(cur.genre) + ')</span>' : '') + '<br>';
+            changes.genre = sug.genre;
+          }
+          if (sug.year && sug.year !== cur.year) {
+            html += '<span style="color:var(--text-dim)">Year:</span> ' + sug.year + (cur.year ? ' <span style="opacity:.4">(was: ' + cur.year + ')</span>' : '') + '<br>';
+            changes.year = sug.year;
+          }
+          if (sug.album) {
+            html += '<span style="color:var(--text-dim)">Album:</span> ' + escHtml(sug.album) + '<br>';
+          }
+          html += '</div>';
+
+          if (Object.keys(changes).length === 0) {
+            aiBar.innerHTML = '<span style="color:var(--text-dim)">AI agrees with current metadata — no changes suggested.</span>';
+            return;
+          }
+
+          aiBar.innerHTML = html;
+          btnApply.classList.remove('hidden');
+          btnApply.onclick = function () {
+            applyAiSuggestions(changes, sug);
+          };
+        })
+        .catch(function (err) {
+          aiBar.innerHTML = '<span style="color:var(--danger)">' + escHtml((err && err.error) || 'AI lookup failed') + '</span>';
+        });
+    }).catch(function (err) {
+      showToast((err && err.error) || 'Failed to load song', 'error');
+    });
+  }
+
+  function applyAiSuggestions(changes, sug) {
+    if (changes.title) {
+      document.getElementById('editTitle').value = changes.title;
+    }
+    if (changes.year) {
+      document.getElementById('editYear').value = changes.year;
+    }
+    if (changes.artist) {
+      // Find or pick closest matching artist in select
+      var sel = document.getElementById('editArtist');
+      var found = false;
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].text.toLowerCase() === changes.artist.toLowerCase()) {
+          sel.value = sel.options[i].value;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        showToast('Artist "' + changes.artist + '" not in list — create it first or save to auto-create', 'info');
+      }
+    }
+    if (changes.genre) {
+      var gSel = document.getElementById('editGenre');
+      var gFound = false;
+      for (var j = 0; j < gSel.options.length; j++) {
+        if (gSel.options[j].text.toLowerCase() === changes.genre.toLowerCase()) {
+          gSel.value = gSel.options[j].value;
+          gFound = true;
+          break;
+        }
+      }
+      if (!gFound) {
+        showToast('Genre "' + changes.genre + '" not in list — create it first', 'info');
+      }
+    }
+
+    document.getElementById('btnAiApply').classList.add('hidden');
+    document.getElementById('aiSuggestBar').innerHTML = '<span style="color:var(--accent)">AI suggestions applied to form. Review and click Save.</span>';
+    showToast('AI suggestions applied — review and save');
   }
 
   // ── New Artist ────────────────────────────────────────
@@ -1546,10 +1691,14 @@ var RendezVoxMedia = (function () {
 
       g.songs.forEach(function (s) {
         var checked = s.id === g.recommended_keep_id ? ' checked' : '';
+        var inPlaylist = s.in_playlist;
+        var plTitle = inPlaylist ? 'In playlist: ' + escHtml(s.playlists.join(', ')) : '';
         html += '<tr>';
         html += '<td style="text-align:center"><input type="radio" class="dup-keep-radio" name="dup_group_' + idx + '" value="' + s.id + '"' + checked + '></td>';
         if (g.type === 'fuzzy') html += '<td style="font-size:.82rem">' + escHtml(s.title) + '</td>';
-        html += '<td style="font-size:.78rem;max-width:280px;word-break:break-all;opacity:.6">' + escHtml(s.file_path) + '</td>';
+        html += '<td style="font-size:.78rem;max-width:280px;word-break:break-all;opacity:.6">' + escHtml(s.file_path);
+        if (inPlaylist) html += ' <span title="' + plTitle + '" style="display:inline-block;background:var(--primary,#3b82f6);color:#fff;font-size:.65rem;padding:1px 5px;border-radius:3px;vertical-align:middle;cursor:help">IN PLAYLIST</span>';
+        html += '</td>';
         html += '<td style="white-space:nowrap;font-weight:600;text-transform:uppercase">' + escHtml(s.format || '?') + '</td>';
         html += '<td style="white-space:nowrap">' + formatBytes(s.file_size) + '</td>';
         html += '<td style="white-space:nowrap">' + formatDuration(s.duration_ms) + '</td>';
@@ -1616,8 +1765,24 @@ var RendezVoxMedia = (function () {
       if (!ok) return;
       RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: [keepId], delete_ids: deleteIds })
         .then(function (data) {
-          showToast('Removed ' + data.deleted + ' duplicate(s) from library');
-          dupGroups.splice(idx, 1);
+          var msg = 'Removed ' + data.deleted + ' duplicate(s) from library';
+          if (data.skipped && data.skipped.length > 0) {
+            msg += '. Skipped ' + data.skipped.length + ' song(s) in playlists.';
+            showToast(msg, 'warning');
+          } else {
+            showToast(msg);
+          }
+          if (!data.skipped || data.skipped.length === 0) {
+            dupGroups.splice(idx, 1);
+          } else {
+            // Remove only the songs that were actually deleted from this group
+            var skippedIds = {};
+            data.skipped.forEach(function (s) { skippedIds[s.id] = true; });
+            g.songs = g.songs.filter(function (s) { return s.id === keepId || skippedIds[s.id]; });
+            if (g.songs.length <= 1) {
+              dupGroups.splice(idx, 1);
+            }
+          }
           dupRenderGroups();
           dupUpdateSummary();
           dupUpdateBadge();
@@ -1653,15 +1818,23 @@ var RendezVoxMedia = (function () {
       if (!ok) return;
       RendezVoxAPI.post('/admin/duplicates/resolve', { keep_ids: keepIds, delete_ids: deleteIds })
         .then(function (data) {
-          showToast('Removed ' + data.deleted + ' duplicate(s) from library');
-          dupGroups = [];
-          dupRenderGroups();
-          dupUpdateSummary();
-          dupUpdateBadge();
+          var msg = 'Removed ' + data.deleted + ' duplicate(s) from library';
+          if (data.skipped && data.skipped.length > 0) {
+            msg += '. Skipped ' + data.skipped.length + ' song(s) in playlists.';
+            showToast(msg, 'warning');
+            // Re-scan to refresh groups with remaining songs
+            dupScan();
+          } else {
+            showToast(msg);
+            dupGroups = [];
+            dupRenderGroups();
+            dupUpdateSummary();
+            dupUpdateBadge();
+            document.getElementById('btnDupDeleteAll').style.display = 'none';
+            document.getElementById('dupResults').innerHTML =
+              '<p class="text-dim" style="padding:30px 0;text-align:center;opacity:.5">Your library is clean!</p>';
+          }
           loadArtists();
-          document.getElementById('btnDupDeleteAll').style.display = 'none';
-          document.getElementById('dupResults').innerHTML =
-            '<p class="text-dim" style="padding:30px 0;text-align:center;opacity:.5">Your library is clean!</p>';
         })
         .catch(function (err) {
           showToast((err && err.error) || 'Remove failed', 'error');
@@ -1926,6 +2099,7 @@ var RendezVoxMedia = (function () {
   return {
     init:              init,
     editSong:          editSong,
+    aiTagSong:         aiTagSong,
     trashSong:         trashSong,
     restoreSong:       restoreSong,
     purgeSong:         purgeSong,

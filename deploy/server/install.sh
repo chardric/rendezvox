@@ -39,6 +39,20 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 err()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 info() { echo -e "${CYAN}[INFO]${NC} $1"; }
 
+# Find an available port starting from the preferred one
+find_available_port() {
+    local port=$1
+    local max_attempts=20
+    for _ in $(seq 1 $max_attempts); do
+        if ! ss -tlnH "sport = :$port" | grep -q ":$port"; then
+            echo "$port"
+            return 0
+        fi
+        port=$((port + 1))
+    done
+    echo "$1"
+}
+
 # ── Check root ──
 [ "$(id -u)" -eq 0 ] || err "Run this script with sudo"
 
@@ -170,10 +184,11 @@ log "Step 5/8: Generating secure passwords..."
 
 DB_PASS=$(openssl rand -hex 16)
 ICECAST_SOURCE_PASS=$(openssl rand -hex 12)
-ICECAST_RELAY_PASS=$(openssl rand -hex 12)
 ICECAST_ADMIN_PASS=$(openssl rand -hex 12)
-JWT_SECRET=$(openssl rand -hex 32)
+INTERNAL_SECRET=$(openssl rand -hex 32)
 ADMIN_PASS=$(openssl rand -base64 12 | tr -d '/+=' | head -c 12)
+
+HTTP_PORT=$(find_available_port 8888)
 
 # ==========================================================
 # 6. Create directories and .env configuration
@@ -192,6 +207,8 @@ if [ -f "$RENDEZVOX_DIR/docker/.env" ]; then
     DB_PASS=$(grep '^POSTGRES_PASSWORD=' "$RENDEZVOX_DIR/docker/.env" | cut -d'=' -f2)
     ICECAST_SOURCE_PASS=$(grep '^ICECAST_SOURCE_PASSWORD=' "$RENDEZVOX_DIR/docker/.env" | cut -d'=' -f2)
     ICECAST_ADMIN_PASS=$(grep '^ICECAST_ADMIN_PASSWORD=' "$RENDEZVOX_DIR/docker/.env" | cut -d'=' -f2)
+    HTTP_PORT=$(grep '^RENDEZVOX_HTTP_PORT=' "$RENDEZVOX_DIR/docker/.env" | cut -d'=' -f2)
+    HTTP_PORT=${HTTP_PORT:-8888}
 else
     log "Generating .env with secure passwords..."
     cat > "$RENDEZVOX_DIR/docker/.env" << ENV
@@ -201,32 +218,19 @@ else
 # Generated on: $(date -Iseconds)
 # ==========================================================
 
-# ── PostgreSQL ───────────────────────────────────────────
-POSTGRES_DB=rendezvox
-POSTGRES_USER=rendezvox
+# ── Auto-generated credentials (do not share) ────────────
 POSTGRES_PASSWORD=$DB_PASS
-
-# ── Icecast ──────────────────────────────────────────────
 ICECAST_SOURCE_PASSWORD=$ICECAST_SOURCE_PASS
-ICECAST_RELAY_PASSWORD=$ICECAST_RELAY_PASS
 ICECAST_ADMIN_PASSWORD=$ICECAST_ADMIN_PASS
-ICECAST_ADMIN_USER=admin
-ICECAST_HOSTNAME=localhost
-ICECAST_MAX_CLIENTS=100
-ICECAST_MAX_SOURCES=5
+RENDEZVOX_INTERNAL_SECRET=$INTERNAL_SECRET
 
-# ── Application ─────────────────────────────────────────
+# ── User settings (edit these as needed) ──────────────────
 RENDEZVOX_APP_ENV=production
-RENDEZVOX_APP_DEBUG=false
-RENDEZVOX_JWT_SECRET=$JWT_SECRET
-RENDEZVOX_ICECAST_MOUNT=/live
 TZ=UTC
-
-# ── Host Port Overrides ─────────────────────────────────
-RENDEZVOX_HTTP_PORT=80
-RENDEZVOX_ICECAST_PUBLIC_PORT=8000
+RENDEZVOX_HTTP_PORT=$HTTP_PORT
 ENV
     log ".env created with secure passwords"
+    log "HTTP port: $HTTP_PORT"
 fi
 
 # ==========================================================
@@ -284,7 +288,7 @@ cat > "$CREDS_FILE" << CREDS
 # ==========================================================
 
 Admin Panel:
-  URL:      http://$SERVER_IP/admin/
+  URL:      http://$SERVER_IP:$HTTP_PORT/admin/
   Username: admin
   Password: $ADMIN_PASS
 
@@ -296,7 +300,7 @@ Database:
   Password: $DB_PASS
 
 Icecast:
-  Stream URL:     http://$SERVER_IP/stream/live
+  Stream URL:     http://$SERVER_IP:$HTTP_PORT/stream/live
   Admin URL:      http://$SERVER_IP:8000/admin/
   Admin User:     admin
   Admin Password: $ICECAST_ADMIN_PASS
@@ -333,9 +337,9 @@ echo ""
 log " Credentials saved to: $CREDS_FILE"
 log "   View with: sudo cat $CREDS_FILE"
 echo ""
-log " Admin panel:  http://$SERVER_IP/admin/"
-log " Stream URL:   http://$SERVER_IP/stream/live"
-log " Listener page: http://$SERVER_IP/"
+log " Admin panel:  http://$SERVER_IP:$HTTP_PORT/admin/"
+log " Stream URL:   http://$SERVER_IP:$HTTP_PORT/stream/live"
+log " Listener page: http://$SERVER_IP:$HTTP_PORT/"
 echo ""
 log " Login: admin / $ADMIN_PASS"
 warn " Change your password after first login!"

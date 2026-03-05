@@ -67,20 +67,21 @@ class MediaImportHandler
 
         $stmt = $db->prepare('
             INSERT INTO songs (title, artist_id, category_id, file_path, file_hash,
-                               duration_ms, rotation_weight, year)
+                               duration_ms, rotation_weight, year, is_christmas)
             VALUES (:title, :artist_id, :category_id, :file_path, :file_hash,
-                    :duration_ms, :weight, :year)
+                    :duration_ms, :weight, :year, :is_christmas)
             RETURNING id
         ');
         $stmt->execute([
-            'title'       => $title,
-            'artist_id'   => $artistId,
-            'category_id' => $categoryId,
-            'file_path'   => $absPath,
-            'file_hash'   => $hash,
-            'duration_ms' => $meta['duration_ms'],
-            'weight'      => $weight,
-            'year'        => $meta['year'] ?: null,
+            'title'        => $title,
+            'artist_id'    => $artistId,
+            'category_id'  => $categoryId,
+            'file_path'    => $absPath,
+            'file_hash'    => $hash,
+            'duration_ms'  => $meta['duration_ms'],
+            'weight'       => $weight,
+            'year'         => $meta['year'] ?: null,
+            'is_christmas' => RotationEngine::isChristmasTitle($title) ? 'true' : 'false',
         ]);
 
         Response::json([

@@ -32,7 +32,6 @@ var RendezVoxSchedules = (function() {
   var bulkBusy = false;
 
   // ── Special playlists config (loaded from settings) ──
-  var specialIds = [];
   var specialSlots = [];
 
   // ── Multi-select state ────────────────────────────
@@ -113,9 +112,6 @@ var RendezVoxSchedules = (function() {
   function loadSpecialConfig() {
     RendezVoxAPI.get('/admin/settings').then(function(result) {
       (result.settings || []).forEach(function(s) {
-        if (s.key === 'schedule_special_playlists') {
-          try { specialIds = JSON.parse(s.value || '[]'); } catch(e) { specialIds = []; }
-        }
         if (s.key === 'schedule_special_slots') {
           try { specialSlots = JSON.parse(s.value || '[]'); } catch(e) { specialSlots = []; }
         }
@@ -180,6 +176,7 @@ var RendezVoxSchedules = (function() {
     });
     document.getElementById('btnGoSurpriseSchedule').addEventListener('click', handleSurpriseScheduleGo);
     document.getElementById('btnClearSchedules').addEventListener('click', handleClearSchedules);
+    document.getElementById('btnRefreshSpecial').addEventListener('click', refreshSpecial);
     document.getElementById('btnDeleteSelected').addEventListener('click', deleteSelected);
 
     // Escape clears selection
@@ -1529,9 +1526,6 @@ var RendezVoxSchedules = (function() {
     // Re-fetch special config before generating (may have changed on Playlists page)
     RendezVoxAPI.get('/admin/settings').then(function(result) {
       (result.settings || []).forEach(function(s) {
-        if (s.key === 'schedule_special_playlists') {
-          try { specialIds = JSON.parse(s.value || '[]'); } catch(e) { specialIds = []; }
-        }
         if (s.key === 'schedule_special_slots') {
           try { specialSlots = JSON.parse(s.value || '[]'); } catch(e) { specialSlots = []; }
         }
@@ -1543,9 +1537,13 @@ var RendezVoxSchedules = (function() {
   }
 
   function generateSurpriseSchedule(startHour, endHour, blockMin, active) {
+    // Derive special playlist IDs from enabled slots
+    var enabledSlots = specialSlots.filter(function(s) { return s.enabled && s.playlist_id; });
+    var spIds = enabledSlots.map(function(s) { return s.playlist_id; });
+
     // Exclude special playlists from the rotation pool
     var pool = active.filter(function(p) {
-      return specialIds.indexOf(p.id) === -1;
+      return spIds.indexOf(p.id) === -1;
     });
     if (pool.length === 0) pool = active; // fallback if all are special
 
@@ -1553,11 +1551,11 @@ var RendezVoxSchedules = (function() {
     var schedEnd = endHour * 60;
     var bulkSchedules = [];
 
-    // Build reserved ranges from special slots (clipped to schedule window)
+    // Build reserved ranges from enabled special slots (clipped to schedule window)
     var reserved = [];
-    for (var i = 0; i < specialSlots.length; i++) {
-      var rStart = Math.max(specialSlots[i].start * 60, schedStart);
-      var rEnd   = Math.min(specialSlots[i].end * 60, schedEnd);
+    for (var i = 0; i < enabledSlots.length; i++) {
+      var rStart = Math.max(enabledSlots[i].start * 60, schedStart);
+      var rEnd   = Math.min(enabledSlots[i].end * 60, schedEnd);
       if (rStart < rEnd) reserved.push({ start: rStart, end: rEnd });
     }
     var sorted = reserved.slice().sort(function(a, b) { return a.start - b.start; });
@@ -1637,6 +1635,54 @@ var RendezVoxSchedules = (function() {
         showToast((err && err.error) || 'Clear failed', 'error');
         loadSchedules();
       });
+    });
+  }
+
+  function formatTimeHHMMFromHour(h) {
+    if (h === 24) return '24:00';
+    return (h < 10 ? '0' : '') + h + ':00';
+  }
+
+  function refreshSpecial() {
+    var btn = document.getElementById('btnRefreshSpecial');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing…';
+
+    RendezVoxAPI.get('/admin/settings').then(function(result) {
+      (result.settings || []).forEach(function(s) {
+        if (s.key === 'schedule_special_slots') {
+          try { specialSlots = JSON.parse(s.value || '[]'); } catch(e) { specialSlots = []; }
+        }
+      });
+
+      var entries = [];
+      var allDays = [0, 1, 2, 3, 4, 5, 6];
+      for (var i = 0; i < specialSlots.length; i++) {
+        if (specialSlots[i].enabled && specialSlots[i].playlist_id) {
+          entries.push({
+            playlist_id: specialSlots[i].playlist_id,
+            days_of_week: allDays,
+            start_time: formatTimeHHMMFromHour(specialSlots[i].start),
+            end_time: formatTimeHHMMFromHour(specialSlots[i].end),
+            priority: 99
+          });
+        }
+      }
+
+      return RendezVoxAPI.post('/admin/schedules/bulk', {
+        clear_existing: true,
+        clear_special: true,
+        schedules: entries
+      });
+    }).then(function() {
+      showToast('Special playlists refreshed');
+      loadSchedules();
+      RendezVoxAPI.post('/admin/schedules/reload', { force: true }).catch(function() {});
+    }).catch(function(err) {
+      showToast((err && err.error) || 'Refresh failed', 'error');
+    }).then(function() {
+      btn.disabled = false;
+      btn.textContent = 'Refresh Special';
     });
   }
 

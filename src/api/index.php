@@ -28,6 +28,7 @@ require __DIR__ . '/handlers/SongToggleHandler.php';
 require __DIR__ . '/handlers/SongTrashHandler.php';
 require __DIR__ . '/handlers/SongDeactivateMissingHandler.php';
 require __DIR__ . '/handlers/SongPurgeHandler.php';
+require __DIR__ . '/handlers/SongAiTagHandler.php';
 require __DIR__ . '/handlers/ArtistListHandler.php';
 require __DIR__ . '/handlers/ArtistCreateHandler.php';
 require __DIR__ . '/handlers/CategoryListHandler.php';
@@ -171,7 +172,8 @@ Router::post('/admin/songs/deactivate-missing', [SongDeactivateMissingHandler::c
 Router::delete('/admin/songs/purge',          [SongPurgeHandler::class,   'purge']);
 Router::delete('/admin/songs/purge-all',      [SongPurgeHandler::class,   'purgeAll']);
 Router::delete('/admin/songs/purge-inactive', [SongPurgeHandler::class,   'purgeInactive']);
-Router::get('/admin/songs/:id/preview',  [SongPreviewHandler::class, 'handle']);
+Router::get('/admin/songs/:id/preview',  [SongPreviewHandler::class,  'handle']);
+Router::post('/admin/songs/:id/ai-tag', [SongAiTagHandler::class,   'handle']);
 Router::get('/admin/songs/:id',          [SongDetailHandler::class,  'handle']);
 Router::post('/admin/songs',             [SongCreateHandler::class,  'handle']);
 Router::put('/admin/songs/:id',          [SongUpdateHandler::class,  'handle']);

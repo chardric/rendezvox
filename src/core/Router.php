@@ -14,11 +14,9 @@ class Router
             if ($path === $r) {
                 $expected = getenv('RENDEZVOX_INTERNAL_SECRET') ?: '';
                 if ($expected === '') {
-                    $appEnv = getenv('RENDEZVOX_APP_ENV') ?: 'production';
-                    if ($appEnv !== 'development') {
-                        Response::error('Internal secret not configured', 500);
-                    }
-                    return;
+                    // Auto-derive from DB password when not explicitly set
+                    $dbPass = getenv('RENDEZVOX_DB_PASSWORD') ?: '';
+                    $expected = hash('sha256', 'rendezvox-internal-' . $dbPass . '-' . (__DIR__));
                 }
                 $provided = $_SERVER['HTTP_X_INTERNAL_SECRET'] ?? '';
                 if (!hash_equals($expected, $provided)) {

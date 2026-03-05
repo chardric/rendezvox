@@ -131,7 +131,7 @@
       <div class="card" style="padding:24px">
         <h3 class="settings-section-title">Scan and Tag</h3>
         <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
-          Scan all songs and look up metadata (genre/category) from MusicBrainz, TheAudioDB, and audio file tags.
+          Scan all songs and look up metadata (genre/category) from MusicBrainz, TheAudioDB, Gemini AI, and audio file tags.
           Fixes missing titles from filenames. Songs without a match keep their current values.
         </p>
         <div class="settings-field" style="margin-bottom:16px">
@@ -170,6 +170,45 @@
             </div>
             <button id="btnSaveTheAudioDbKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveTheAudioDbKey()">Save Key</button>
           </div>
+        </div>
+        <div class="settings-field">
+          <label>AI Provider</label>
+          <select id="aiProvider" onchange="RendezVoxSettings.saveAiProvider()" style="max-width:320px">
+            <option value="gemini">Gemini only</option>
+            <option value="ollama">Ollama only</option>
+            <option value="gemini_ollama">Gemini → Ollama fallback</option>
+            <option value="none">Disabled</option>
+          </select>
+        </div>
+        <div class="settings-field">
+          <label>Google Gemini API key <span style="color:var(--text-dim);font-weight:400">(optional — AI-powered gap-filling for genre, year, artist, title)</span></label>
+          <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Free tier: 15 requests/min, 1M tokens/day. Get a key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--accent)">aistudio.google.com</a></div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div class="eye-wrap" style="flex:1">
+              <input type="password" id="geminiApiKey" placeholder="Enter Gemini API key" style="padding-right:36px;width:100%">
+              <button type="button" class="eye-toggle" onclick="RendezVoxSettings.toggleVis('geminiApiKey',this)" title="Show/hide API key" aria-label="Toggle API key visibility">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <button id="btnSaveGeminiKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveGeminiKey()">Save Key</button>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label>Ollama URL <span style="color:var(--text-dim);font-weight:400">(optional — self-hosted AI fallback, no rate limits)</span></label>
+          <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Run <code>ollama serve</code> locally or in Docker. Install from <a href="https://ollama.com" target="_blank" rel="noopener" style="color:var(--accent)">ollama.com</a></div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="text" id="ollamaUrl" placeholder="http://host.docker.internal:11434" style="flex:1">
+            <button id="btnSaveOllamaUrl" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveOllamaUrl()">Save</button>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label>Ollama Model <span style="color:var(--text-dim);font-weight:400">(default: gemma3:1b — small and fast)</span></label>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="text" id="ollamaModel" placeholder="gemma3:1b" style="flex:1">
+            <button id="btnSaveOllamaModel" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveOllamaModel()">Save</button>
+            <button id="btnTestOllama" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.testOllama()">Test</button>
+          </div>
+          <div id="ollamaTestResult" style="font-size:.78rem;margin-top:4px"></div>
         </div>
         <div id="genreScanStatus" style="display:none;margin-bottom:12px">
           <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
