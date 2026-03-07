@@ -758,12 +758,15 @@ body::after{
   audio.addEventListener('playing', function() {
     clearTimeout(stallTimer);
     stallTimer = null;
+    if (window._rvxInitAudio) window._rvxInitAudio();
     if (reconnecting) {
       stopReconnect();
       playing = true;
       updatePlayState();
       updateMediaSessionState('playing');
-      fetchNowPlaying(); // immediately refresh song info after reconnect
+      fetchNowPlaying();
+    } else if (playing) {
+      updatePlayState();
     }
   });
 
@@ -840,6 +843,7 @@ body::after{
       audio.muted = false;
       audio.play();
       playing = true;
+      if (window._rvxInitAudio) window._rvxInitAudio();
       updateMuteIcon();
       updateMediaSessionState('playing');
     }
@@ -893,9 +897,9 @@ body::after{
   }
 
   // ── Request button visibility ──
-  var _isEmergencyMode = false;
+  window._isEmergencyMode = false;
   function updateRequestButton(isEmergency) {
-    _isEmergencyMode = isEmergency || false;
+    window._isEmergencyMode = isEmergency || false;
     if (isEmergency) {
       btnRequest.textContent = 'Requests Unavailable';
       btnRequest.disabled = true;
@@ -1503,7 +1507,7 @@ body::after{
     });
 
     var html = '';
-    if (_isEmergencyMode) {
+    if (window._isEmergencyMode) {
       html += '<div class="sched-emergency">\u26A0 Emergency playlist is active. Normal schedule is paused.</div>';
     }
     if (schedules.length === 0) {
@@ -1527,7 +1531,7 @@ body::after{
             html += '<span class="sched-time">' + fmtTime(s.start_time) + ' – ' + fmtTime(s.end_time) + '</span>';
             html += '<span class="sched-name">' + escHtml(s.name || s.playlist_name) + '</span>';
             if (showNow) {
-              if (_isEmergencyMode) html += '<span class="sched-paused">PAUSED</span>';
+              if (window._isEmergencyMode) html += '<span class="sched-paused">PAUSED</span>';
               else html += '<span class="sched-now">NOW</span>';
             }
             html += '</div>';
@@ -1792,6 +1796,7 @@ body::after{
   // Expose to main script scope
   window._rvxStartVu = startVuMeter;
   window._rvxStopVu = stopVuMeter;
+  window._rvxInitAudio = initAudioChain;
 
   document.getElementById('turntable').addEventListener('click', initAudioChain);
   document.getElementById('tapOverlay').addEventListener('click', initAudioChain);
