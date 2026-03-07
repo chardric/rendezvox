@@ -2,8 +2,8 @@
 // RendezVox — Service Worker
 // ============================================================
 
-var CACHE_STATIC = 'rendezvox-static-v1';
-var CACHE_ASSETS = 'rendezvox-assets-v1';
+var CACHE_STATIC = 'rendezvox-static-v2';
+var CACHE_ASSETS = 'rendezvox-assets-v2';
 var EXPECTED_CACHES = [CACHE_STATIC, CACHE_ASSETS];
 
 var PRECACHE_URLS = [

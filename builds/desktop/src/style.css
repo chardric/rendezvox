@@ -45,12 +45,11 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  scrollbar-width: thin;
-  scrollbar-color: var(--bg-elevated) transparent;
+  scrollbar-width: none;
 }
-#content::-webkit-scrollbar { width: 4px; }
+#content::-webkit-scrollbar { width: 0; }
 #content::-webkit-scrollbar-track { background: transparent; }
-#content::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 2px; }
+#content::-webkit-scrollbar-thumb { background: transparent; }
 
 /* ── Station header ──────────────────────────────── */
 #station-name {

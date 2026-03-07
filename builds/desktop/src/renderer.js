@@ -54,16 +54,13 @@ const OFFLINE_THRESHOLD = 3;
 
 // ── Audio ─────────────────────────────────────────────────
 function createAudio() {
-  if (audio) {
-    audio.pause();
-    audio.src = '';
-  }
+  if (audio) return;
   audio = new Audio();
   audio.volume = parseFloat(volSlider.value);
   audio.preload = 'none';
 
   audio.addEventListener('waiting',  () => setBuffering(true));
-  audio.addEventListener('playing',  () => { setBuffering(false); setPlayState(true); });
+  audio.addEventListener('playing',  () => { initAudioChain(); setBuffering(false); setPlayState(true); });
   audio.addEventListener('pause',    () => setPlayState(false));
   audio.addEventListener('ended',    () => { setPlayState(false); setBuffering(false); });
   audio.addEventListener('error',    () => {
@@ -71,12 +68,11 @@ function createAudio() {
     setBuffering(false);
     if (isPlaying) setTimeout(() => startPlayback(), 5000);
   });
-
-  reconnectAudioChain();
 }
 
 function startPlayback() {
   createAudio();
+  audio.pause();
   audio.src = `${STREAM_URL}?t=${Date.now()}`;
   setBuffering(true);
   setConnecting(true);
@@ -917,14 +913,6 @@ function initAudioChain() {
     applySpatial();
     eqInited = true;
   } catch (_) { audioCtx = null; }
-}
-
-function reconnectAudioChain() {
-  if (!eqInited || !audioCtx || !audio) return;
-  try {
-    const newSource = audioCtx.createMediaElementSource(audio);
-    newSource.connect(eqFilters[0]);
-  } catch (_) {}
 }
 
 function vuBarColor(ratio) {
