@@ -78,6 +78,7 @@ services:
       - ../data/avatars:/var/lib/rendezvox/avatars
       - ../data/logos:/var/lib/rendezvox/logos
       - ../data/logs:/var/log/rendezvox
+      - ../installers:/var/www/html/installers:ro
     networks:
       - rendezvox_net
     depends_on:

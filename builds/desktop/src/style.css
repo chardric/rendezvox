@@ -30,6 +30,7 @@ html, body {
 
 /* ── Layout ─────────────────────────────────────── */
 #app {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -383,12 +384,13 @@ html, body {
 #footer a { color: #9ca3af; text-decoration: underline; }
 #footer a:hover { color: #fff; }
 #btn-about {
-  width: 18px; height: 18px; border-radius: 50%;
-  background: #ff7800; color: #fff; border: none;
-  font-size: 11px; font-weight: 700; font-style: italic;
+  position: absolute; top: 10px; right: 12px; z-index: 20;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(255, 120, 0, 0.85); color: #fff; border: none;
+  font-size: 13px; font-weight: 700; font-style: italic;
   font-family: Georgia, serif;
   display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer; flex-shrink: 0;
+  cursor: pointer;
 }
 #btn-about:hover { background: #ff8c1a; }
 
@@ -671,7 +673,7 @@ textarea.field-input {
   background: rgba(255,152,0,0.12);
   border: 1px solid rgba(255,152,0,0.30);
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 10px 34px 10px 14px;
   margin: 0 0 0 0;
   font-size: 12px;
   color: #ffb74d;
@@ -715,23 +717,11 @@ textarea.field-input {
   transition: opacity .8s ease; opacity: 0;
 }
 
-/* ── Equalizer bars ───────────────────────────── */
-#eq-bars {
-  display: flex; align-items: flex-end; justify-content: center;
-  gap: 3px; height: 16px; margin: 4px auto 6px;
+/* ── VU Meter ─────────────────────────────────── */
+#vu-meter {
+  display: block; margin: 4px auto 6px;
+  height: 24px; width: 120px; border-radius: 3px;
 }
-.eq-bar {
-  width: 3px; height: 16px; background: var(--accent);
-  border-radius: 1px; transform: scaleY(.2);
-  transform-origin: bottom; opacity: .7;
-}
-.eq-active .eq-bar { animation: eq-bar ease-in-out infinite alternate; }
-.eq-active .eq-bar:nth-child(1) { animation-duration: .7s; animation-delay: .1s; }
-.eq-active .eq-bar:nth-child(2) { animation-duration: .5s; animation-delay: .2s; }
-.eq-active .eq-bar:nth-child(3) { animation-duration: .6s; animation-delay: 0s; }
-.eq-active .eq-bar:nth-child(4) { animation-duration: .8s; animation-delay: .15s; }
-.eq-active .eq-bar:nth-child(5) { animation-duration: .55s; animation-delay: .05s; }
-@keyframes eq-bar { from { transform: scaleY(.2); } to { transform: scaleY(1); } }
 
 /* ── Marquee scroll for long titles ───────────── */
 .marquee-inner {
@@ -863,6 +853,15 @@ textarea.field-input {
   font-size: 8px; font-weight: 700; background: var(--accent); color: #fff;
   padding: 1px 5px; border-radius: 6px; letter-spacing: 0.3px;
 }
+.sched-paused {
+  font-size: 8px; font-weight: 700; background: #555; color: #aaa;
+  padding: 1px 5px; border-radius: 6px; letter-spacing: 0.3px;
+}
+.sched-emergency {
+  background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 10px;
+  font-size: 11px; color: #f87171;
+}
 .sched-empty {
   font-size: 11px; color: var(--text-dim); font-style: italic;
   padding: 2px 0;
@@ -926,16 +925,17 @@ textarea.field-input {
   text-align: center; width: 100%;
 }
 .eq-band input[type="range"] {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  -webkit-appearance: slider-vertical;
+  -webkit-appearance: none; appearance: none;
+  writing-mode: vertical-lr; direction: rtl;
   width: 18px; height: 80px;
   background: transparent; cursor: pointer;
+  margin: 0; padding: 0;
 }
 .eq-band input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 10px; height: 10px; border-radius: 50%;
+  width: 12px; height: 12px; border-radius: 50%;
   background: var(--accent); cursor: pointer;
+  margin-left: -4.5px;
 }
 .eq-band input[type="range"]::-webkit-slider-runnable-track {
   width: 3px; background: #333355; border-radius: 2px;

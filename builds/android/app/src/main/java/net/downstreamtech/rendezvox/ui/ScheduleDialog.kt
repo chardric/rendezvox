@@ -24,6 +24,7 @@ import java.util.*
 @Composable
 fun ScheduleDialog(
     schedules: List<ScheduleItem>,
+    isEmergency: Boolean = false,
     accentColor: Color = Accent,
     onDismiss: () -> Unit
 ) {
@@ -63,6 +64,28 @@ fun ScheduleDialog(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 14.dp)
                     )
+
+                    if (isEmergency) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0x1FF87171),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x40F87171)),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("\u26A0", fontSize = 13.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Emergency playlist is active. Normal schedule is paused.",
+                                    color = Color(0xFFF87171),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
 
                     if (schedules.isEmpty()) {
                         Text(
@@ -136,12 +159,22 @@ fun ScheduleDialog(
                                         )
                                         if (showNow) {
                                             Spacer(Modifier.width(6.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .background(accentColor, RoundedCornerShape(6.dp))
-                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
-                                            ) {
-                                                Text("NOW", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                            if (isEmergency) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(Color(0xFF666666), RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                ) {
+                                                    Text("PAUSED", color = Color(0xFFAAAAAA), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(accentColor, RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                ) {
+                                                    Text("NOW", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                }
                                             }
                                         }
                                     }

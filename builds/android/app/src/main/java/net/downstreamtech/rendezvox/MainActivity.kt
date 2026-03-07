@@ -25,9 +25,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val perms = mutableListOf(android.Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+            perms.add(android.Manifest.permission.POST_NOTIFICATIONS)
         }
+        requestPermissions(perms.toTypedArray(), 1)
 
         setContent {
             RendezVoxTheme {
@@ -76,6 +78,7 @@ private fun PlayerContent(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scheduleItems by viewModel.scheduleItems.collectAsStateWithLifecycle()
     val eqState by viewModel.eqState.collectAsStateWithLifecycle()
+    val vuBands by viewModel.vuBands.collectAsStateWithLifecycle()
     var showSplash by remember { mutableStateOf(true) }
     var showRequest by remember { mutableStateOf(false) }
 
@@ -99,7 +102,9 @@ private fun PlayerContent(
                 onEqPresetChange = { viewModel.setEqPreset(it) },
                 onEqSpatialChange = { viewModel.setSpatialMode(it) },
                 onEqBandChange = { idx, gain -> viewModel.setEqBand(idx, gain) },
-                onEqReset = { viewModel.resetEq() }
+                onEqReset = { viewModel.resetEq() },
+                vuBands = vuBands,
+                onInitVisualizer = { viewModel.initVisualizer() }
             )
         }
 

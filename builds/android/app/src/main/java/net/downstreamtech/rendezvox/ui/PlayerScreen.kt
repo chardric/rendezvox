@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -67,10 +68,17 @@ fun PlayerScreen(
     onEqPresetChange: (String) -> Unit = {},
     onEqSpatialChange: (String) -> Unit = {},
     onEqBandChange: (Int, Int) -> Unit = { _, _ -> },
-    onEqReset: () -> Unit = {}
+    onEqReset: () -> Unit = {},
+    vuBands: FloatArray = FloatArray(16),
+    onInitVisualizer: () -> Unit = {}
 ) {
     val accent = parseHexColor(state.accentColor)
     val accentLight = lightenColor(accent, 0.18f)
+
+    // Init visualizer when playing starts
+    LaunchedEffect(state.isPlaying) {
+        if (state.isPlaying) onInitVisualizer()
+    }
 
     Box(
         modifier = Modifier
@@ -101,6 +109,23 @@ fun PlayerScreen(
                         .alpha(0.3f)
                 )
             }
+        }
+
+        // About (i) button — top right
+        var showAbout by remember { mutableStateOf(false) }
+        val uriHandler = LocalUriHandler.current
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 40.dp, end = 16.dp)
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.85f))
+                .clickable { showAbout = true }
+                .zIndex(10f),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("i", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
         }
 
         Column(
@@ -211,8 +236,8 @@ fun PlayerScreen(
                 onTogglePlayback = onTogglePlayback
             )
 
-            // B2: Equalizer bars
-            EqualizerBars(isPlaying = state.isPlaying, accentColor = accent)
+            // VU Meter
+            VuMeter(bands = vuBands, isPlaying = state.isPlaying)
 
             Spacer(Modifier.height(6.dp))
 
@@ -457,6 +482,7 @@ fun PlayerScreen(
             if (showSchedule) {
                 ScheduleDialog(
                     schedules = scheduleItems,
+                    isEmergency = state.isEmergency,
                     accentColor = accent,
                     onDismiss = { showSchedule = false }
                 )
@@ -476,8 +502,6 @@ fun PlayerScreen(
 
             // Footer
             Spacer(Modifier.height(16.dp))
-            var showAbout by remember { mutableStateOf(false) }
-            val uriHandler = LocalUriHandler.current
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
@@ -502,71 +526,76 @@ fun PlayerScreen(
                         }
                     }
                 )
-                Spacer(Modifier.width(6.dp))
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(accent)
-                        .clickable { showAbout = true }
-                ) {
-                    Text("i", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
-                }
             }
+        }
 
-            if (showAbout) {
-                AboutDialog(
-                    baseUrl = state.baseUrl,
-                    accentColor = accent,
-                    onDismiss = { showAbout = false },
-                    onChangeServer = {
-                        showAbout = false
-                        onChangeServer()
-                    }
-                )
-            }
+        if (showAbout) {
+            AboutDialog(
+                baseUrl = state.baseUrl,
+                accentColor = accent,
+                onDismiss = { showAbout = false },
+                onChangeServer = {
+                    showAbout = false
+                    onChangeServer()
+                }
+            )
         }
     }
 }
 
 // B2: Equalizer bars
 @Composable
-fun EqualizerBars(isPlaying: Boolean, accentColor: Color) {
-    val transition = rememberInfiniteTransition(label = "eq")
-    val durations = listOf(700, 500, 600, 800, 550)
-    val offsets = listOf(50, 100, 0, 75, 25)
-    val animated = durations.mapIndexed { i, dur ->
-        transition.animateFloat(
-            initialValue = 0.2f,
-            targetValue = 1.0f,
-            animationSpec = infiniteRepeatable(
-                tween(dur, easing = FastOutSlowInEasing),
-                RepeatMode.Reverse,
-                StartOffset(offsets[i])
-            ),
-            label = "eq$i"
-        )
-    }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.Bottom,
+fun VuMeter(bands: FloatArray, isPlaying: Boolean) {
+    Canvas(
         modifier = Modifier
-            .height(16.dp)
+            .width(120.dp)
+            .height(24.dp)
             .padding(top = 4.dp)
     ) {
-        animated.forEach { anim ->
-            val height = if (isPlaying) anim.value else 0.2f
-            Box(
-                Modifier
-                    .width(3.dp)
-                    .fillMaxHeight(height)
-                    .clip(RoundedCornerShape(1.dp))
-                    .alpha(0.7f)
-                    .background(accentColor)
-            )
+        if (!isPlaying) return@Canvas
+        val barCount = bands.size.coerceAtMost(16)
+        val gap = 2.dp.toPx()
+        val barW = (size.width - (barCount - 1) * gap) / barCount
+        val h = size.height
+
+        for (i in 0 until barCount) {
+            val v = bands[i].coerceIn(0f, 1f)
+            val barH = (v * h).coerceAtLeast(1f)
+            val x = i * (barW + gap)
+            val segments = 6
+            val segH = barH / segments
+
+            for (s in 0 until segments) {
+                val segY = h - (s + 1) * segH
+                if (segY < h - barH) continue
+                val ratio = (s + 1f) / segments * v
+                val color = vuBarColor(ratio)
+                drawRect(
+                    color = color,
+                    topLeft = androidx.compose.ui.geometry.Offset(x, segY),
+                    size = androidx.compose.ui.geometry.Size(barW, segH + 0.5f),
+                    alpha = 0.6f + v * 0.4f
+                )
+            }
         }
+    }
+}
+
+private fun vuBarColor(ratio: Float): Color {
+    return if (ratio < 0.5f) {
+        val t = ratio / 0.5f
+        Color(
+            red = (40 + t * 215).toInt().coerceIn(0, 255) / 255f,
+            green = (220 - t * 40).toInt().coerceIn(0, 255) / 255f,
+            blue = 50f / 255f
+        )
+    } else {
+        val t = (ratio - 0.5f) / 0.5f
+        Color(
+            red = 1f,
+            green = (180 - t * 160).toInt().coerceIn(0, 255) / 255f,
+            blue = (50 - t * 30).toInt().coerceIn(0, 255) / 255f
+        )
     }
 }
 

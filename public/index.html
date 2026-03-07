@@ -28,6 +28,7 @@ body{
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 .card{
+  position:relative;
   background:#141416;border-radius:16px;padding:20px 24px;
   width:100%;max-width:380px;text-align:center;
   box-shadow:0 8px 32px rgba(0,0,0,.4);
@@ -194,11 +195,12 @@ button:hover{color:#fff}
 .app-footer a{color:#9ca3af;text-decoration:underline}
 .app-footer a:hover{color:#fff}
 .info-btn{
-  width:44px;height:44px;border-radius:50%;
-  background:var(--accent);color:#fff;font-size:.9rem;font-weight:700;font-style:italic;
+  position:absolute;top:12px;right:12px;z-index:10;
+  width:22px;height:22px;border-radius:50%;
+  background:rgba(255,120,0,.85);color:#fff;font-size:.65rem;font-weight:700;font-style:italic;
   font-family:Georgia,serif;
   display:inline-flex;align-items:center;justify-content:center;
-  cursor:pointer;border:none;transition:background .2s;flex-shrink:0;
+  cursor:pointer;border:none;transition:background .2s;
 }
 .info-btn:hover{background:var(--accent-hover);color:#fff}
 
@@ -219,6 +221,8 @@ button:hover{color:#fff}
 .sched-time{font-size:.75rem;color:#888;white-space:nowrap}
 .sched-name{font-size:.82rem;color:#e0e0e0;flex:1}
 .sched-now{font-size:.6rem;background:var(--accent);color:#fff;padding:1px 5px;border-radius:6px;flex-shrink:0}
+.sched-paused{font-size:.6rem;background:#555;color:#aaa;padding:1px 5px;border-radius:6px;flex-shrink:0}
+.sched-emergency{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:.75rem;color:#f87171}
 .sched-empty{color:#555;font-style:italic;font-size:.8rem;padding:4px 0}
 
 /* Tap overlay */
@@ -295,16 +299,8 @@ button:hover{color:#fff}
   transition:opacity .8s ease;opacity:0;
 }
 
-/* Equalizer bars */
-.eq-bars{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:16px;margin:4px auto 6px}
-.eq-bar{width:3px;height:16px;background:var(--accent);border-radius:1px;transform:scaleY(.2);transform-origin:bottom;opacity:.7}
-.turntable.is-playing ~ .eq-bars .eq-bar{animation:eq-bar ease-in-out infinite alternate}
-.turntable.is-playing ~ .eq-bars .eq-bar:nth-child(1){animation-duration:.7s;animation-delay:.1s}
-.turntable.is-playing ~ .eq-bars .eq-bar:nth-child(2){animation-duration:.5s;animation-delay:.2s}
-.turntable.is-playing ~ .eq-bars .eq-bar:nth-child(3){animation-duration:.6s;animation-delay:0s}
-.turntable.is-playing ~ .eq-bars .eq-bar:nth-child(4){animation-duration:.8s;animation-delay:.15s}
-.turntable.is-playing ~ .eq-bars .eq-bar:nth-child(5){animation-duration:.55s;animation-delay:.05s}
-@keyframes eq-bar{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
+/* VU Meter */
+#vuMeter{display:block;margin:4px auto 6px;height:24px;width:120px;border-radius:3px}
 
 /* Marquee scroll for long titles */
 .marquee-inner{display:inline-block;white-space:nowrap;animation:marquee-scroll 10s linear infinite}
@@ -428,8 +424,9 @@ body::after{
 
 <!-- Player card -->
 <div class="card">
+  <button type="button" class="info-btn" id="btnAbout" title="About RendezVox">i</button>
   <img class="station-logo" id="stationLogo" src="/api/logo" alt="RendezVox" style="display:none">
-  <div class="station-name" id="stationName">RendezVox</div>
+  <div class="station-name" id="stationName" style="display:none">RendezVox</div>
   <div class="tagline">Online Radio</div>
 
   <div class="turntable" id="turntable">
@@ -471,7 +468,7 @@ body::after{
       <circle cx="13.5" cy="119" r="1.3" fill="#e33"/>
     </svg>
   </div>
-  <div class="eq-bars"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
+  <canvas id="vuMeter" width="120" height="24"></canvas>
   <div class="now-playing">
     <div class="song-title" id="songTitle">—</div>
     <div class="song-artist" id="songArtist">&nbsp;</div>
@@ -514,7 +511,6 @@ body::after{
     <a id="dl-appimage" href="/installers/desktop/linux/RendezVox-1.0.0.AppImage" title="Download for Linux (AppImage)"><svg viewBox="0 0 24 24"><rect x="3" y="2" width="18" height="20" rx="2" fill="#444"/><rect x="5" y="4" width="14" height="12" rx="1" fill="#1a1a2e"/><path d="M12 7l3 4h-2v3h-2v-3H9l3-4z" fill="#4ec9b0"/><rect x="6" y="18" width="12" height="2" rx="1" fill="#666"/></svg></a>
     <a id="dl-windows" href="/installers/desktop/windows/RendezVox%20Setup%201.0.0.exe" title="Download for Windows"><svg viewBox="0 0 24 24"><path fill="#00ADEF" d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg></a>
     <a href="https://github.com/chardric/rendezvox" target="_blank" rel="noopener" title="GitHub"><svg viewBox="0 0 24 24"><path fill="#9ca3af" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg></a>
-    <button type="button" class="info-btn" id="btnAbout" title="About RendezVox">i</button>
   </div>
 </div>
 
@@ -588,10 +584,10 @@ body::after{
       'dl-windows': v.downloads && v.downloads.windows
     };
     for (var id in map) {
-      if (map[id]) {
-        var el = document.getElementById(id);
-        if (el) el.href = map[id];
-      }
+      var el = document.getElementById(id);
+      if (!el) continue;
+      if (map[id]) { el.href = map[id]; el.style.display = ''; }
+      else el.style.display = 'none';
     }
   }).catch(function() {});
 
@@ -857,6 +853,7 @@ body::after{
     document.getElementById('listeners').classList.toggle('is-live', isLive);
     updateDiscSpin();
     updateTonearm();
+    if (isLive && window._rvxStartVu) window._rvxStartVu(); else if (window._rvxStopVu) window._rvxStopVu();
   }
 
   function updateTonearm() {
@@ -896,7 +893,9 @@ body::after{
   }
 
   // ── Request button visibility ──
+  var _isEmergencyMode = false;
   function updateRequestButton(isEmergency) {
+    _isEmergencyMode = isEmergency || false;
     if (isEmergency) {
       btnRequest.textContent = 'Requests Unavailable';
       btnRequest.disabled = true;
@@ -1442,12 +1441,12 @@ body::after{
 
   document.getElementById('btnSchedule').addEventListener('click', function() {
     schedModal.classList.remove('hidden');
-    if (scheduleData) { renderSchedule(scheduleData); return; }
     fetch('/api/schedule').then(function(r){ return r.json(); }).then(function(data) {
       scheduleData = data.schedules || [];
       renderSchedule(scheduleData);
     }).catch(function() {
-      document.getElementById('scheduleContent').textContent = 'Unable to load schedule.';
+      if (scheduleData) renderSchedule(scheduleData);
+      else document.getElementById('scheduleContent').textContent = 'Unable to load schedule.';
     });
   });
 
@@ -1504,6 +1503,9 @@ body::after{
     });
 
     var html = '';
+    if (_isEmergencyMode) {
+      html += '<div class="sched-emergency">\u26A0 Emergency playlist is active. Normal schedule is paused.</div>';
+    }
     if (schedules.length === 0) {
       html = '<p class="sched-empty">No schedules configured.</p>';
     } else {
@@ -1524,7 +1526,10 @@ body::after{
             html += '<span class="sched-dot" style="background:' + color + '"></span>';
             html += '<span class="sched-time">' + fmtTime(s.start_time) + ' – ' + fmtTime(s.end_time) + '</span>';
             html += '<span class="sched-name">' + escHtml(s.name || s.playlist_name) + '</span>';
-            if (showNow) html += '<span class="sched-now">NOW</span>';
+            if (showNow) {
+              if (_isEmergencyMode) html += '<span class="sched-paused">PAUSED</span>';
+              else html += '<span class="sched-now">NOW</span>';
+            }
             html += '</div>';
           });
         }
@@ -1595,6 +1600,11 @@ body::after{
   var spatialGains = {};
   var spatialDelays = {};
   var eqInited = false;
+  var vuAnalyser = null;
+  var vuDataArray = null;
+  var vuAnimId = null;
+  var vuCanvas = document.getElementById('vuMeter');
+  var vuCtx = vuCanvas ? vuCanvas.getContext('2d') : null;
 
   var EQ_FREQS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
   var FREQ_LABELS = ['32','64','125','250','500','1K','2K','4K','8K','16K'];
@@ -1683,7 +1693,13 @@ body::after{
       splitter.connect(spatialGains.lToR, 0);
       spatialGains.lToR.connect(spatialDelays.lToR);
       spatialDelays.lToR.connect(merger, 0, 1);
-      merger.connect(audioCtx.destination);
+      vuAnalyser = audioCtx.createAnalyser();
+      vuAnalyser.fftSize = 64;
+      vuAnalyser.smoothingTimeConstant = 0.75;
+      merger.connect(vuAnalyser);
+      vuAnalyser.connect(audioCtx.destination);
+      vuDataArray = new Uint8Array(vuAnalyser.frequencyBinCount);
+      startVuMeter();
 
       applySpatial();
       eqInited = true;
@@ -1711,6 +1727,71 @@ body::after{
       spatialDelays.rToL.delayTime.value = m.d;
     }
   }
+
+  function vuBarColor(ratio) {
+    // Rainbow VU: green at bottom → yellow → orange → red at top
+    if (ratio < 0.5) {
+      var t = ratio / 0.5;
+      var r = Math.round(40 + t * 215);
+      var g = Math.round(220 - t * 40);
+      return 'rgb(' + r + ',' + g + ',50)';
+    } else {
+      var t = (ratio - 0.5) / 0.5;
+      var r = 255;
+      var g = Math.round(180 - t * 160);
+      return 'rgb(' + r + ',' + g + ',' + Math.round(50 - t * 30) + ')';
+    }
+  }
+
+  function drawVuMeter() {
+    if (!vuCtx || !vuAnalyser || !vuDataArray) {
+      vuAnimId = null;
+      return;
+    }
+    vuAnalyser.getByteFrequencyData(vuDataArray);
+    var w = vuCanvas.width, h = vuCanvas.height;
+    vuCtx.clearRect(0, 0, w, h);
+
+    var barCount = 16;
+    var gap = 2;
+    var barW = (w - (barCount - 1) * gap) / barCount;
+    var len = vuDataArray.length;
+
+    for (var i = 0; i < barCount; i++) {
+      // Map bar index to frequency bin (logarithmic-ish distribution)
+      var binIdx = Math.min(Math.floor(Math.pow(i / barCount, 1.5) * len), len - 1);
+      var val = vuDataArray[binIdx] / 255;
+      var barH = Math.max(val * h, 1);
+      var x = i * (barW + gap);
+
+      // Draw segments for rainbow effect
+      var segments = 6;
+      var segH = barH / segments;
+      for (var s = 0; s < segments; s++) {
+        var segY = h - (s + 1) * segH;
+        if (segY < h - barH) continue;
+        var ratio = (s + 1) / segments;
+        vuCtx.fillStyle = vuBarColor(ratio * val);
+        vuCtx.globalAlpha = 0.6 + val * 0.4;
+        vuCtx.fillRect(x, segY, barW, segH + 0.5);
+      }
+    }
+    vuCtx.globalAlpha = 1;
+    vuAnimId = requestAnimationFrame(drawVuMeter);
+  }
+
+  function startVuMeter() {
+    if (!vuAnimId) vuAnimId = requestAnimationFrame(drawVuMeter);
+  }
+
+  function stopVuMeter() {
+    if (vuAnimId) { cancelAnimationFrame(vuAnimId); vuAnimId = null; }
+    if (vuCtx) vuCtx.clearRect(0, 0, vuCanvas.width, vuCanvas.height);
+  }
+
+  // Expose to main script scope
+  window._rvxStartVu = startVuMeter;
+  window._rvxStopVu = stopVuMeter;
 
   document.getElementById('turntable').addEventListener('click', initAudioChain);
   document.getElementById('tapOverlay').addEventListener('click', initAudioChain);

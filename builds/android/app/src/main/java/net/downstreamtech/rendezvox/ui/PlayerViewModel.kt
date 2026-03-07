@@ -16,6 +16,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import android.media.audiofx.Equalizer
 import android.media.audiofx.Virtualizer
+import android.media.audiofx.Visualizer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +29,7 @@ import java.util.*
 class PlayerViewModel(private val context: Context, private val baseUrl: String) : ViewModel() {
 
     companion object {
-        const val APP_VERSION = "1.0.0"
+        const val APP_VERSION = "1.0.1"
     }
 
     private val _state = MutableStateFlow(NowPlayingState(baseUrl = baseUrl))
@@ -47,6 +48,11 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
     // Schedule state
     private val _scheduleItems = MutableStateFlow<List<ScheduleItem>>(emptyList())
     val scheduleItems: StateFlow<List<ScheduleItem>> = _scheduleItems.asStateFlow()
+
+    // VU meter state
+    private var visualizer: Visualizer? = null
+    private val _vuBands = MutableStateFlow(FloatArray(16))
+    val vuBands: StateFlow<FloatArray> = _vuBands.asStateFlow()
 
     // EQ state
     private val eqPrefs = EqPrefs(context)
@@ -329,6 +335,41 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
         }
     }
 
+    // ── VU Meter ─────────────────────────────────────────
+    fun initVisualizer() {
+        val sessionId = PlaybackService.audioSessionId
+        if (sessionId == 0 || visualizer != null) return
+        try {
+            visualizer = Visualizer(sessionId).apply {
+                captureSize = Visualizer.getCaptureSizeRange()[0] // smallest FFT
+                setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
+                    override fun onWaveFormDataCapture(v: Visualizer?, data: ByteArray?, rate: Int) {}
+                    override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, rate: Int) {
+                        if (fft == null) return
+                        val bands = FloatArray(16)
+                        val binCount = fft.size / 2
+                        for (i in 0 until 16) {
+                            val binIdx = (Math.pow(i.toDouble() / 16, 1.5) * binCount).toInt()
+                                .coerceIn(0, binCount - 1)
+                            val re = fft[binIdx * 2].toFloat()
+                            val im = fft[binIdx * 2 + 1].toFloat()
+                            val mag = Math.sqrt((re * re + im * im).toDouble()).toFloat() / 128f
+                            bands[i] = mag.coerceIn(0f, 1f)
+                        }
+                        _vuBands.value = bands
+                    }
+                }, Visualizer.getMaxCaptureRate(), false, true)
+                enabled = true
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun releaseVisualizer() {
+        visualizer?.release()
+        visualizer = null
+        _vuBands.value = FloatArray(16)
+    }
+
     // ── Equalizer ────────────────────────────────────────
     fun initEqualizer() {
         val sessionId = PlaybackService.audioSessionId
@@ -485,6 +526,7 @@ class PlayerViewModel(private val context: Context, private val baseUrl: String)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         releaseEqualizer()
+        releaseVisualizer()
     }
 
     class Factory(private val context: Context, private val baseUrl: String) : ViewModelProvider.Factory {

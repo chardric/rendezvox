@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const DEFAULT_SERVER = 'https://radio.chadlinuxtech.net';
 let BASE_URL = DEFAULT_SERVER;
 let STREAM_URL = `${BASE_URL}/stream/live`;
@@ -18,7 +18,8 @@ const vinylWrap      = $('vinyl-wrap');
 const vinylLabel     = $('vinyl-label');
 const tonearmEl      = $('tonearm');
 const bgArt          = $('bgArt');
-const eqBars         = $('eq-bars');
+const vuCanvas       = $('vu-meter');
+const vuCtx          = vuCanvas ? vuCanvas.getContext('2d') : null;
 const liveBadge      = $('live-badge');
 const upNext         = $('up-next');
 const listenerCount  = $('listener-count');
@@ -107,8 +108,8 @@ function setPlayState(playing) {
   const isLive = playing && !isBuffering;
   turntable.classList.toggle('is-playing', isLive);
   vinylWrap.classList.toggle('spinning', isLive);
-  eqBars.classList.toggle('eq-active', isLive);
   liveBadge.style.display = isLive ? 'inline-flex' : 'none';
+  if (isLive && vuAnalyser) startVuMeter(); else stopVuMeter();
   updateTonearm();
   setConnecting(false);
 }
@@ -239,8 +240,9 @@ function handleNowPlaying(data) {
   }
 
   // Emergency mode
-  requestBtn.disabled = data.is_emergency || false;
-  if (data.is_emergency) {
+  isEmergencyMode = data.is_emergency || false;
+  requestBtn.disabled = isEmergencyMode;
+  if (isEmergencyMode) {
     requestBtn.textContent = 'Requests Unavailable';
   } else {
     requestBtn.textContent = 'Request a Song';
@@ -706,6 +708,7 @@ async function checkForUpdate() {
 
 // ── Schedule ──────────────────────────────────────────────
 let scheduleData = null;
+let isEmergencyMode = false;
 const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
 $('btn-schedule').addEventListener('click', openSchedule);
@@ -716,7 +719,7 @@ $('schedule-overlay').addEventListener('click', e => {
 
 async function openSchedule() {
   $('schedule-overlay').classList.add('open');
-  if (!scheduleData) await fetchSchedule();
+  await fetchSchedule();
   renderSchedule(scheduleData || []);
 }
 
@@ -746,6 +749,9 @@ function renderSchedule(schedules) {
   });
 
   let html = '';
+  if (isEmergencyMode) {
+    html += '<div class="sched-emergency">\u26A0 Emergency playlist is active. Normal schedule is paused.</div>';
+  }
   if (schedules.length === 0) {
     html = '<div class="sched-empty">No schedules configured.</div>';
   } else {
@@ -766,7 +772,10 @@ function renderSchedule(schedules) {
           html += `<span class="sched-dot" style="background:${color}"></span>`;
           html += `<span class="sched-time">${fmtTime(s.start_time)} \u2013 ${fmtTime(s.end_time)}</span>`;
           html += `<span class="sched-name">${esc(s.name || s.playlist_name)}</span>`;
-          if (showNow) html += '<span class="sched-now">NOW</span>';
+          if (showNow) {
+            if (isEmergencyMode) html += '<span class="sched-paused">PAUSED</span>';
+            else html += '<span class="sched-now">NOW</span>';
+          }
           html += '</div>';
         });
       }
@@ -824,6 +833,9 @@ let eqFilters = [];
 let spatialGains = {};
 let spatialDelays = {};
 let eqInited = false;
+let vuAnalyser = null;
+let vuDataArray = null;
+let vuAnimId = null;
 let currentPreset = 'flat';
 let currentBands = [0,0,0,0,0,0,0,0,0,0];
 let currentSpatial = 'off';
@@ -894,7 +906,13 @@ function initAudioChain() {
     splitter.connect(spatialGains.lToR, 0);
     spatialGains.lToR.connect(spatialDelays.lToR);
     spatialDelays.lToR.connect(merger, 0, 1);
-    merger.connect(audioCtx.destination);
+    vuAnalyser = audioCtx.createAnalyser();
+    vuAnalyser.fftSize = 64;
+    vuAnalyser.smoothingTimeConstant = 0.75;
+    merger.connect(vuAnalyser);
+    vuAnalyser.connect(audioCtx.destination);
+    vuDataArray = new Uint8Array(vuAnalyser.frequencyBinCount);
+    startVuMeter();
 
     applySpatial();
     eqInited = true;
@@ -907,6 +925,47 @@ function reconnectAudioChain() {
     const newSource = audioCtx.createMediaElementSource(audio);
     newSource.connect(eqFilters[0]);
   } catch (_) {}
+}
+
+function vuBarColor(ratio) {
+  if (ratio < 0.5) {
+    const t = ratio / 0.5;
+    return `rgb(${Math.round(40 + t * 215)},${Math.round(220 - t * 40)},50)`;
+  }
+  const t = (ratio - 0.5) / 0.5;
+  return `rgb(255,${Math.round(180 - t * 160)},${Math.round(50 - t * 30)})`;
+}
+
+function drawVuMeter() {
+  if (!vuCtx || !vuAnalyser || !vuDataArray) { vuAnimId = null; return; }
+  vuAnalyser.getByteFrequencyData(vuDataArray);
+  const w = vuCanvas.width, h = vuCanvas.height;
+  vuCtx.clearRect(0, 0, w, h);
+  const barCount = 16, gap = 2;
+  const barW = (w - (barCount - 1) * gap) / barCount;
+  const len = vuDataArray.length;
+  for (let i = 0; i < barCount; i++) {
+    const binIdx = Math.min(Math.floor(Math.pow(i / barCount, 1.5) * len), len - 1);
+    const val = vuDataArray[binIdx] / 255;
+    const barH = Math.max(val * h, 1);
+    const x = i * (barW + gap);
+    const segments = 6, segH = barH / segments;
+    for (let s = 0; s < segments; s++) {
+      const segY = h - (s + 1) * segH;
+      if (segY < h - barH) continue;
+      vuCtx.fillStyle = vuBarColor(((s + 1) / segments) * val);
+      vuCtx.globalAlpha = 0.6 + val * 0.4;
+      vuCtx.fillRect(x, segY, barW, segH + 0.5);
+    }
+  }
+  vuCtx.globalAlpha = 1;
+  vuAnimId = requestAnimationFrame(drawVuMeter);
+}
+
+function startVuMeter() { if (!vuAnimId) vuAnimId = requestAnimationFrame(drawVuMeter); }
+function stopVuMeter() {
+  if (vuAnimId) { cancelAnimationFrame(vuAnimId); vuAnimId = null; }
+  if (vuCtx) vuCtx.clearRect(0, 0, vuCanvas.width, vuCanvas.height);
 }
 
 function applyBands() {

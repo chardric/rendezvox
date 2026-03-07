@@ -1,16 +1,23 @@
 package net.downstreamtech.rendezvox.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -181,49 +188,12 @@ fun EqualizerDialog(
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
                             eqState.bands.forEachIndexed { idx, gain ->
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.width(30.dp)
-                                ) {
-                                    // Gain value label
-                                    Text(
-                                        if (gain > 0) "+$gain" else "$gain",
-                                        color = TextDim,
-                                        fontSize = 9.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-
-                                    // Vertical slider (rotated horizontal slider)
-                                    Box(
-                                        modifier = Modifier
-                                            .height(100.dp)
-                                            .width(30.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Slider(
-                                            value = gain.toFloat(),
-                                            onValueChange = { onBandChange(idx, it.toInt()) },
-                                            valueRange = -12f..12f,
-                                            steps = 23,
-                                            modifier = Modifier
-                                                .width(100.dp)
-                                                .rotate(270f),
-                                            colors = SliderDefaults.colors(
-                                                thumbColor = accentColor,
-                                                activeTrackColor = accentColor,
-                                                inactiveTrackColor = Color(0xFF333355)
-                                            )
-                                        )
-                                    }
-
-                                    // Frequency label
-                                    Text(
-                                        eqState.freqLabels.getOrElse(idx) { "" },
-                                        color = TextDim,
-                                        fontSize = 8.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
+                                EqBand(
+                                    gain = gain,
+                                    label = eqState.freqLabels.getOrElse(idx) { "" },
+                                    accentColor = accentColor,
+                                    onGainChange = { onBandChange(idx, it) }
+                                )
                             }
                         }
 
@@ -250,5 +220,97 @@ fun EqualizerDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EqBand(
+    gain: Int,
+    label: String,
+    accentColor: Color,
+    onGainChange: (Int) -> Unit
+) {
+    val trackColor = Color(0xFF333355)
+    val thumbRadius = 7.dp
+    val trackHeight = 120.dp
+    val density = LocalDensity.current
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(28.dp)
+    ) {
+        Text(
+            if (gain > 0) "+$gain" else "$gain",
+            color = TextDim,
+            fontSize = 9.sp,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        var trackHeightPx by remember { mutableFloatStateOf(0f) }
+        val thumbRadiusPx = with(density) { thumbRadius.toPx() }
+
+        Box(
+            modifier = Modifier
+                .width(28.dp)
+                .height(trackHeight)
+                .onSizeChanged { trackHeightPx = it.height.toFloat() }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragStart = { offset ->
+                            val usable = trackHeightPx - thumbRadiusPx * 2
+                            val ratio = ((offset.y - thumbRadiusPx) / usable).coerceIn(0f, 1f)
+                            onGainChange(12 - (ratio * 24).toInt())
+                        },
+                        onVerticalDrag = { change, _ ->
+                            change.consume()
+                            val usable = trackHeightPx - thumbRadiusPx * 2
+                            val ratio = ((change.position.y - thumbRadiusPx) / usable).coerceIn(0f, 1f)
+                            onGainChange(12 - (ratio * 24).toInt())
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val centerX = size.width / 2
+                val usable = size.height - thumbRadiusPx * 2
+                val thumbY = thumbRadiusPx + usable * (1f - (gain + 12f) / 24f)
+
+                // Track background
+                drawLine(
+                    color = trackColor,
+                    start = Offset(centerX, thumbRadiusPx),
+                    end = Offset(centerX, size.height - thumbRadiusPx),
+                    strokeWidth = 3.dp.toPx()
+                )
+
+                // Active portion (from center to thumb)
+                val midY = thumbRadiusPx + usable / 2
+                drawLine(
+                    color = accentColor,
+                    start = Offset(centerX, midY),
+                    end = Offset(centerX, thumbY),
+                    strokeWidth = 3.dp.toPx()
+                )
+
+                // Thumb
+                drawCircle(
+                    color = accentColor,
+                    radius = thumbRadiusPx,
+                    center = Offset(centerX, thumbY)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            label,
+            color = TextDim,
+            fontSize = 8.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
