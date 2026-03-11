@@ -777,4 +777,5 @@ Nginx rate limits on sensitive endpoints:
 
 ---
 
-© [DownStreamTech](https://downstreamtech.net) — Licensed under the [MIT License](LICENSE)
+© 2024–2026 [DownStreamTech](https://downstreamtech.net) — Licensed under the [Apache License 2.0](LICENSE)
+Developed by **Engr. Richard R. Ayuyang, PhD** — Professor II, CSU | [chadlinuxtech.net](https://chadlinuxtech.net)
