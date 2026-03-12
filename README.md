@@ -39,7 +39,6 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - [Cloudflare Zero Trust Support](#cloudflare-zero-trust-support)
 - [Environment Variables](#environment-variables)
 - [Changelog](#changelog)
-- [License](#license)
 
 ---
 
@@ -172,26 +171,14 @@ stream at /stream/live. No need to expose Icecast port 8000.
 
 ## Tech Stack
 
-### Server
-- **Backend:** PHP 8.3 (no framework, custom router), PostgreSQL 16
-- **Frontend:** Vanilla JavaScript, CSS3 (no build tools, no dependencies)
-- **Audio:** Liquidsoap 2.x, Icecast 2
-- **Infrastructure:** Docker Compose, Nginx
-- **Authentication:** JWT tokens, bcrypt password hashing
-- **Real-time:** Server-Sent Events (SSE)
-
-### Desktop App
-- **Framework:** Electron 33
-- **Builder:** electron-builder 25
-- **Targets:** Linux DEB/AppImage (x64 + ARM64), Windows NSIS, macOS DMG
-- **Frontend:** Vanilla HTML/CSS/JS (no build step)
-
-### Android App
-- **Language:** Kotlin 2.0
-- **UI:** Jetpack Compose with Material Design 3
-- **Audio:** Media3 ExoPlayer with MediaSessionService
-- **Networking:** OkHttp 4 + Gson
-- **Min SDK:** Android 8.0 (API 26)
+| Layer | Stack |
+|-------|-------|
+| Backend | PHP 8.3, PostgreSQL 16 |
+| Audio | Liquidsoap 2.x, Icecast 2 |
+| Frontend | Vanilla JavaScript, CSS3 |
+| Desktop App | Electron 33, electron-builder |
+| Android App | Kotlin 2.0, Jetpack Compose, Media3 ExoPlayer |
+| Infrastructure | Docker Compose, Nginx |
 
 ---
 
@@ -817,6 +804,5 @@ Nginx rate limits on sensitive endpoints:
 
 ---
 
-## License
-
-Copyright 2026 [DownStreamTech](https://downstreamtech.net). All rights reserved.
+© 2024–2026 [DownStreamTech](https://downstreamtech.net) — Licensed under the [Apache License 2.0](LICENSE)
+Developed by **Engr. Richard R. Ayuyang, PhD** — Professor II, CSU | [chadlinuxtech.net](https://chadlinuxtech.net)
