@@ -218,8 +218,12 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .btn-danger:hover { background: #ef4444; }
 .btn-success { background: var(--success); color: #000; }
 .btn-success:hover { background: #22c55e; }
-.btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
-.btn-ghost:hover { background: var(--bg-card); color: var(--text); }
+.btn-ghost { background: rgba(255,255,255,.04); color: var(--text); border: 1px solid rgba(255,255,255,.12); }
+.btn-ghost:hover { background: rgba(255,255,255,.08); color: var(--text-heading); }
+.btn-outline { background: rgba(255,120,0,.08); color: var(--accent); border: 1px solid rgba(255,120,0,.3); }
+.btn-outline:hover { background: rgba(255,120,0,.18); color: var(--accent-hover); }
+.btn-outline-danger { background: rgba(239,68,68,.08); color: #f87171; border: 1px solid rgba(239,68,68,.25); }
+.btn-outline-danger:hover { background: rgba(239,68,68,.18); color: #fca5a5; }
 .btn-sm { padding: 4px 10px; font-size: .8rem; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 

@@ -3,6 +3,8 @@
    ============================================================ */
 var RendezVoxAnalytics = (function() {
 
+  var escHtml = RendezVoxUtils.escHtml;
+
   // ── Color palette ──────────────────────────────────────
   var COLORS = [
     '#ff7800', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7',
@@ -518,13 +520,6 @@ var RendezVoxAnalytics = (function() {
     var g = parseInt(hex.slice(3, 5), 16);
     var b = parseInt(hex.slice(5, 7), 16);
     return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
-  }
-
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
   }
 
   return { init: init };

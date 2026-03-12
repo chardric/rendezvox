@@ -829,9 +829,9 @@ class MetadataLookup
                 . "- If you cannot determine a field with confidence, omit it entirely\n"
                 . "- Return valid JSON only, no markdown or explanation";
 
-        $this->rateLimit('gemini', 4.0); // 15 RPM free tier = ~4s between calls
+        $this->rateLimit('gemini', 0.15); // 2.5 Flash free tier: 500 RPM
 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key='
              . urlencode($this->geminiApiKey);
 
         $payload = json_encode([

@@ -3,6 +3,10 @@
    ============================================================ */
 var RendezVoxSongs = (function() {
 
+  var escHtml        = RendezVoxUtils.escHtml;
+  var showToast      = RendezVoxUtils.showToast;
+  var formatDuration = RendezVoxUtils.formatDuration;
+
   var currentPage = 1;
   var totalPages  = 1;
   var artists     = [];
@@ -298,21 +302,6 @@ var RendezVoxSongs = (function() {
 
   // ── Helpers ──────────────────────────────────────────
 
-  function formatDuration(ms) {
-    if (!ms) return '—';
-    var s = Math.floor(ms / 1000);
-    var m = Math.floor(s / 60);
-    s = s % 60;
-    return m + ':' + (s < 10 ? '0' : '') + s;
-  }
-
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   function deactivateAllMissing() {
     if (!confirm('Deactivate all songs with missing files?')) return;
 
@@ -344,15 +333,6 @@ var RendezVoxSongs = (function() {
         btn.disabled = false;
         btn.textContent = 'Deactivate All Missing';
       });
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 4000);
   }
 
   return {

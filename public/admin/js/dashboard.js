@@ -3,6 +3,12 @@
    ============================================================ */
 var RendezVoxDashboard = (function() {
 
+  var escHtml      = RendezVoxUtils.escHtml;
+  var showToast    = RendezVoxUtils.showToast;
+  var formatTime   = RendezVoxUtils.formatTime;
+  var formatBytes  = RendezVoxUtils.formatBytes;
+  var formatNumber = RendezVoxUtils.formatNumber;
+
   var pollTimer    = null;
   var progressTimer = null;
   var streamActive = true;
@@ -518,19 +524,6 @@ var RendezVoxDashboard = (function() {
     return html;
   }
 
-  function formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
-    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
-  }
-
-  function formatNumber(n) {
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-    return String(n);
-  }
-
   function renderRecentPlays(plays) {
     var tbody = document.getElementById('recentPlays');
 
@@ -665,29 +658,6 @@ var RendezVoxDashboard = (function() {
     if (source === 'emergency') cls = 'badge-emergency';
     if (source === 'manual')    cls = 'badge-pending';
     return '<span class="badge ' + cls + '">' + escHtml(source || 'rotation') + '</span>';
-  }
-
-  function formatTime(isoStr) {
-    if (!isoStr) return '—';
-    var d = new Date(isoStr);
-    var opts = Object.assign({ hour: '2-digit', minute: '2-digit', second: '2-digit' }, RendezVoxAPI.tzOpts());
-    return d.toLocaleTimeString([], opts);
-  }
-
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 4000);
   }
 
   return { init: init };

@@ -3,6 +3,11 @@
    ============================================================ */
 var RendezVoxTts = (function() {
 
+  var escHtml        = RendezVoxUtils.escHtml;
+  var escAttr        = RendezVoxUtils.escAttr;
+  var showToast      = RendezVoxUtils.showToast;
+  var formatDuration = RendezVoxUtils.formatDuration;
+
   var settingMap = {
     'tts_voice':                    'ttsVoice',
     'tts_speed':                    'ttsSpeed',
@@ -511,35 +516,6 @@ var RendezVoxTts = (function() {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
-  }
-
-  function formatDuration(ms) {
-    if (!ms) return '-';
-    var sec = Math.floor(ms / 1000);
-    var min = Math.floor(sec / 60);
-    var s = sec % 60;
-    return min + ':' + (s < 10 ? '0' : '') + s;
-  }
-
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function escAttr(str) {
-    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    if (!container) return;
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 4000);
   }
 
   return {

@@ -34,7 +34,7 @@
         <option value="false">Inactive</option>
         <option value="missing">Missing Files</option>
       </select>
-      <button class="btn btn-ghost btn-sm" id="btnDeactivateMissing" style="display:none;color:#f87171">Deactivate All Missing</button>
+      <button class="btn btn-outline-danger btn-sm" id="btnDeactivateMissing" style="display:none">Deactivate All Missing</button>
     </div>
 
     <!-- ── Song table ───────────────────────────────── -->
@@ -64,8 +64,8 @@
     <div class="flex items-center justify-between mt-16" id="pagination" style="display:none">
       <span class="text-dim" id="pageInfo"></span>
       <div class="flex gap-8">
-        <button class="btn btn-ghost btn-sm" id="btnPrev">Prev</button>
-        <button class="btn btn-ghost btn-sm" id="btnNext">Next</button>
+        <button class="btn btn-outline btn-sm" id="btnPrev">Prev</button>
+        <button class="btn btn-outline btn-sm" id="btnNext">Next</button>
       </div>
     </div>
   </main>
@@ -86,7 +86,7 @@
       <label for="uploadArtist">Artist *</label>
       <div class="flex gap-8 items-center" style="margin-bottom:14px">
         <select id="uploadArtist" style="margin-bottom:0;flex:1"></select>
-        <button type="button" class="btn btn-ghost btn-sm" id="btnNewArtist">+ New</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnNewArtist">+ New</button>
       </div>
 
       <label for="uploadCategory">Genre *</label>
@@ -178,7 +178,8 @@
 <div class="toast-container" id="toasts"></div>
 
 <script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/api.js?v=20260312"></script>
+<script src="/admin/js/utils.js?v=20260312"></script>
 <script src="/admin/js/auth.js?v=20260301"></script>
 <script src="/admin/js/nav.js?v=20260301"></script>
 <script src="/admin/js/icons.js?v=20260226"></script>

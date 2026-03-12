@@ -77,27 +77,37 @@ class RotationEngine
         // Cap gap to avoid impossible constraints in small playlists
         $minGap = min($minGap, intdiv($len, 2));
 
-        for ($i = 1; $i < $len; $i++) {
-            if (!self::hasArtistCollision($songs, $i, $minGap)) {
-                continue;
-            }
+        // Multiple passes to resolve cascading collisions
+        for ($pass = 0; $pass < 3; $pass++) {
+            $swapped = false;
 
-            // Find nearest j > i that can be swapped without creating new collision
-            $bestJ = null;
-            for ($j = $i + 1; $j < $len; $j++) {
-                if (!self::hasArtistCollision($songs, $j, $minGap, $i)) {
+            for ($i = 1; $i < $len; $i++) {
+                if (!self::hasArtistCollision($songs, $i, $minGap)) {
+                    continue;
+                }
+
+                // Find nearest j > i that can be swapped without creating new collision
+                $bestJ = null;
+                for ($j = $i + 1; $j < $len; $j++) {
                     // Check that placing songs[j] at position i wouldn't collide
                     if (!self::wouldCollideAtPosition($songs, $j, $i, $minGap, 'artist_id')) {
-                        $bestJ = $j;
-                        break;
+                        // Check that placing songs[i] at position j wouldn't collide
+                        if (!self::wouldCollideAtPositionExcluding($songs, $i, $j, $minGap, 'artist_id', $i)) {
+                            $bestJ = $j;
+                            break;
+                        }
                     }
+                }
+
+                if ($bestJ !== null) {
+                    [$songs[$i], $songs[$bestJ]] = [$songs[$bestJ], $songs[$i]];
+                    $swapped = true;
                 }
             }
 
-            if ($bestJ !== null) {
-                [$songs[$i], $songs[$bestJ]] = [$songs[$bestJ], $songs[$i]];
+            if (!$swapped) {
+                break; // No more collisions to resolve
             }
-            // If no swap candidate found, leave as-is (best effort)
         }
 
         return $songs;
@@ -261,7 +271,7 @@ class RotationEngine
         $songs = self::enforceCategorySeparation($songs, 1);
 
         // 4. Enforce title separation (prevent "Song (Version A)" next to "Song (Version B)")
-        $songs = self::enforceTitleSeparation($songs, 2);
+        $songs = self::enforceTitleSeparation($songs, 3);
 
         // 5. Determine starting position
         $startPos = 1;
@@ -653,6 +663,33 @@ class RotationEngine
 
         for ($k = $start; $k <= $end; $k++) {
             if ($k === $toIdx || $k === $fromIdx) {
+                continue;
+            }
+            if ((int) $songs[$k][$field] === $value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Would placing songs[$fromIdx] at position $toIdx cause a collision,
+     * excluding a specific position from neighbor checks (used during swaps).
+     */
+    private static function wouldCollideAtPositionExcluding(
+        array $songs,
+        int $fromIdx,
+        int $toIdx,
+        int $minGap,
+        string $field,
+        int $excludeIdx
+    ): bool {
+        $value = (int) $songs[$fromIdx][$field];
+        $start = max(0, $toIdx - $minGap);
+        $end   = min(count($songs) - 1, $toIdx + $minGap);
+
+        for ($k = $start; $k <= $end; $k++) {
+            if ($k === $toIdx || $k === $fromIdx || $k === $excludeIdx) {
                 continue;
             }
             if ((int) $songs[$k][$field] === $value) {

@@ -32,7 +32,6 @@ class DuplicateResolveHandler
             return;
         }
 
-        // Ensure no overlap between keep and delete
         $keepSet   = array_flip(array_map('intval', $keepIds));
         $deleteSet = array_map('intval', $deleteIds);
 
@@ -43,7 +42,7 @@ class DuplicateResolveHandler
             }
         }
 
-        // Verify all keep_ids and delete_ids exist
+        // Verify all IDs exist
         $allIds = array_merge(array_keys($keepSet), $deleteSet);
         $placeholders = implode(',', array_fill(0, count($allIds), '?'));
         $stmt = $db->prepare("SELECT id FROM songs WHERE id IN ({$placeholders})");
@@ -71,12 +70,11 @@ class DuplicateResolveHandler
             }
         }
 
-        // Check which delete candidates are in playlists — protect them
+        // Find which delete candidates are in playlists
         $delPlaceholders = implode(',', array_fill(0, count($deleteSet), '?'));
         $plStmt = $db->prepare("
-            SELECT DISTINCT ps.song_id, p.name AS playlist_name
+            SELECT DISTINCT ps.song_id
             FROM playlist_songs ps
-            JOIN playlists p ON p.id = ps.playlist_id
             WHERE ps.song_id IN ({$delPlaceholders})
         ");
         foreach ($deleteSet as $i => $id) {
@@ -84,40 +82,54 @@ class DuplicateResolveHandler
         }
         $plStmt->execute();
 
-        $protectedSongs = [];
+        $inPlaylist = [];
         while ($plRow = $plStmt->fetch()) {
-            $sid = (int) $plRow['song_id'];
-            $protectedSongs[$sid][] = $plRow['playlist_name'];
+            $inPlaylist[(int) $plRow['song_id']] = true;
         }
 
-        // Delete duplicate songs from DB (files are kept on disk)
-        // FK constraints use CASCADE/SET NULL so this is safe
-        $deleted = 0;
-        $skipped = [];
-        $errors = [];
-        $delStmt = $db->prepare('DELETE FROM songs WHERE id = ?');
+        // Build a map: delete_id → keep_id (canonical) for playlist reassignment
+        // Use the first keep_id as the canonical for all deletes in this batch
+        $canonicalId = (int) array_keys($keepSet)[0];
+
+        $resolved = 0;
+        $errors   = [];
+
+        $markDupStmt  = $db->prepare('UPDATE songs SET duplicate_of = ?, is_active = false WHERE id = ?');
+        $reassignStmt = $db->prepare('
+            UPDATE playlist_songs SET song_id = ?
+            WHERE song_id = ? AND NOT EXISTS (
+                SELECT 1 FROM playlist_songs ps2
+                WHERE ps2.playlist_id = playlist_songs.playlist_id AND ps2.song_id = ?
+            )
+        ');
+        $removeOrphanStmt = $db->prepare('
+            DELETE FROM playlist_songs WHERE song_id = ? AND EXISTS (
+                SELECT 1 FROM playlist_songs ps2
+                WHERE ps2.playlist_id = playlist_songs.playlist_id AND ps2.song_id = ?
+                  AND ps2.id != playlist_songs.id
+            )
+        ');
 
         foreach ($deleteSet as $did) {
-            if (isset($protectedSongs[$did])) {
-                $skipped[] = [
-                    'id' => $did,
-                    'reason' => 'In playlist: ' . implode(', ', $protectedSongs[$did]),
-                ];
-                continue;
-            }
             try {
-                $delStmt->execute([$did]);
-                $deleted++;
+                // Reassign playlist entries to canonical (if in any playlist)
+                if (isset($inPlaylist[$did])) {
+                    $reassignStmt->execute([$canonicalId, $did, $canonicalId]);
+                    $removeOrphanStmt->execute([$did, $canonicalId]);
+                }
+
+                // Mark as duplicate — song row and file stay intact
+                $markDupStmt->execute([$canonicalId, $did]);
+                $resolved++;
             } catch (\PDOException $e) {
-                error_log('DuplicateResolve DB error deleting song ' . $did . ': ' . $e->getMessage());
-                $errors[] = 'DB error deleting song ' . $did;
+                error_log('DuplicateResolve error for song ' . $did . ': ' . $e->getMessage());
+                $errors[] = 'Error resolving song ' . $did;
             }
         }
 
         Response::json([
-            'deleted' => $deleted,
-            'skipped' => $skipped,
-            'errors'  => $errors,
+            'resolved' => $resolved,
+            'errors'   => $errors,
         ]);
     }
 }

@@ -3,16 +3,16 @@
 # ==========================================================
 FROM php:8.3-fpm-alpine
 
-RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
-    echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
-    apk add --no-cache \
+RUN apk add --no-cache \
         fcgi \
         ffmpeg \
         chromaprint \
-        piper-tts \
         tini \
         tzdata \
         postgresql-dev && \
+    echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
+    echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
+    apk add --no-cache piper-tts && \
     docker-php-ext-install pdo pdo_pgsql && \
     apk del --no-cache postgresql-dev && \
     apk add --no-cache libpq && \

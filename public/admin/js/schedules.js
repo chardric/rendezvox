@@ -3,6 +3,9 @@
    ============================================================ */
 var RendezVoxSchedules = (function() {
 
+  var escHtml   = RendezVoxUtils.escHtml;
+  var showToast = RendezVoxUtils.showToast;
+
   var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   var HOUR_H   = 60;  // pixels per hour
   var SNAP_MIN = 15;  // snap to 15-minute increments
@@ -1460,14 +1463,6 @@ var RendezVoxSchedules = (function() {
     });
   }
 
-  // ── Helpers ─────────────────────────────────────────
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   // ── Surprise Me! ──────────────────────────────────
   function formatHourLabel(h) {
     if (h === 0 || h === 24) return '12 AM';
@@ -1684,15 +1679,6 @@ var RendezVoxSchedules = (function() {
       btn.disabled = false;
       btn.textContent = 'Refresh Special';
     });
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 4000);
   }
 
   return {

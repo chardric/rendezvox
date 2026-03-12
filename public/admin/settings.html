@@ -118,7 +118,7 @@
         <div style="display:flex;align-items:center;gap:12px">
           <input type="color" id="accentColorPicker" style="width:40px;height:40px;padding:0;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none">
           <input type="text" id="accentColorHex" placeholder="#ff7800" maxlength="7" style="max-width:120px;margin-bottom:0">
-          <button class="btn btn-ghost btn-sm" id="btnResetAccent">Reset</button>
+          <button class="btn btn-outline btn-sm" id="btnResetAccent">Reset</button>
         </div>
       </div>
 
@@ -155,7 +155,7 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
-            <button id="btnSaveApiKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveApiKey()">Save Key</button>
+            <button id="btnSaveApiKey" class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveApiKey()">Save Key</button>
           </div>
         </div>
         <div class="settings-field">
@@ -168,7 +168,7 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
-            <button id="btnSaveTheAudioDbKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveTheAudioDbKey()">Save Key</button>
+            <button id="btnSaveTheAudioDbKey" class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveTheAudioDbKey()">Save Key</button>
           </div>
         </div>
         <div class="settings-field">
@@ -190,7 +190,7 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
-            <button id="btnSaveGeminiKey" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveGeminiKey()">Save Key</button>
+            <button id="btnSaveGeminiKey" class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveGeminiKey()">Save Key</button>
           </div>
         </div>
         <div class="settings-field">
@@ -198,15 +198,15 @@
           <div style="font-size:.78rem;color:var(--text-dim);margin-bottom:4px">Run <code>ollama serve</code> locally or in Docker. Install from <a href="https://ollama.com" target="_blank" rel="noopener" style="color:var(--accent)">ollama.com</a></div>
           <div style="display:flex;gap:8px;align-items:flex-start">
             <input type="text" id="ollamaUrl" placeholder="http://host.docker.internal:11434" style="flex:1">
-            <button id="btnSaveOllamaUrl" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveOllamaUrl()">Save</button>
+            <button id="btnSaveOllamaUrl" class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveOllamaUrl()">Save</button>
           </div>
         </div>
         <div class="settings-field">
           <label>Ollama Model <span style="color:var(--text-dim);font-weight:400">(default: gemma3:1b — small and fast)</span></label>
           <div style="display:flex;gap:8px;align-items:flex-start">
             <input type="text" id="ollamaModel" placeholder="gemma3:1b" style="flex:1">
-            <button id="btnSaveOllamaModel" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveOllamaModel()">Save</button>
-            <button id="btnTestOllama" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.testOllama()">Test</button>
+            <button id="btnSaveOllamaModel" class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.saveOllamaModel()">Save</button>
+            <button id="btnTestOllama" class="btn btn-outline btn-sm" style="white-space:nowrap" onclick="RendezVoxSettings.testOllama()">Test</button>
           </div>
           <div id="ollamaTestResult" style="font-size:.78rem;margin-top:4px"></div>
         </div>
@@ -224,8 +224,8 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button id="btnGenreScan" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startGenreScan()">Scan and Tag</button>
-          <button id="btnRescanAll" class="btn btn-ghost btn-sm" onclick="RendezVoxSettings.startGenreScan('all')">Re-scan All</button>
-          <button id="btnStopScan" class="btn btn-sm hidden" style="background:var(--danger);color:#fff" onclick="RendezVoxSettings.stopGenreScan()">Stop</button>
+          <button id="btnRescanAll" class="btn btn-outline btn-sm" onclick="RendezVoxSettings.startGenreScan('all')">Re-scan All</button>
+          <button id="btnStopScan" class="btn btn-sm btn-danger hidden" onclick="RendezVoxSettings.stopGenreScan()">Stop</button>
         </div>
         <div style="font-size:.78rem;color:var(--text-dim);margin-top:8px">
           <strong>Scan and Tag</strong> — process untagged songs only.
@@ -264,7 +264,7 @@
           </div>
         </div>
         <button id="btnLibrarySync" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startLibrarySync()">Sync Library</button>
-        <button id="btnStopSync" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopLibrarySync()">Stop</button>
+        <button id="btnStopSync" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopLibrarySync()">Stop</button>
       </div>
 
       <!-- Artist Cleanup -->
@@ -298,7 +298,7 @@
           </div>
         </div>
         <button id="btnArtistDedup" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startArtistDedup()">Deduplicate Artists</button>
-        <button id="btnStopDedup" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopArtistDedup()">Stop</button>
+        <button id="btnStopDedup" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopArtistDedup()">Stop</button>
       </div>
 
       <!-- Duplicate Cleanup -->
@@ -333,7 +333,7 @@
           </div>
         </div>
         <button id="btnDedupSongs" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startDedupSongs()">Deduplicate Songs</button>
-        <button id="btnStopDedupSongs" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopDedupSongs()">Stop</button>
+        <button id="btnStopDedupSongs" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopDedupSongs()">Stop</button>
       </div>
 
       <!-- Audio Normalization -->
@@ -376,7 +376,7 @@
           </div>
         </div>
         <button id="btnNormalize" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startNormalize()">Normalize</button>
-        <button id="btnStopNorm" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopNormalize()">Stop</button>
+        <button id="btnStopNorm" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopNormalize()">Stop</button>
       </div>
 
       <!-- Silence Detection -->
@@ -410,7 +410,7 @@
           </div>
         </div>
         <button id="btnSilenceDetect" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startSilenceDetect()">Detect Silence</button>
-        <button id="btnStopSilence" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopSilenceDetect()">Stop</button>
+        <button id="btnStopSilence" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopSilenceDetect()">Stop</button>
       </div>
 
       <!-- Path Rename -->
@@ -444,7 +444,7 @@
           </div>
         </div>
         <button id="btnRenamePaths" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startRenamePaths()">Rename Paths</button>
-        <button id="btnStopRename" class="btn btn-sm hidden" style="background:var(--danger);color:#fff;margin-left:8px" onclick="RendezVoxSettings.stopRenamePaths()">Stop</button>
+        <button id="btnStopRename" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopRenamePaths()">Stop</button>
       </div>
 
     </div>
@@ -505,7 +505,7 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
           <button class="btn btn-primary btn-sm" onclick="RendezVoxSettings.saveSmtp()">Save SMTP Settings</button>
-          <button class="btn btn-ghost btn-sm" onclick="RendezVoxSettings.sendTestEmail()">Send Test Email</button>
+          <button class="btn btn-outline btn-sm" onclick="RendezVoxSettings.sendTestEmail()">Send Test Email</button>
         </div>
         <div id="smtpTestStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
       </div>
@@ -540,7 +540,7 @@
       <div class="card" style="padding:24px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <h3 class="settings-section-title" style="margin-bottom:0">System Information</h3>
-          <button class="btn btn-ghost btn-sm" id="btnRefreshSystem" style="font-size:.75rem">Refresh</button>
+          <button class="btn btn-outline btn-sm" id="btnRefreshSystem" style="font-size:.75rem">Refresh</button>
         </div>
         <div id="systemInfoContainer">
           <div class="spinner"></div>
@@ -596,7 +596,8 @@
 <div class="toast-container" id="toasts"></div>
 
 <script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/api.js?v=20260312"></script>
+<script src="/admin/js/utils.js?v=20260312"></script>
 <script src="/admin/js/auth.js?v=20260301"></script>
 <script src="/admin/js/nav.js?v=20260301"></script>
 <script src="/admin/js/settings.js?v=20260226"></script>

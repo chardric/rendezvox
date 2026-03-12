@@ -15,6 +15,8 @@ if (typeof Promise.allSettled !== 'function') {
 var RendezVoxFileManager = (function () {
   'use strict';
 
+  var showToast = RendezVoxUtils.showToast;
+
   // ── State ──────────────────────────────────────────────────
   var currentPath  = '/';
   var currentItems = [];       // [{type, name, path, size, file_count}]
@@ -222,8 +224,8 @@ var RendezVoxFileManager = (function () {
         + '<div class="item-name">' + esc(item.name) + (sys ? ' <span class="fm-lock" title="System folder (protected)">' + iconLock() + '</span>' : '') + '</div>'
         + '<div class="item-meta">' + esc(meta) + '</div>'
         + '<div class="item-actions">'
-        + (sys ? '' : '<button class="btn btn-ghost btn-sm" data-act="rename" title="Rename">' + iconEdit() + '</button>')
-        + (sys ? '' : '<button class="btn btn-sm" data-act="delete" title="Delete" style="color:var(--danger);border-color:transparent;background:transparent;">' + iconTrash() + '</button>')
+        + (sys ? '' : '<button class="btn btn-outline btn-sm" data-act="rename" title="Rename">' + iconEdit() + '</button>')
+        + (sys ? '' : '<button class="btn btn-sm btn-outline-danger" data-act="delete" title="Delete">' + iconTrash() + '</button>')
         + '</div></div>';
     });
     html += '</div>';
@@ -546,7 +548,7 @@ var RendezVoxFileManager = (function () {
         + '<div class="item-name">' + esc(item.name) + '</div>'
         + '<div class="item-meta">' + meta + '</div>'
         + '<div class="item-actions">'
-        + '<button class="btn btn-sm" data-act="delete" title="Delete" style="color:var(--danger);border-color:transparent;background:transparent;">' + iconTrash() + '</button>'
+        + '<button class="btn btn-sm btn-outline-danger" data-act="delete" title="Delete">' + iconTrash() + '</button>'
         + '</div></div>';
     });
     html += '</div>';
@@ -1497,16 +1499,6 @@ var RendezVoxFileManager = (function () {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
-  }
-
-  function showToast(msg, type) {
-    var c = document.getElementById('toasts');
-    if (!c) return;
-    var t = document.createElement('div');
-    t.className = 'toast toast-' + (type || 'info');
-    t.textContent = msg;
-    c.appendChild(t);
-    setTimeout(function () { t.remove(); }, 3000);
   }
 
   // ── SVG icons ────────────────────────────────────────────────

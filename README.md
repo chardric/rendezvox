@@ -48,7 +48,7 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 ### Audio Streaming & Automation
 - **Liquidsoap** audio processing engine with API-driven track selection
 - **Icecast 2** streaming server with configurable mount points
-- Smart rotation engine with artist/song repeat blocking
+- Smart rotation engine with multi-pass artist separation (gap 6) and title separation (gap 3)
 - Crossfade support with configurable duration
 - Station ID/sweeper/liner insertion at configurable intervals
 - Emergency mode with dedicated fallback playlist
@@ -58,7 +58,7 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - Drag-and-drop media file browser with folder navigation
 - Automatic metadata extraction (title, artist, album, year, duration)
 - Audio fingerprinting via AcoustID for song identification
-- Automatic genre tagging from online databases
+- AI-powered genre tagging via Gemini 2.5 Flash + Ollama fallback
 - Duplicate detection using audio fingerprints (SHA-256)
 - Artist deduplication and normalization
 - Library sync from filesystem with batch import
@@ -70,7 +70,8 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - Visual calendar schedule builder with day-of-week, date range, and time slots
 - Priority-based schedule overlap resolution
 - Full cycle tracking — no-repeat-until-all-played guarantee
-- Playlist shuffle and drag-to-reorder
+- Smart playlist shuffle with artist/title collision avoidance
+- Playlist drag-to-reorder
 
 ### Song Request System
 - Public listener request page with fuzzy song search
@@ -516,9 +517,10 @@ RendezVox/
 │   │   ├── Request.php          # Client IP detection (CF/XFF/XRI)
 │   │   ├── Response.php         # JSON response helper
 │   │   ├── Router.php           # URL router
-│   │   ├── RotationEngine.php   # Smart track selection
+│   │   ├── RotationEngine.php   # Smart track selection with separation
 │   │   ├── SongResolver.php     # Fuzzy song matching
 │   │   ├── MetadataExtractor.php # Audio file metadata
+│   │   ├── MetadataLookup.php   # AI genre tagging (Gemini/Ollama)
 │   │   └── ArtistNormalizer.php # Artist name cleanup
 │   ├── api/
 │   │   ├── index.php            # Route definitions
@@ -531,6 +533,9 @@ RendezVox/
 │   └── admin/                   # Admin panel
 │       ├── css/admin.css        # Stylesheet (~2000 lines)
 │       ├── js/                  # Page-specific JavaScript
+│       │   ├── utils.js         # Shared utilities (escHtml, toast, formatters)
+│       │   ├── shuffle.js       # Shared shuffle & separation logic
+│       │   └── ...              # Page-specific modules
 │       └── *.html               # Admin pages
 ├── liquidsoap/
 │   └── radio.liq                # Liquidsoap radio script
@@ -682,18 +687,40 @@ Nginx rate limits on sensitive endpoints:
 | `RENDEZVOX_INTERNAL_SECRET` | *(auto-generated)* | Shared secret for Liquidsoap → API internal endpoints |
 | `TZ` | `UTC` | Station timezone |
 | `RENDEZVOX_HTTP_PORT` | `80` | Host HTTP port |
+| `RENDEZVOX_DEFAULT_CATEGORY_ID` | `48` | Default genre category for imported songs |
 | `RENDEZVOX_ICECAST_PUBLIC_PORT` | `8000` | Host Icecast port (internal, proxied via Nginx at `/stream/live`) |
 
 ---
 
 ## Changelog
 
+### v1.0.2 — 2026-03-12
+
+**AI & Metadata**
+- Upgraded Gemini AI model from 2.0 Flash to 2.5 Flash (500 RPM / 25K req/day free tier)
+- Added `RENDEZVOX_DEFAULT_CATEGORY_ID` env var to prevent genre misclassification on import
+
+**Shuffle & Rotation**
+- Multi-pass artist separation algorithm (gap 6, 3 cascading passes) in both PHP and JS
+- Title separation — same base title blocked within gap of 3 positions
+- `baseTitle()` normalizer strips rendition suffixes (Remix, Acoustic, Live, feat., etc.)
+- Consolidated shuffle logic into shared `shuffle.js` (client) and `RotationEngine.php` (server)
+
+**Admin UI**
+- New button hierarchy: `btn-primary` > `btn-outline` > `btn-outline-danger` > `btn-danger` > `btn-ghost`
+- Fixed grayed-out/disabled-looking buttons across all admin pages
+- Consolidated shared JS utilities into `utils.js` (escHtml, showToast, formatDuration, formatDate, formatTime, formatBytes, formatNumber) — removed duplicates from 12 files
+
+**Infrastructure**
+- Fixed Alpine edge package conflict (libplacebo/libglslang) in PHP Dockerfile
+- Reduced admin JS codebase by ~140 lines through deduplication
+
 ### v1.0.0 — 2026-02-24
 
 **Radio Automation**
 - Liquidsoap audio engine with API-driven track selection and crossfade
 - Icecast 2 streaming server proxied through Nginx at `/stream/live`
-- Smart rotation engine with artist/song repeat blocking and full cycle tracking
+- Smart rotation engine with artist/title separation and full cycle tracking
 - Station ID/sweeper/liner insertion at configurable intervals
 - Emergency mode with dedicated fallback playlist
 - EBU R128 loudness normalization

@@ -8,32 +8,15 @@ var RendezVoxUsers = (function() {
   var currentUserId = null;
   var smtpConfigured = null; // cached after first check
 
-  function escHtml(s) {
-    var d = document.createElement('div');
-    d.textContent = s || '';
-    return d.innerHTML;
-  }
-
-  function showToast(msg, type) {
-    var c = document.getElementById('toasts');
-    if (!c) return;
-    var t = document.createElement('div');
-    t.className = 'toast toast-' + (type || 'success');
-    t.textContent = msg;
-    c.appendChild(t);
-    setTimeout(function() { t.remove(); }, 3000);
-  }
+  var escHtml    = RendezVoxUtils.escHtml;
+  var showToast  = RendezVoxUtils.showToast;
+  var formatDate = RendezVoxUtils.formatDate;
 
   function roleBadge(role) {
     if (role === 'super_admin') {
       return '<span class="badge" style="background:#7c3aed;color:#fff">Super Admin</span>';
     }
     return '<span class="badge" style="background:#10b981;color:#fff">DJ</span>';
-  }
-
-  function formatDate(dt) {
-    if (!dt) return '<span style="color:var(--text-dim)">Never</span>';
-    return new Date(dt).toLocaleString(undefined, RendezVoxAPI.tzOpts());
   }
 
   function checkSmtpConfigured() {
@@ -230,9 +213,9 @@ var RendezVoxUsers = (function() {
 
   function actions(u) {
     var btns = '<div style="display:flex;gap:6px;justify-content:flex-end">';
-    btns += '<button type="button" class="btn btn-ghost btn-sm btn-edit-user" data-id="' + u.id + '">Edit</button>';
+    btns += '<button type="button" class="btn btn-outline btn-sm btn-edit-user" data-id="' + u.id + '">Edit</button>';
     if (u.id !== currentUserId) {
-      btns += '<button type="button" class="btn btn-sm btn-delete-user" data-id="' + u.id + '" style="color:var(--danger)">Delete</button>';
+      btns += '<button type="button" class="btn btn-sm btn-outline-danger btn-delete-user" data-id="' + u.id + '">Delete</button>';
     }
     btns += '</div>';
     return btns;

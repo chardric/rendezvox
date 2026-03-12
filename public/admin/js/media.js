@@ -3,6 +3,11 @@
    ============================================================ */
 var RendezVoxMedia = (function () {
 
+  var escHtml        = RendezVoxUtils.escHtml;
+  var showToast      = RendezVoxUtils.showToast;
+  var formatDate     = RendezVoxUtils.formatDate;
+  var formatDuration = RendezVoxUtils.formatDuration;
+
   // ── Icons ─────────────────────────────────────────────
   var IC = {
     edit: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
@@ -1092,11 +1097,7 @@ var RendezVoxMedia = (function () {
     list.textContent = files.length + ' audio file(s):\n' + names;
   }
 
-  function formatBytes(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
-  }
+  var formatBytes = RendezVoxUtils.formatBytes;
 
   function updateProgressUI(label, pct, sizeText) {
     var wrap = document.getElementById('uploadProgress');
@@ -1708,7 +1709,7 @@ var RendezVoxMedia = (function () {
       });
       html += '</tbody></table>';
       html += '<div style="text-align:right;margin-top:6px">';
-      html += '<button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger);font-size:.78rem" onclick="RendezVoxMedia.dupResolveGroup(' + idx + ')">Remove Duplicates</button>';
+      html += '<button type="button" class="btn btn-outline-danger btn-sm" style="font-size:.78rem" onclick="RendezVoxMedia.dupResolveGroup(' + idx + ')">Remove Duplicates</button>';
       html += '</div>';
       html += '</div></div>';
     });
@@ -1716,9 +1717,9 @@ var RendezVoxMedia = (function () {
     // Pagination
     if (totalPages > 1) {
       html += '<div class="dup-pager">';
-      html += '<button class="btn btn-ghost btn-sm" onclick="RendezVoxMedia.dupGoPage(' + (dupPage - 1) + ')"' + (dupPage <= 1 ? ' disabled' : '') + '>&laquo; Prev</button>';
+      html += '<button class="btn btn-outline btn-sm" onclick="RendezVoxMedia.dupGoPage(' + (dupPage - 1) + ')"' + (dupPage <= 1 ? ' disabled' : '') + '>&laquo; Prev</button>';
       html += '<span>Page ' + dupPage + ' of ' + totalPages + '</span>';
-      html += '<button class="btn btn-ghost btn-sm" onclick="RendezVoxMedia.dupGoPage(' + (dupPage + 1) + ')"' + (dupPage >= totalPages ? ' disabled' : '') + '>Next &raquo;</button>';
+      html += '<button class="btn btn-outline btn-sm" onclick="RendezVoxMedia.dupGoPage(' + (dupPage + 1) + ')"' + (dupPage >= totalPages ? ' disabled' : '') + '>Next &raquo;</button>';
       html += '</div>';
     }
 
@@ -2060,38 +2061,6 @@ var RendezVoxMedia = (function () {
       .catch(function (err) {
         showToast((err && err.error) || 'Failed to create playlist', 'error');
       });
-  }
-
-  // ── Helpers ───────────────────────────────────────────
-
-  function formatDate(iso) {
-    if (!iso) return '-';
-    var d = new Date(iso);
-    return d.toLocaleDateString('en-US', Object.assign({ day: 'numeric', month: 'short', year: 'numeric' }, RendezVoxAPI.tzOpts()));
-  }
-
-  function formatDuration(ms) {
-    if (!ms) return '-';
-    var sec = Math.floor(ms / 1000);
-    var min = Math.floor(sec / 60);
-    var s   = sec % 60;
-    return min + ':' + (s < 10 ? '0' : '') + s;
-  }
-
-  function escHtml(str) {
-    if (str === null || str === undefined) return '';
-    var div = document.createElement('div');
-    div.textContent = String(str);
-    return div.innerHTML;
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    var toast     = document.createElement('div');
-    toast.className   = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function () { toast.remove(); }, 4500);
   }
 
   // ── Public API ────────────────────────────────────────

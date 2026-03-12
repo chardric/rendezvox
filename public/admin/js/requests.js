@@ -3,6 +3,10 @@
    ============================================================ */
 var RendezVoxRequests = (function() {
 
+  var escHtml    = RendezVoxUtils.escHtml;
+  var showToast  = RendezVoxUtils.showToast;
+  var formatTime = RendezVoxUtils.formatTime;
+
   var currentStatus = 'pending';
   var pollTimer = null;
 
@@ -92,32 +96,6 @@ var RendezVoxRequests = (function() {
       .catch(function(err) {
         showToast((err && err.error) || 'Reject failed', 'error');
       });
-  }
-
-  // ── Helpers ──────────────────────────────────────────
-
-  function formatTime(isoStr) {
-    if (!isoStr) return '—';
-    var d = new Date(isoStr);
-    var opts = RendezVoxAPI.tzOpts();
-    return d.toLocaleDateString([], Object.assign({ month: 'short', day: 'numeric' }, opts)) + ' ' +
-           d.toLocaleTimeString([], Object.assign({ hour: '2-digit', minute: '2-digit' }, opts));
-  }
-
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 4000);
   }
 
   return {

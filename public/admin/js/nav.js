@@ -3,6 +3,8 @@
    ============================================================ */
 var RendezVoxNav = (function() {
 
+  var showToast = RendezVoxUtils.showToast;
+
   var pages = [
     { href: '/admin/dashboard', label: 'Dashboard',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
     { href: '/admin/media',     label: 'Media',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
@@ -236,7 +238,7 @@ var RendezVoxNav = (function() {
           '<label for="profileDisplayName">Display Name</label>' +
           '<div class="profile-name-input-wrap">' +
             '<input type="text" id="profileDisplayName" placeholder="Enter your name" maxlength="255">' +
-            '<button type="button" class="btn btn-sm btn-ghost" id="profileNameSave" style="display:none">Save</button>' +
+            '<button type="button" class="btn btn-sm btn-outline" id="profileNameSave" style="display:none">Save</button>' +
           '</div>' +
         '</div>' +
 
@@ -245,7 +247,7 @@ var RendezVoxNav = (function() {
           '<label for="profileEmailInput">Email</label>' +
           '<div class="profile-name-input-wrap">' +
             '<input type="email" id="profileEmailInput" placeholder="Enter your email" maxlength="255">' +
-            '<button type="button" class="btn btn-sm btn-ghost" id="profileEmailSave" style="display:none">Save</button>' +
+            '<button type="button" class="btn btn-sm btn-outline" id="profileEmailSave" style="display:none">Save</button>' +
           '</div>' +
         '</div>' +
 
@@ -562,16 +564,6 @@ var RendezVoxNav = (function() {
         btn.disabled = false;
         btn.textContent = 'Change Password';
       });
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    if (!container) return;
-    var t = document.createElement('div');
-    t.className = 'toast toast-' + (type || 'success');
-    t.textContent = msg;
-    container.appendChild(t);
-    setTimeout(function() { t.remove(); }, 3000);
   }
 
   /* ── Quick theme switcher (sidebar footer) ──────────── */

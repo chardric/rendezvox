@@ -3,6 +3,10 @@
    ============================================================ */
 var RendezVoxSettings = (function() {
 
+  var escHtml   = RendezVoxUtils.escHtml;
+  var escAttr   = RendezVoxUtils.escAttr;
+  var showToast = RendezVoxUtils.showToast;
+
   var groups = {
     'Station':   [],
     'Playback':  ['artist_repeat_block', 'crossfade_ms'],
@@ -770,7 +774,7 @@ var RendezVoxSettings = (function() {
 
     html += '<hr class="settings-divider">';
     html += '<div style="display:flex;justify-content:flex-end">';
-    html += '<button class="btn btn-ghost btn-sm" id="btnResetDefaults" style="color:var(--danger)">Reset to Defaults</button>';
+    html += '<button class="btn btn-outline-danger btn-sm" id="btnResetDefaults">Reset to Defaults</button>';
     html += '</div>';
 
     html += '</div>';
@@ -2454,28 +2458,6 @@ var RendezVoxSettings = (function() {
     return Math.round(mb) + ' MB';
   }
 
-  // ── Helpers ──────────────────────────────────────────
-
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function escAttr(str) {
-    if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 4000);
-  }
 
   return {
     init: init,

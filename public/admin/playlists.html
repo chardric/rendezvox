@@ -43,6 +43,8 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
   animation: onairPulse 1.2s ease-in-out infinite;
 }
 @keyframes onairPulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+#playlistTable tr[data-plid]:hover { background: rgba(255,255,255,.04); }
+#playlistTable tr[data-plid].pl-active { background: rgba(var(--accent-rgb, 255,120,0),.08); box-shadow: inset 3px 0 0 var(--accent); }
 </style>
 </head>
 <body>
@@ -86,14 +88,14 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
           <span class="text-dim" style="font-size:.8rem">to</span>
           <select id="specialSlot2End" style="margin:0;font-size:.82rem"></select>
         </div>
-        <div style="margin-top:2px"><button type="button" class="btn btn-ghost btn-sm" id="btnSaveSpecial">Save</button></div>
+        <div style="margin-top:2px"><button type="button" class="btn btn-outline btn-sm" id="btnSaveSpecial">Save</button></div>
       </div>
     </div>
 
     <div class="flex items-center justify-between" style="margin-bottom:20px">
       <h1 class="page-title" style="margin-bottom:0">Playlists</h1>
       <div class="flex gap-8" style="align-items:center">
-        <button type="button" class="btn btn-ghost" id="btnImportFolders">Import from Folders</button>
+        <button type="button" class="btn btn-outline" id="btnImportFolders">Import from Folders</button>
         <button type="button" class="btn btn-primary" id="btnCreate">+ New Playlist</button>
       </div>
     </div>
@@ -102,7 +104,7 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
     <div id="bulkBar" class="hidden" style="display:none;align-items:center;gap:12px;padding:8px 14px;margin-bottom:8px;background:rgba(0,200,160,.08);border:1px solid var(--accent);border-radius:8px">
       <span id="bulkCount" style="font-size:.85rem;font-weight:600"></span>
       <button type="button" class="btn btn-sm btn-primary" style="margin-left:auto" id="btnBulkMerge">Merge</button>
-      <button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff" id="btnBulkDelete">Delete Selected</button>
+      <button type="button" class="btn btn-sm btn-danger" id="btnBulkDelete">Delete Selected</button>
       <button type="button" class="btn btn-sm btn-ghost" id="btnBulkCancel">Cancel</button>
     </div>
 
@@ -138,9 +140,9 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
       </table>
     </div>
     <div id="tablePager" class="hidden" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 18px;font-size:.82rem">
-      <button type="button" class="btn btn-ghost btn-sm" id="btnTablePrev" style="padding:3px 10px">&laquo; Prev</button>
+      <button type="button" class="btn btn-outline btn-sm" id="btnTablePrev" style="padding:3px 10px">&laquo; Prev</button>
       <span id="tablePageInfo" class="text-dim"></span>
-      <button type="button" class="btn btn-ghost btn-sm" id="btnTableNext" style="padding:3px 10px">Next &raquo;</button>
+      <button type="button" class="btn btn-outline btn-sm" id="btnTableNext" style="padding:3px 10px">Next &raquo;</button>
     </div>
 
     <!-- ── Playlist detail panel (inline) ───────────── -->
@@ -152,10 +154,10 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
             <p id="autoDetailNote" class="text-dim hidden" style="font-size:0.78rem;margin:2px 0 0">Dynamic — songs matched by filters. No repeat until all consumed.</p>
           </div>
           <div class="flex gap-8" style="flex-wrap:wrap;align-items:center">
-            <button type="button" class="btn btn-ghost btn-sm" id="btnShuffle">Shuffle</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnAddSong">+ Add Song</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnAddFolder">+ From Folder</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnSurpriseMe">Surprise Me!</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnShuffle">Shuffle</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnAddSong">+ Add Song</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnAddFolder">+ From Folder</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnSurpriseMe">Surprise Me!</button>
             <button type="button" class="btn btn-ghost btn-sm" id="btnCloseDetail" style="color:#f87171;font-size:1.1rem;font-weight:700;padding:2px 8px;line-height:1">&times;</button>
           </div>
         </div>
@@ -189,9 +191,9 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
         </table>
       </div>
       <div id="detailPager" class="hidden" style="flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 18px;border-top:1px solid var(--border);font-size:.82rem">
-        <button type="button" class="btn btn-ghost btn-sm" id="btnPagePrev" style="padding:3px 10px">&laquo; Prev</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnPagePrev" style="padding:3px 10px">&laquo; Prev</button>
         <span id="pageInfo" class="text-dim"></span>
-        <button type="button" class="btn btn-ghost btn-sm" id="btnPageNext" style="padding:3px 10px">Next &raquo;</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnPageNext" style="padding:3px 10px">Next &raquo;</button>
       </div>
     </div>
   </main>
@@ -304,7 +306,7 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
     </div>
 
     <div class="modal-actions" style="margin-top:12px">
-      <button type="button" class="btn btn-ghost" id="btnAddSelected" disabled>Add Selected (0)</button>
+      <button type="button" class="btn btn-outline" id="btnAddSelected" disabled>Add Selected (0)</button>
       <button type="button" class="btn btn-primary" id="btnAddAllFiltered" title="Add all songs matching current filter">Add All Filtered</button>
       <button type="button" class="btn btn-ghost" id="btnCancelAddSong">Cancel</button>
     </div>
@@ -344,8 +346,8 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
         Include subfolders when adding songs
       </label>
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button type="button" class="btn btn-ghost btn-sm" id="btnImportSelectAll">Select All</button>
-        <button type="button" class="btn btn-ghost btn-sm" id="btnImportSelectNone">Select None</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnImportSelectAll">Select All</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnImportSelectNone">Select None</button>
       </div>
       <div id="importFolderTree" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-subtle,rgba(255,255,255,0.04))">
         <p class="text-dim" style="margin:0;font-size:.85rem">Loading folders…</p>
@@ -419,12 +421,14 @@ tr.on-air td { border-bottom-color: rgba(0,200,160,.15); }
 <div class="toast-container" id="toasts"></div>
 
 <script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260301"></script>
+<script src="/admin/js/api.js?v=20260312"></script>
+<script src="/admin/js/utils.js?v=20260312"></script>
 <script src="/admin/js/auth.js?v=20260301"></script>
 <script src="/admin/js/nav.js?v=20260301"></script>
 <script src="/admin/js/icons.js?v=20260226"></script>
 <script src="/admin/js/confirm.js?v=20260226"></script>
-<script src="/admin/js/playlists.js?v=20260305"></script>
+<script src="/admin/js/shuffle.js?v=20260312"></script>
+<script src="/admin/js/playlists.js?v=20260312"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

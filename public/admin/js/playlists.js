@@ -3,6 +3,10 @@
    ============================================================ */
 var RendezVoxPlaylists = (function() {
 
+  var escHtml        = RendezVoxUtils.escHtml;
+  var showToast      = RendezVoxUtils.showToast;
+  var formatDuration = RendezVoxUtils.formatDuration;
+
   var activePlaylistId   = null;
   var activePlaylistName = null;
   var activePlaylistType = null;
@@ -194,7 +198,7 @@ var RendezVoxPlaylists = (function() {
 
     if (!ep) {
       desc.textContent = 'No emergency playlist configured. Create one to enable emergency mode.';
-      actions.innerHTML = '<button type="button" class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="RendezVoxPlaylists.createEmergency()">Create Emergency Playlist</button>';
+      actions.innerHTML = '<button type="button" class="btn btn-sm btn-danger" onclick="RendezVoxPlaylists.createEmergency()">Create Emergency Playlist</button>';
     } else {
       var songLabel = ep.song_count !== null ? ep.song_count + ' songs' : '—';
       var statusBadge = ep.is_active
@@ -675,7 +679,8 @@ var RendezVoxPlaylists = (function() {
       var trAttr = isStreaming
         ? ' class="on-air" style="--pl-color:' + escHtml(p.color || '#ff7800') + '"'
         : '';
-      html += '<tr' + trAttr + '>' +
+      var activeRow = (activePlaylistId === p.id) ? ' class="pl-active"' : '';
+      html += '<tr' + trAttr + ' data-plid="' + p.id + '" style="cursor:pointer">' +
         '<td><input type="checkbox" class="pl-row-check" data-id="' + p.id + '" data-name="' + escHtml(p.name) + '" data-color="' + escHtml(p.color || '#666') + '"' + (isStreaming ? ' disabled title="Currently streaming"' : '') + ' style="width:16px;height:16px;cursor:' + (isStreaming ? 'not-allowed' : 'pointer') + ';accent-color:var(--accent)"></td>' +
         '<td>' + (startIdx + idx + 1) + '</td>' +
         '<td>' + swatch + escHtml(p.name) + streamingBadge + '</td>' +
@@ -684,7 +689,6 @@ var RendezVoxPlaylists = (function() {
         '<td>' + p.cycle_count + '</td>' +
         '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="RendezVoxPlaylists.toggleActive(' + p.id + ',this.checked)"' + toggleChecked + '><span class="slider"></span></label></td>' +
         '<td style="white-space:nowrap">' +
-          '<button type="button" class="icon-btn" title="View" onclick="RendezVoxPlaylists.viewDetail(' + p.id + ')">' + RendezVoxIcons.view + '</button> ' +
           '<label class="icon-btn" title="Change color" style="position:relative;cursor:pointer;color:' + escHtml(p.color || '#ff7800') + '">' + RendezVoxIcons.palette + '<input type="color" value="' + escHtml(p.color || '#ff7800') + '" onchange="RendezVoxPlaylists.changeColor(' + p.id + ',this.value)" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></label> ' +
           (p.type !== 'emergency' ? '<button type="button" class="icon-btn" title="Edit" onclick="RendezVoxPlaylists.editPlaylist(' + p.id + ')">' + RendezVoxIcons.edit + '</button> ' : '') +
           (p.type !== 'emergency' ? '<button type="button" class="icon-btn danger" title="Delete" onclick="RendezVoxPlaylists.deletePlaylist(' + p.id + ')">' + RendezVoxIcons.del + '</button>' : '') +
@@ -692,6 +696,16 @@ var RendezVoxPlaylists = (function() {
         '</tr>';
     });
     tbody.innerHTML = html;
+
+    // Wire up row clicks to show song detail
+    tbody.querySelectorAll('tr[data-plid]').forEach(function(tr) {
+      tr.addEventListener('click', function(e) {
+        // Don't trigger on checkbox, toggle, button, or color picker clicks
+        if (e.target.closest('input,button,label,.toggle,.icon-btn')) return;
+        var id = parseInt(tr.getAttribute('data-plid'), 10);
+        if (id) viewDetail(id);
+      });
+    });
 
     // Wire up row checkboxes
     var checks = tbody.querySelectorAll('.pl-row-check');
@@ -1020,7 +1034,15 @@ var RendezVoxPlaylists = (function() {
       detailCurrentPage = 1;
     }
     activePlaylistId = id;
+    highlightActiveRow(id);
     loadDetail(id);
+  }
+
+  function highlightActiveRow(id) {
+    var tbody = document.getElementById('playlistTable');
+    tbody.querySelectorAll('tr.pl-active').forEach(function(tr) { tr.classList.remove('pl-active'); });
+    var row = tbody.querySelector('tr[data-plid="' + id + '"]');
+    if (row) row.classList.add('pl-active');
   }
 
   function loadDetail(id) {
@@ -1185,11 +1207,8 @@ var RendezVoxPlaylists = (function() {
         else if (s.played_in_cycle) played.push(s);
         else unplayed.push(s);
       });
-      // Fisher-Yates on unplayed portion only
-      for (var i = unplayed.length - 1; i > 0; i--) {
-        var j = Math.floor(Math.random() * (i + 1));
-        var tmp = unplayed[i]; unplayed[i] = unplayed[j]; unplayed[j] = tmp;
-      }
+      // Shuffle with artist separation
+      RendezVoxShuffle.shuffle(unplayed, 6, nxtSong);
       var arr = played.slice();
       if (curSong) arr.push(curSong);
       if (nxtSong) arr.push(nxtSong);
@@ -1341,10 +1360,10 @@ var RendezVoxPlaylists = (function() {
     // Promote "Add All" when nothing manually selected, demote when selections exist
     if (count > 0) {
       btnAdd.className = 'btn btn-primary';
-      btnAll.className = 'btn btn-ghost';
+      btnAll.className = 'btn btn-outline';
     } else {
       btnAll.className = 'btn btn-primary';
-      btnAdd.className = 'btn btn-ghost';
+      btnAdd.className = 'btn btn-outline';
     }
   }
 
@@ -2142,32 +2161,6 @@ var RendezVoxPlaylists = (function() {
       btn.disabled = false;
       btn.textContent = 'Go!';
     });
-  }
-
-  // ── Helpers ──────────────────────────────────────────
-
-  function formatDuration(ms) {
-    if (!ms) return '—';
-    var s = Math.floor(ms / 1000);
-    var m = Math.floor(s / 60);
-    s = s % 60;
-    return m + ':' + (s < 10 ? '0' : '') + s;
-  }
-
-  function escHtml(str) {
-    if (!str) return '';
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function showToast(msg, type) {
-    var container = document.getElementById('toasts');
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'success');
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 4000);
   }
 
   return {
