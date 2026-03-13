@@ -831,7 +831,7 @@ class MetadataLookup
 
         $this->rateLimit('gemini', 0.15); // 2.5 Flash free tier: 500 RPM
 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key='
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='
              . urlencode($this->geminiApiKey);
 
         $payload = json_encode([
@@ -841,7 +841,8 @@ class MetadataLookup
             'generationConfig' => [
                 'responseMimeType' => 'application/json',
                 'temperature'      => 0.1,
-                'maxOutputTokens'  => 150,
+                'maxOutputTokens'  => 256,
+                'thinkingConfig'   => ['thinkingBudget' => 0],
             ],
         ]);
 
