@@ -49,6 +49,7 @@ RendezVox is a self-hosted, fully automated internet radio station built with PH
 - **Liquidsoap** audio processing engine with API-driven track selection
 - **Icecast 2** streaming server with configurable mount points
 - Smart rotation engine with multi-pass artist separation (gap 6) and title separation (gap 3)
+- Cross-playlist dedup — same song and title variations blocked for 24 hours
 - Crossfade support with configurable duration
 - Station ID/sweeper/liner insertion at configurable intervals
 - Emergency mode with dedicated fallback playlist
@@ -694,10 +695,11 @@ Nginx rate limits on sensitive endpoints:
 
 ## Changelog
 
-### v1.0.2 — 2026-03-12
+### v1.0.2 — 2026-03-13
 
 **AI & Metadata**
 - Upgraded Gemini AI model from 2.0 Flash to 2.5 Flash (500 RPM / 25K req/day free tier)
+- Disabled Gemini thinking tokens for genre classification (fixes empty responses)
 - Added `RENDEZVOX_DEFAULT_CATEGORY_ID` env var to prevent genre misclassification on import
 
 **Shuffle & Rotation**
@@ -705,14 +707,24 @@ Nginx rate limits on sensitive endpoints:
 - Title separation — same base title blocked within gap of 3 positions
 - `baseTitle()` normalizer strips rendition suffixes (Remix, Acoustic, Live, feat., etc.)
 - Consolidated shuffle logic into shared `shuffle.js` (client) and `RotationEngine.php` (server)
+- Cross-playlist dedup: same song blocked for 24 hours across all playlists
+- Cross-playlist title dedup: same base title (and variations) blocked for 24 hours
+- Requested songs bypass dedup checks (listeners always get what they asked for)
+
+**Streaming**
+- Fixed songs cutting off mid-playback during quiet passages (blank.skip too aggressive)
+- Empty playlists excluded from schedule resolution (no more stuck-on-empty errors)
 
 **Admin UI**
 - New button hierarchy: `btn-primary` > `btn-outline` > `btn-outline-danger` > `btn-danger` > `btn-ghost`
 - Fixed grayed-out/disabled-looking buttons across all admin pages
-- Consolidated shared JS utilities into `utils.js` (escHtml, showToast, formatDuration, formatDate, formatTime, formatBytes, formatNumber) — removed duplicates from 12 files
+- Consolidated shared JS utilities into `utils.js` — removed duplicates from 12 files
+- Playlist song search — filter songs by title, artist, or genre within a playlist
+- Empty playlists hidden from schedule palette
 
 **Infrastructure**
 - Fixed Alpine edge package conflict (libplacebo/libglslang) in PHP Dockerfile
+- Daily play_history pruning (90 days retention) to prevent unbounded DB growth
 - Reduced admin JS codebase by ~140 lines through deduplication
 
 ### v1.0.0 — 2026-02-24

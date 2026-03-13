@@ -115,10 +115,12 @@ radio = amplify(override="liq_amplify", 1., radio)
 radio = cue_cut(radio)
 
 # ── Strip trailing silence (safety net) ──────────────
-# Fallback for songs without cue points. Ends tracks
-# when silence exceeds 2s at -40dB.
+# All songs have cue_in/cue_out from silence detection, so cue_cut
+# handles trimming. This is only a last-resort fallback for edge cases
+# (corrupted files, missing cue metadata). Lenient settings to avoid
+# cutting songs during quiet passages (soft intros, bridges, fade-outs).
 
-radio = blank.skip(radio, max_blank=2.0, min_noise=0.5, threshold=-40.0)
+radio = blank.skip(radio, max_blank=5.0, min_noise=0.3, threshold=-50.0)
 
 # ── De-esser & high-frequency smoothing ───────────────
 # Tame sibilance (harsh S/T/SH sounds) with a narrow cut at 6.5kHz

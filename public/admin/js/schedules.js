@@ -202,7 +202,7 @@ var RendezVoxSchedules = (function() {
 
   function loadPlaylists() {
     RendezVoxAPI.get('/admin/playlists').then(function(data) {
-      playlists = (data.playlists || []).filter(function(p) { return p.type !== 'emergency'; });
+      playlists = (data.playlists || []).filter(function(p) { return p.type !== 'emergency' && (p.song_count === null || p.song_count > 0); });
       playlistMap = {};
       playlists.forEach(function(p) { playlistMap[p.id] = p; });
       renderPalette();
