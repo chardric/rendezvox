@@ -292,6 +292,7 @@ class NextTrackHandler
             JOIN playlists p ON p.id = s.playlist_id
             WHERE s.is_active = true
               AND p.is_active = true
+              AND EXISTS (SELECT 1 FROM playlist_songs ps WHERE ps.playlist_id = p.id)
               AND (EXTRACT(DOW FROM NOW() AT TIME ZONE :tz)::int = ANY(s.days_of_week)
                    OR s.days_of_week IS NULL)
               AND (s.start_date IS NULL OR s.start_date <= (NOW() AT TIME ZONE :tz4)::date)

@@ -365,9 +365,9 @@ class RotationEngine
      * @param int    $blockSize Number of recent plays to check (default 2).
      * @return bool True if a same-base-title song was played recently.
      */
-    public static function isTitleBlocked(PDO $db, string $title, int $songId, int $blockSize = 2): bool
+    public static function isTitleBlocked(PDO $db, string $title, int $songId, int $hoursWindow = 24): bool
     {
-        if ($blockSize <= 0) {
+        if ($hoursWindow <= 0) {
             return false;
         }
 
@@ -378,17 +378,13 @@ class RotationEngine
 
         $stmt = $db->prepare('
             SELECT s.title
-            FROM (
-                SELECT song_id
-                FROM play_history
-                ORDER BY started_at DESC
-                LIMIT :block_size
-            ) recent
-            JOIN songs s ON s.id = recent.song_id
-            WHERE recent.song_id != :song_id
+            FROM play_history ph
+            JOIN songs s ON s.id = ph.song_id
+            WHERE ph.song_id != :song_id
+              AND ph.started_at > NOW() - make_interval(hours => :hours)
         ');
-        $stmt->bindValue('block_size', $blockSize, PDO::PARAM_INT);
         $stmt->bindValue('song_id', $songId, PDO::PARAM_INT);
+        $stmt->bindValue('hours', $hoursWindow, PDO::PARAM_INT);
         $stmt->execute();
 
         while ($row = $stmt->fetch()) {

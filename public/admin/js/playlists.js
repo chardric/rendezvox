@@ -17,6 +17,7 @@ var RendezVoxPlaylists = (function() {
   var autoShuffledOrder  = null;  // stored song_id order after client-side shuffle
   var detailShowLimit    = 10;   // songs per page (0 = all)
   var detailCurrentPage  = 1;
+  var detailSearchQuery  = '';   // current song search filter
   var tableShowLimit     = 10;  // playlists per page (0 = all)
   var tableCurrentPage   = 1;
   var tableRegularList   = [];  // cached filtered playlists for pagination
@@ -105,6 +106,12 @@ var RendezVoxPlaylists = (function() {
     document.getElementById('btnTableNext').addEventListener('click', function() {
       var totalPages = tableShowLimit > 0 ? Math.ceil(tableRegularList.length / tableShowLimit) : 1;
       if (tableCurrentPage < totalPages) { tableCurrentPage++; renderTable(tableRegularList); }
+    });
+
+    document.getElementById('detailSearch').addEventListener('input', function() {
+      detailSearchQuery = this.value.trim().toLowerCase();
+      detailCurrentPage = 1;
+      if (activeDetailSongs.length > 0) renderDetailSongs(activeDetailSongs, activePlaylistType);
     });
 
     document.getElementById('btnShuffle').addEventListener('click', shufflePlaylist);
@@ -1052,6 +1059,11 @@ var RendezVoxPlaylists = (function() {
       activePlaylistType = pl.type;
       activePlaylistName = pl.name;
 
+      // Clear search when switching playlists
+      detailSearchQuery = '';
+      var searchEl = document.getElementById('detailSearch');
+      if (searchEl) searchEl.value = '';
+
       // Track which songs are currently playing / up next
       currentSongId = data.current_song_id || null;
       nextSongId    = data.next_song_id || null;
@@ -1090,6 +1102,21 @@ var RendezVoxPlaylists = (function() {
       var msg = isAuto ? 'No songs match the current rules' : (type === 'emergency' ? 'Auto-fill will populate on next cycle' : 'No songs in playlist');
       tbody.innerHTML = '<tr><td colspan="7" class="empty">' + msg + '</td></tr>';
       return;
+    }
+
+    // Apply search filter
+    if (detailSearchQuery) {
+      var q = detailSearchQuery;
+      songs = songs.filter(function(s) {
+        return (s.title && s.title.toLowerCase().indexOf(q) !== -1)
+            || (s.artist && s.artist.toLowerCase().indexOf(q) !== -1)
+            || (s.category && s.category.toLowerCase().indexOf(q) !== -1);
+      });
+      if (songs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No songs match "' + escHtml(detailSearchQuery) + '"</td></tr>';
+        document.getElementById('detailPager').classList.add('hidden');
+        return;
+      }
     }
 
     // Re-sort: Played (Yes) → Playing → Up Next → Unplayed (No)
