@@ -344,15 +344,7 @@ function findAudioFiles(
 
 function findOrCreateArtist(\PDO $db, string $name): int
 {
-    $name = ArtistNormalizer::extractPrimary($name, $db);
-    $normalized = mb_strtolower(trim($name));
-    $stmt = $db->prepare('SELECT id FROM artists WHERE normalized_name = :norm');
-    $stmt->execute(['norm' => $normalized]);
-    $row = $stmt->fetch();
-    if ($row) return (int) $row['id'];
-    $stmt = $db->prepare('INSERT INTO artists (name, normalized_name) VALUES (:name, :norm) RETURNING id');
-    $stmt->execute(['name' => trim($name), 'norm' => $normalized]);
-    return (int) $stmt->fetchColumn();
+    return ArtistNormalizer::findOrCreate($db, $name);
 }
 
 function findOrCreateCategory(\PDO $db, string $name, array &$cache): int

@@ -56,6 +56,11 @@ class SongListHandler
         } elseif ($active === 'false') {
             $where[] = 's.is_active = false';
         }
+        $countryCode = $_GET['country_code'] ?? '';
+        if ($countryCode !== '') {
+            $where[]               = 's.country_code = :country_code';
+            $params['country_code'] = strtoupper($countryCode);
+        }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -77,6 +82,8 @@ class SongListHandler
                 s.rotation_weight, s.year, s.play_count, s.last_played_at,
                 s.is_active, s.is_requestable, s.trashed_at, s.duplicate_of,
                 s.meta_locked, s.created_at,
+                s.bpm, s.energy, s.ending_type, s.mood_analyzed_at,
+                s.country_code,
                 a.id   AS artist_id,
                 a.name AS artist_name,
                 c.id   AS category_id,
@@ -135,6 +142,8 @@ class SongListHandler
                 s.rotation_weight, s.year, s.play_count, s.last_played_at,
                 s.is_active, s.is_requestable, s.trashed_at, s.duplicate_of,
                 s.meta_locked, s.created_at,
+                s.bpm, s.energy, s.ending_type, s.mood_analyzed_at,
+                s.country_code,
                 a.id   AS artist_id,
                 a.name AS artist_name,
                 c.id   AS category_id,
@@ -190,6 +199,11 @@ class SongListHandler
             'duplicate_of'    => $row['duplicate_of'] ? (int) $row['duplicate_of'] : null,
             'meta_locked'     => (bool) ($row['meta_locked'] ?? false),
             'created_at'      => $row['created_at'],
+            'bpm'             => isset($row['bpm']) && $row['bpm'] !== null ? (int) $row['bpm'] : null,
+            'energy'          => isset($row['energy']) && $row['energy'] !== null ? (float) $row['energy'] : null,
+            'ending_type'     => $row['ending_type'] ?? null,
+            'mood_analyzed'   => !empty($row['mood_analyzed_at']),
+            'country_code'    => $row['country_code'] ?? null,
         ];
     }
 }

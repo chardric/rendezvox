@@ -29,7 +29,7 @@ class SongUpdateHandler
 
         // Build dynamic SET clause
         $allowed = ['title', 'artist_id', 'category_id', 'year', 'rotation_weight',
-                     'is_active', 'is_requestable'];
+                     'is_active', 'is_requestable', 'country_code'];
         $sets   = [];
         $params = ['id' => $id];
 

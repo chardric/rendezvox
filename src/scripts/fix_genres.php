@@ -159,21 +159,9 @@ while ($row = $stmt->fetch()) {
 
 function findOrCreateArtist(PDO $db, string $name, array &$cache): int
 {
-    $name = ArtistNormalizer::extractPrimary($name, $db);
     $key = strtolower(trim($name));
     if (isset($cache[$key])) return $cache[$key];
-
-    $stmt = $db->prepare("SELECT id FROM artists WHERE normalized_name = :norm");
-    $stmt->execute(['norm' => $key]);
-    $row = $stmt->fetch();
-    if ($row) {
-        $cache[$key] = (int) $row['id'];
-        return (int) $row['id'];
-    }
-
-    $stmt = $db->prepare("INSERT INTO artists (name, normalized_name) VALUES (:name, :norm) RETURNING id");
-    $stmt->execute(['name' => trim($name), 'norm' => $key]);
-    $id = (int) $stmt->fetchColumn();
+    $id = ArtistNormalizer::findOrCreate($db, $name);
     $cache[$key] = $id;
     return $id;
 }
@@ -263,7 +251,7 @@ function titleFromFilename(string $filePath): string
 if ($verifyMode) {
     logMsg('Verify mode: loading all tagged songs for AI verification', $autoMode);
     $stmt = $db->query("
-        SELECT s.id, s.title, s.year, s.file_path, s.artist_id,
+        SELECT s.id, s.title, s.year, s.file_path, s.artist_id, s.country_code,
                a.name AS artist_name, c.name AS current_genre
         FROM songs s
         JOIN artists a ON a.id = s.artist_id
@@ -518,10 +506,20 @@ foreach ($allSongs as $song) {
                    || stripos($artistName, 'ai cover') !== false);
         if (!$isAiCheck) {
             if (isset($artistGenreCache[$artistName])) {
-                $lookedUpGenre = $artistGenreCache[$artistName];
+                $artistMeta = $artistGenreCache[$artistName];
             } else {
-                $lookedUpGenre = $lookup->lookupGenreByArtist($artistName);
-                $artistGenreCache[$artistName] = $lookedUpGenre;
+                $artistMeta = $lookup->lookupArtistMeta($artistName);
+                $artistGenreCache[$artistName] = $artistMeta;
+            }
+            $lookedUpGenre = $artistMeta['genre'] ?? null;
+
+            // Set country_code from MusicBrainz if available
+            if (!empty($artistMeta['country_code']) && empty($song['country_code'])) {
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET country_code = :cc WHERE id = :id")
+                       ->execute(['cc' => $artistMeta['country_code'], 'id' => $songId]);
+                }
+                $tagsChanged = true;
             }
 
             if ($lookedUpGenre) {
@@ -578,14 +576,16 @@ foreach ($allSongs as $song) {
                  || (!$gotExternalData && !empty(trim($artistName)));
     $needAiTitle  = MetadataLookup::looksLikeFilenameArtifact($title)
                  || (!$gotExternalData && !empty(trim($title)));
-    $needAiAlbum  = empty($mbResult['album'] ?? null) && empty($audioDbResult['album'] ?? null);
-    if ($aiProvider !== 'none' && ($needAiGenre || $needAiYear || $needAiArtist || $needAiTitle || $needAiAlbum)) {
+    $needAiAlbum   = empty($mbResult['album'] ?? null) && empty($audioDbResult['album'] ?? null);
+    $needAiCountry = empty($song['country_code']) && empty($artistMeta['country_code'] ?? null);
+    if ($aiProvider !== 'none' && ($needAiGenre || $needAiYear || $needAiArtist || $needAiTitle || $needAiAlbum || $needAiCountry)) {
         $aiNeeds = [
-            'genre'  => $needAiGenre,
-            'year'   => $needAiYear,
-            'artist' => $needAiArtist,
-            'title'  => $needAiTitle,
-            'album'  => $needAiAlbum,
+            'genre'        => $needAiGenre,
+            'year'         => $needAiYear,
+            'artist'       => $needAiArtist,
+            'title'        => $needAiTitle,
+            'album'        => $needAiAlbum,
+            'country_code' => $needAiCountry,
         ];
 
         if ($useGemini) {
@@ -644,6 +644,12 @@ foreach ($allSongs as $song) {
                     $progress['updated']++;
                     $tagsChanged = true;
                 }
+            }
+
+            if (!empty($aiResult['country_code']) && $needAiCountry && !$dryRun) {
+                $db->prepare("UPDATE songs SET country_code = :cc WHERE id = :id")
+                   ->execute(['cc' => $aiResult['country_code'], 'id' => $songId]);
+                $tagsChanged = true;
             }
         }
     }

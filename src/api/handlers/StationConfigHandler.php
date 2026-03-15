@@ -16,7 +16,7 @@ class StationConfigHandler
 
         $stmt = $db->query("
             SELECT key, value FROM settings
-            WHERE key IN ('crossfade_ms', 'station_name', 'station_timezone', 'station_logo_path', 'accent_color')
+            WHERE key IN ('crossfade_ms', 'station_name', 'station_timezone', 'station_logo_path', 'accent_color', 'smart_jingle_enabled', 'weather_latitude', 'weather_longitude')
         ");
 
         $config = [];
@@ -33,6 +33,9 @@ class StationConfigHandler
             'station_timezone' => $serverTz,
             'has_logo'         => !empty($config['station_logo_path'] ?? ''),
             'accent_color'     => !empty($config['accent_color'] ?? '') ? $config['accent_color'] : '#ff7800',
+            'smart_jingle_enabled' => ($config['smart_jingle_enabled'] ?? 'false') === 'true',
+            'weather_latitude'     => $config['weather_latitude'] ?? '',
+            'weather_longitude'    => $config['weather_longitude'] ?? '',
         ]);
     }
 }

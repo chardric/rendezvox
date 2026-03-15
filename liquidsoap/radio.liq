@@ -67,7 +67,7 @@ def get_next_track() =
 
     let result = string.trim(process.read(
         "resp=$(curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/next-track') && " ^
-        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring) + \"\\n\" + (.song.cue_in // \"\" | tostring) + \"\\n\" + (.song.cue_out // \"\" | tostring) + \"\\n\" + (.tts_path // \"\" | tostring)) end'"
+        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring) + \"\\n\" + (.song.cue_in // \"\" | tostring) + \"\\n\" + (.song.cue_out // \"\" | tostring) + \"\\n\" + (.tts_path // \"\" | tostring) + \"\\n\" + (.crossfade_ms // 0 | tostring)) end'"
     ))
 
     let parts = string.split(separator="\n", result)
@@ -79,6 +79,7 @@ def get_next_track() =
     let cue_in = string.trim(list.nth(default="", parts, 5))
     let cue_out = string.trim(list.nth(default="", parts, 6))
     let tts_path = string.trim(list.nth(default="", parts, 7))
+    let crossfade_override = string.trim(list.nth(default="0", parts, 8))
 
     if file_path == "" or file_path == "null" then
         log.info("No active schedule — playing silence, will retry in 10s")
@@ -90,7 +91,11 @@ def get_next_track() =
             if cue_in != "" and cue_out != "" then
                 ",liq_cue_in=\"#{cue_in}\",liq_cue_out=\"#{cue_out}\""
             else "" end
-        let song_request = request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\"#{cue_annotations}:#{full_path}")
+        let cf_annotation =
+            if crossfade_override != "" and crossfade_override != "0" then
+                ",liq_cross_duration=\"#{string(float_of_string(crossfade_override) / 1000.0)}\""
+            else "" end
+        let song_request = request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\"#{cue_annotations}#{cf_annotation}:#{full_path}")
 
         if tts_path != "" and tts_path != "null" then
             log.important("TTS pre-roll: #{tts_path} → #{full_path} (song_id=#{song_id})")
@@ -115,12 +120,10 @@ radio = amplify(override="liq_amplify", 1., radio)
 radio = cue_cut(radio)
 
 # ── Strip trailing silence (safety net) ──────────────
-# All songs have cue_in/cue_out from silence detection, so cue_cut
-# handles trimming. This is only a last-resort fallback for edge cases
-# (corrupted files, missing cue metadata). Lenient settings to avoid
-# cutting songs during quiet passages (soft intros, bridges, fade-outs).
-
-radio = blank.skip(radio, max_blank=5.0, min_noise=0.3, threshold=-50.0)
+# All songs already have cue_in/cue_out from silence detection and
+# cue_cut handles trimming above. blank.skip is intentionally omitted
+# because it falsely skips segments (prayers, announcements) that have
+# quiet passages. The cue_cut filter is sufficient for trailing silence.
 
 # ── De-esser & high-frequency smoothing ───────────────
 # Tame sibilance (harsh S/T/SH sounds) with a narrow cut at 6.5kHz
@@ -158,12 +161,15 @@ radio = source.on_metadata(radio, fun (m) -> begin
 
         # Delay API calls until crossfade completes
         thread.run(delay=crossfade_sec, fun () -> begin
-            # Stamp previous track as ended
+            # Stamp previous track as ended (include current listener count for retention scoring)
             if prev != "" and prev != "0" then
                 log.info("Track ended (song_id=#{prev}), notifying API...")
+                let lc = string.trim(process.read(
+                    "curl -sf '#{icecast_host}:#{string(icecast_port)}/status-json.xsl' 2>/dev/null | jq -r '.icestats.source.listeners // 0' 2>/dev/null || echo 0"
+                ))
                 ignore(process.read(
                     "curl -sf -X POST -H 'Content-Type: application/json' -H 'X-Internal-Secret: #{internal_secret}' " ^
-                    "-d '{\"song_id\": #{prev}}' '#{api_base}/track-played' 2>/dev/null || true"
+                    "-d '{\"song_id\": #{prev}, \"listener_count\": #{lc}}' '#{api_base}/track-played' 2>/dev/null || true"
                 ))
             end
 
@@ -188,16 +194,59 @@ end)
 # Fallback to silence if source fails entirely
 radio = mksafe(radio)
 
-# ── Station ID overlay (exactly one per hour at minute 0) ───
-# Plays a station ID followed by a time announcement (if enabled).
+# ── Segment interrupt check ──────────────────────────────
+# Poll /api/segment-due every 15s. When a segment is due,
+# skip the current track so the segment plays immediately
+# (with crossfade transition) instead of waiting for the
+# current song to end naturally.
+
+segment_check_active = ref(true)
+
+def check_segment_due() =
+    if segment_check_active() then
+        let resp = string.trim(process.read(
+            "curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/segment-due' | jq -r '.due // false'"
+        ))
+        if resp == "true" then
+            log.important("Segment due — skipping current track for immediate playback")
+            # Prevent re-triggering during the skip/crossfade
+            segment_check_active := false
+            source.skip(radio)
+            # Re-enable after 30s (enough for crossfade + segment to start)
+            thread.run(delay=30., fun () -> begin
+                segment_check_active := true
+            end)
+        end
+    end
+end
+
+thread.run(every=5., check_segment_due)
+
+# ── Station ID overlay (hourly fallback) ────────────────────
+# When smart_jingle_enabled is on, the API injects jingles at
+# natural energy breaks via /api/next-track. This hourly trigger
+# serves as a fallback when smart jingles are off.
 stationids_dir = "/var/lib/rendezvox/stationids"
 stationid_state = "/tmp/stationid_last_index"
+
+smart_jingle_str = string.trim(process.read(
+    "curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/config' | jq -r '.smart_jingle_enabled // \"false\"'"
+))
+smart_jingle_on = ref(smart_jingle_str == "true")
 
 # Fires true exactly once when the clock enters minute 0 each hour
 hourly_activate = predicate.activates({0m})
 
 def pick_station_id() =
+    # Re-check setting every hour (in case admin toggled it)
     if hourly_activate() then
+        let fresh = string.trim(process.read(
+            "curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/config' | jq -r '.smart_jingle_enabled // \"false\"'"
+        ))
+        smart_jingle_on := (fresh == "true")
+    end
+
+    if hourly_activate() and not smart_jingle_on() then
         # Sequential round-robin: list files sorted alphabetically,
         # read last-played index from state file, pick the next one.
         path = string.trim(process.read(

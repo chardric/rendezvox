@@ -7,5 +7,9 @@
 */15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/rename_paths.php --auto >> /var/log/rendezvox/auto-rename.log 2>&1
 */15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/dedup_songs.php --auto >> /var/log/rendezvox/auto-dedup-songs.log 2>&1
 */15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/silence_detect.php --auto >> /var/log/rendezvox/auto-silence.log 2>&1
+*/15 * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/mood_analyze.php --auto >> /var/log/rendezvox/auto-mood.log 2>&1
+* * * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/voting_poll.php >> /var/log/rendezvox/voting.log 2>&1
+0 0 * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/generate_recap.php >> /var/log/rendezvox/recap.log 2>&1
+0 2 * * * . /etc/environment.rendezvox; php /var/www/html/src/scripts/retention_score.php >> /var/log/rendezvox/retention.log 2>&1
 0 3 * * * find /var/lib/rendezvox/tts -name '*.mp3' -mtime +7 -delete 2>/dev/null
 0 3 * * * . /etc/environment.rendezvox; php -r "require '/var/www/html/src/core/Database.php'; Database::get()->exec(\"DELETE FROM play_history WHERE started_at < NOW() - INTERVAL '90 days'\");" >> /var/log/rendezvox/prune.log 2>&1

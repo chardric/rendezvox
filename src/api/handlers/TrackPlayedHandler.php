@@ -21,13 +21,16 @@ class TrackPlayedHandler
             Response::error('Missing required field: song_id', 422);
         }
 
-        $songId = (int) $input['song_id'];
-        $db     = Database::get();
+        $songId        = (int) $input['song_id'];
+        $listenerCount = isset($input['listener_count']) ? (int) $input['listener_count'] : null;
+        $db            = Database::get();
 
-        // Set ended_at on the most recent play_history entry for this song
+        // Set ended_at (and listener_count_end for retention scoring) on the
+        // most recent play_history entry for this song
         $stmt = $db->prepare('
             UPDATE play_history
-            SET ended_at = NOW()
+            SET ended_at = NOW(),
+                listener_count_end = :lc_end
             WHERE id = (
                 SELECT id FROM play_history
                 WHERE song_id = :song_id
@@ -36,7 +39,7 @@ class TrackPlayedHandler
             )
             RETURNING id, started_at, ended_at
         ');
-        $stmt->execute(['song_id' => $songId]);
+        $stmt->execute(['song_id' => $songId, 'lc_end' => $listenerCount]);
         $row = $stmt->fetch();
 
         if (!$row) {

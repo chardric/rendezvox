@@ -58,7 +58,7 @@ class TrackStartedHandler
         $requestId = (int) ($input['request_id'] ?? 0);
 
         // Validate source value
-        $validSources = ['rotation', 'request', 'manual', 'emergency', 'station_id'];
+        $validSources = ['rotation', 'request', 'manual', 'emergency', 'station_id', 'segment', 'tts'];
         if (!in_array($source, $validSources, true)) {
             $source = 'rotation';
         }
@@ -119,7 +119,7 @@ class TrackStartedHandler
     private function writeSnapshot(PDO $db, int $songId): void
     {
         $stmt = $db->prepare('
-            SELECT s.id, s.title, s.duration_ms, s.has_cover_art,
+            SELECT s.id, s.title, s.duration_ms, s.has_cover_art, s.country_code,
                    a.name AS artist, c.name AS category,
                    rs.started_at, rs.is_emergency, rs.next_song_id,
                    rs.next_playlist_id, rs.next_source,
@@ -146,7 +146,7 @@ class TrackStartedHandler
         if ($row['next_song_id']) {
             $nextPlaylistId = $row['next_playlist_id'] ?? null;
             $nextStmt = $db->prepare('
-                SELECT s.title, a.name AS artist, p.name AS playlist
+                SELECT s.title, s.country_code, a.name AS artist, p.name AS playlist
                 FROM songs   s
                 JOIN artists a ON a.id = s.artist_id
                 LEFT JOIN playlists p ON p.id = :playlist_id
@@ -192,11 +192,12 @@ class TrackStartedHandler
                 'playlist'      => $row['playlist_name'],
                 'duration_ms'   => (int) $row['duration_ms'],
                 'has_cover_art' => (bool) $row['has_cover_art'],
+                'country_code'  => $row['country_code'] ?? null,
                 'source'        => $source,
                 'started_at'    => $row['started_at'],
             ],
             'is_emergency' => (bool) $row['is_emergency'],
-            'next_track'   => $next ? ['title' => $next['title'], 'artist' => $next['artist'], 'playlist' => $next['playlist'] ?? null] : null,
+            'next_track'   => $next ? ['title' => $next['title'], 'artist' => $next['artist'], 'country_code' => $next['country_code'] ?? null, 'playlist' => $next['playlist'] ?? null] : null,
             'request'      => $requestInfo,
         ];
 

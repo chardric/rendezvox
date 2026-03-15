@@ -152,6 +152,27 @@ foreach ($allArtists as $artist) {
 
             $progress['renamed']++;
         }
+    } else {
+        // No collaboration split — check for alias matches
+        // (initials, number words, "The" prefix)
+        $alias = ArtistNormalizer::findAlias($db, $artistName, $artistId);
+        if ($alias) {
+            $canonicalId = $alias['id'];
+
+            // Prefer the longer/more descriptive name as canonical
+            $keepId   = (mb_strlen($artistName) >= mb_strlen($alias['name'])) ? $artistId : $canonicalId;
+            $mergeId  = ($keepId === $artistId) ? $canonicalId : $artistId;
+            $keepName = ($keepId === $artistId) ? $artistName : $alias['name'];
+
+            $db->prepare('UPDATE songs SET artist_id = :keep WHERE artist_id = :merge')
+               ->execute(['keep' => $keepId, 'merge' => $mergeId]);
+
+            $db->prepare('DELETE FROM artists WHERE id = :id')
+               ->execute(['id' => $mergeId]);
+
+            logMsg("Alias merge: \"$artistName\" + \"{$alias['name']}\" → \"$keepName\"", $autoMode);
+            $progress['merged']++;
+        }
     }
 
     $progress['processed']++;

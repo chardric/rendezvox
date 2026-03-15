@@ -15,15 +15,26 @@ class ArtistCreateHandler
             return;
         }
 
-        $normalized = strtolower(preg_replace('/\s+/', ' ', $name));
+        require_once __DIR__ . '/../../core/ArtistNormalizer.php';
 
-        // Check for duplicate
-        $stmt = $db->prepare('SELECT id FROM artists WHERE normalized_name = :n');
+        // Check if artist already exists (exact or alias match)
+        $normalized = mb_strtolower(trim($name));
+        $stmt = $db->prepare('SELECT id, name FROM artists WHERE normalized_name = :n');
         $stmt->execute(['n' => $normalized]);
         if ($existing = $stmt->fetch()) {
             Response::json([
                 'id'      => (int) $existing['id'],
                 'message' => 'Artist already exists',
+            ]);
+            return;
+        }
+
+        $alias = ArtistNormalizer::findAlias($db, $name);
+        if ($alias) {
+            Response::json([
+                'id'      => $alias['id'],
+                'message' => 'Artist already exists',
+                'matched' => $alias['name'],
             ]);
             return;
         }

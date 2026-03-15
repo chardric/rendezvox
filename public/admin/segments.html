@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Segments</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link rel="stylesheet" href="/admin/css/admin.css">
+<script src="/admin/js/theme.js"></script>
+<style>
+  .seg-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  .seg-card {
+    background: var(--bg-card, rgba(255,255,255,0.04));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    transition: box-shadow .2s;
+  }
+  .seg-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+  .seg-card-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px 10px; border-bottom: 1px solid var(--border);
+  }
+  .seg-card-header h4 { margin: 0; font-size: .95rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: .68rem; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: .03em; flex-shrink: 0;
+  }
+  .seg-badge-announcement { background: rgba(59,130,246,.15); color: #60a5fa; }
+  .seg-badge-news { background: rgba(234,179,8,.15); color: #facc15; }
+  .seg-badge-devotional { background: rgba(168,85,247,.15); color: #c084fc; }
+  .seg-badge-prayer { background: rgba(192,132,252,.15); color: #d8b4fe; }
+  .seg-badge-podcast { background: rgba(20,184,166,.15); color: #2dd4bf; }
+  .seg-badge-promo { background: rgba(244,63,94,.15); color: #fb7185; }
+  .seg-badge-psa { background: rgba(251,146,60,.15); color: #fb923c; }
+  .seg-badge-commercial { background: rgba(34,197,94,.15); color: #4ade80; }
+  .seg-badge-weather { background: rgba(56,189,248,.15); color: #38bdf8; }
+  .seg-badge-editorial { background: rgba(244,114,182,.15); color: #f472b6; }
+  .seg-badge-interview { background: rgba(167,139,250,.15); color: #a78bfa; }
+  .seg-badge-opm { background: rgba(251,191,36,.15); color: #fbbf24; }
+  .seg-badge-song_pick { background: rgba(52,211,153,.15); color: #34d399; }
+  .seg-badge-music_block { background: rgba(99,102,241,.15); color: #818cf8; }
+  .seg-badge-custom { background: rgba(255,255,255,.08); color: var(--text-dim); }
+  .seg-card-body { padding: 12px 16px; }
+  .seg-schedule {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    font-size: .82rem; color: var(--text-dim); margin-bottom: 10px;
+  }
+  .seg-schedule-item { display: flex; align-items: center; gap: 5px; }
+  .seg-schedule-item svg { width: 14px; height: 14px; opacity: .5; flex-shrink: 0; }
+  .seg-inactive-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; color: #ccc; font-weight: 600; letter-spacing: .03em;
+    pointer-events: none; border-radius: 10px; z-index: 2;
+  }
+  .seg-toggle { position: absolute; top: 12px; right: 12px; z-index: 3; }
+  .seg-card-actions { display: flex; gap: 8px; padding: 0 16px 14px; }
+
+  /* Rotation files */
+  .seg-files { padding: 0 16px 8px; }
+  .seg-files-header {
+    font-size: .75rem; font-weight: 600; color: var(--text-dim);
+    margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+  }
+  .seg-files-count {
+    background: var(--accent); color: #fff; font-size: .65rem;
+    padding: 1px 6px; border-radius: 8px; font-weight: 700;
+  }
+  .seg-files-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .seg-select-all, .seg-del-selected {
+    background: none; border: none; font-size: .72rem; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+  }
+  .seg-select-all { color: var(--text-dim); }
+  .seg-select-all:hover { color: var(--accent); }
+  .seg-del-selected { color: var(--danger); display: none; font-weight: 600; }
+  .seg-del-selected:hover { background: rgba(239,68,68,.1); }
+  .seg-file-item {
+    display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px;
+    font-size: .8rem; color: var(--text); background: var(--bg-input);
+    margin-bottom: 3px; cursor: grab; transition: opacity .15s, background .15s;
+  }
+  .seg-file-item.dragging { opacity: .3; }
+  .seg-file-item.selected { background: rgba(123,143,247,.12); }
+  .seg-file-item .file-cb { width: 14px; height: 14px; margin: 0; cursor: pointer; flex-shrink: 0; accent-color: var(--accent); vertical-align: middle; }
+  .seg-file-item .file-num { color: var(--text-dim); font-size: .7rem; min-width: 14px; font-weight: 600; }
+  .seg-file-item .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-file-item .file-dur { color: var(--text-dim); font-size: .75rem; flex-shrink: 0; }
+  .seg-file-item .file-next {
+    font-size: .6rem; font-weight: 700; text-transform: uppercase;
+    color: var(--accent); background: rgba(123,143,247,.12);
+    padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
+  }
+
+  /* Dropzone */
+  .seg-dropzone {
+    border: 2px dashed var(--border); border-radius: 8px;
+    padding: 16px 12px; text-align: center; cursor: pointer;
+    transition: border-color .15s, background .15s;
+    margin: 8px 16px 14px;
+  }
+  .seg-dropzone:hover { border-color: var(--accent); }
+  .seg-dropzone.drag-over { border-color: var(--accent); background: rgba(123,143,247,.06); }
+  .seg-dropzone p { margin: 4px 0 0; font-size: .78rem; color: var(--text-dim); }
+  .seg-dropzone svg { opacity: .35; }
+  .seg-dropzone input[type=file] { display: none; }
+  .dz-browse-row a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .dz-browse-row a:hover { text-decoration: underline; }
+  .seg-dropzone-empty { padding: 28px 12px; }
+  .seg-dropzone-empty p:first-of-type { font-size: .85rem; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+
+  /* Library songs in card */
+  .seg-lib-info { padding: 0 16px 10px; }
+  .seg-lib-label { font-size: .72rem; font-weight: 600; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .03em; }
+  .seg-lib-songs { list-style: none; padding: 0; margin: 0; }
+  .seg-lib-songs li {
+    display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px;
+    font-size: .8rem; color: var(--text); background: var(--bg-input); margin-bottom: 3px;
+  }
+  .seg-lib-songs .lib-num { color: var(--text-dim); font-size: .7rem; min-width: 14px; font-weight: 600; }
+  .seg-lib-songs .lib-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-lib-songs .lib-artist { color: var(--text-dim); font-size: .75rem; flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-lib-songs .lib-dur { color: var(--text-dim); font-size: .75rem; flex-shrink: 0; }
+  .seg-lib-cat { font-size: .82rem; color: var(--accent); font-weight: 500; }
+
+  /* Song search in modal */
+  .seg-song-search { position: relative; margin-top: 6px; }
+  .seg-song-search input { width: 100%; }
+  .seg-song-results {
+    max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;
+    margin-top: 4px; background: var(--bg-card);
+  }
+  .seg-song-results:empty { display: none; }
+  .seg-song-result {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer;
+    font-size: .82rem; transition: background .1s;
+  }
+  .seg-song-result:hover { background: rgba(123,143,247,.08); }
+  .seg-song-result .sr-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-song-result .sr-artist { color: var(--text-dim); font-size: .78rem; flex-shrink: 0; max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-picked-songs { margin-top: 8px; }
+  .seg-picked-song {
+    display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px;
+    font-size: .82rem; background: var(--bg-input); margin-bottom: 3px;
+  }
+  .seg-picked-song .ps-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-picked-song .ps-artist { color: var(--text-dim); font-size: .78rem; }
+  .seg-picked-song .ps-remove {
+    background: none; border: none; color: var(--danger); cursor: pointer;
+    font-size: .9rem; padding: 0 4px; line-height: 1;
+  }
+
+  /* Upload progress */
+  .seg-upload-progress {
+    margin: 8px 16px 14px; border-radius: 8px;
+    background: var(--bg-input); padding: 12px 14px; font-size: .8rem;
+  }
+  .seg-upload-status { display: flex; justify-content: space-between; margin-bottom: 6px; color: var(--text-dim); }
+  .seg-upload-filename { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .seg-upload-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+  .seg-upload-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .15s; width: 0; }
+
+  /* Add card */
+  .add-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 2px dashed var(--border); border-radius: 10px; min-height: 180px;
+    cursor: pointer; color: var(--text-dim); gap: 8px; transition: border-color .2s, color .2s;
+  }
+  .add-card:hover { border-color: var(--accent); color: var(--accent); }
+  .add-card svg { width: 32px; height: 32px; }
+
+  /* Modal form */
+  .modal-form label { display: block; margin: 14px 0 5px; font-size: .82rem; color: var(--text-dim); font-weight: 500; }
+  .modal-form label:first-of-type { margin-top: 4px; }
+  .modal-form input, .modal-form select { width: 100%; }
+  .seg-form-row { display: flex; gap: 12px; }
+  .seg-form-row > div { flex: 1; }
+  .days-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 6px;
+  }
+  .day-btn {
+    display: flex; align-items: center; justify-content: center;
+    padding: 6px 0; border-radius: 6px; font-size: .78rem; font-weight: 500;
+    border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim);
+    cursor: pointer; transition: all .15s; user-select: none;
+  }
+  .day-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .days-hint { font-size: .72rem; color: var(--text-dim); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <button id="hamburger" class="hamburger">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div id="overlay" class="overlay"></div>
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <main class="main">
+    <h1 class="page-title">Segments</h1>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:-8px 0 20px">Schedule audio segments at specific times. File-based types play uploaded audio; library types (OPM, Song Pick, Music Block) pull from your music library.</p>
+    <div id="segGrid" class="seg-grid"></div>
+  </main>
+</div>
+
+<!-- Create/Edit Modal -->
+<div id="segModal" class="modal-backdrop" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <h3 id="segModalTitle">Add Segment</h3>
+    <button type="button" class="modal-close" id="segModalClose">&times;</button>
+    <form id="segForm" class="modal-form">
+      <input type="hidden" id="segEditId">
+      <label for="segName">Name</label>
+      <input type="text" id="segName" required maxlength="255" placeholder="e.g. Morning Devotional">
+
+      <div class="seg-form-row">
+        <div>
+          <label for="segType">Type</label>
+          <select id="segType">
+            <optgroup label="File-based">
+              <option value="announcement">Announcement</option>
+              <option value="news">News</option>
+              <option value="devotional">Devotional</option>
+              <option value="prayer">Prayer</option>
+              <option value="podcast">Podcast</option>
+              <option value="promo">Promo</option>
+              <option value="psa">PSA</option>
+              <option value="commercial">Commercial</option>
+              <option value="weather">Weather</option>
+              <option value="editorial">Editorial</option>
+              <option value="interview">Interview</option>
+              <option value="custom">Custom</option>
+            </optgroup>
+            <optgroup label="Library-based">
+              <option value="opm">OPM (random from category)</option>
+              <option value="song_pick">Song Pick (specific songs)</option>
+              <option value="music_block">Music Block (random from category)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label for="segPriority">If overlapping</label>
+          <select id="segPriority">
+            <option value="1">Low — play last</option>
+            <option value="10" selected>Normal</option>
+            <option value="20">High — play first</option>
+            <option value="50">Urgent — always first</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Schedule</label>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button type="button" class="day-btn active" id="segModeFixed" style="flex:1;padding:7px 0">Fixed time</button>
+        <button type="button" class="day-btn" id="segModeInterval" style="flex:1;padding:7px 0">Every N minutes</button>
+      </div>
+      <div id="segFixedRow">
+        <label for="segTime" style="margin-top:0">Play Time</label>
+        <input type="time" id="segTime">
+      </div>
+      <div id="segIntervalRow" style="display:none">
+        <div class="seg-form-row">
+          <div>
+            <label for="segInterval" style="margin-top:0">Every</label>
+            <select id="segInterval">
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60" selected>1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+              <option value="180">3 hours</option>
+              <option value="240">4 hours</option>
+              <option value="360">6 hours</option>
+            </select>
+          </div>
+          <div>
+            <label for="segStartTime" style="margin-top:0">Starting from</label>
+            <input type="time" id="segStartTime" value="06:00">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <label style="margin-bottom:0">Days</label>
+        <a href="#" id="segDaysToggle" style="font-size:.75rem;color:var(--accent);text-decoration:none">Select all</a>
+      </div>
+      <div class="days-grid" id="segDays">
+        <div class="day-btn" data-day="1">Mon</div>
+        <div class="day-btn" data-day="2">Tue</div>
+        <div class="day-btn" data-day="3">Wed</div>
+        <div class="day-btn" data-day="4">Thu</div>
+        <div class="day-btn" data-day="5">Fri</div>
+        <div class="day-btn" data-day="6">Sat</div>
+        <div class="day-btn" data-day="0">Sun</div>
+      </div>
+      <p class="days-hint">Leave all unselected for every day.</p>
+
+      <!-- Library config: category picker (opm, music_block) -->
+      <div id="segLibCategory" style="display:none">
+        <label for="segCategoryId">Category</label>
+        <select id="segCategoryId"><option value="">Loading...</option></select>
+      </div>
+
+      <!-- Library config: song picker (song_pick) -->
+      <div id="segLibSongs" style="display:none">
+        <label>Songs</label>
+        <div class="seg-song-search">
+          <input type="text" id="segSongSearch" placeholder="Search songs by title or artist...">
+        </div>
+        <div id="segSongResults" class="seg-song-results"></div>
+        <div id="segPickedSongs" class="seg-picked-songs"></div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:20px">
+        <button type="button" class="btn btn-ghost" id="segModalCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="segModalSave">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/utils.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/confirm.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script>
+(function() {
+  var showToast = RendezVoxUtils.showToast;
+  var escHtml = RendezVoxUtils.escHtml;
+  var segments = [];
+  var uploadingSegIds = {}; // segId -> { current, total, fileName, pct }
+  var LIBRARY_TYPES = ['opm', 'song_pick', 'music_block'];
+  var CAT_TYPES = ['opm', 'music_block'];
+  var cachedCategories = null;
+  var pickedSongs = []; // [{id, title, artist}] for song_pick modal
+
+  var SVG_CLOCK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  var SVG_CAL = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+  var SVG_UPLOAD = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
+  var SVG_GRIP = '<svg viewBox="0 0 6 10" width="6" height="10" fill="currentColor" opacity=".3"><circle cx="1.5" cy="1.5" r="1"/><circle cx="4.5" cy="1.5" r="1"/><circle cx="1.5" cy="5" r="1"/><circle cx="4.5" cy="5" r="1"/><circle cx="1.5" cy="8.5" r="1"/><circle cx="4.5" cy="8.5" r="1"/></svg>';
+
+  function init() {
+    RendezVoxNav.init();
+    loadSegments();
+
+    document.getElementById('segModalClose').addEventListener('click', closeModal);
+    document.getElementById('segModalCancel').addEventListener('click', closeModal);
+    document.getElementById('segModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+    document.getElementById('segForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      saveSegment();
+    });
+
+    document.getElementById('segDays').addEventListener('click', function(e) {
+      var btn = e.target.closest('.day-btn');
+      if (btn) {
+        btn.classList.toggle('active');
+        updateDaysToggleLabel();
+      }
+    });
+    document.getElementById('segDaysToggle').addEventListener('click', function(e) {
+      e.preventDefault();
+      var btns = document.querySelectorAll('#segDays .day-btn');
+      var allActive = Array.from(btns).every(function(b) { return b.classList.contains('active'); });
+      btns.forEach(function(b) { b.classList.toggle('active', !allActive); });
+      updateDaysToggleLabel();
+    });
+
+    // Schedule mode toggle
+    document.getElementById('segModeFixed').addEventListener('click', function() { setScheduleMode('fixed'); });
+    document.getElementById('segModeInterval').addEventListener('click', function() { setScheduleMode('interval'); });
+
+    // Type change toggles library config UI
+    document.getElementById('segType').addEventListener('change', function() {
+      toggleLibraryUI(this.value);
+    });
+
+    // Song search debounce
+    var searchTimer = null;
+    document.getElementById('segSongSearch').addEventListener('input', function() {
+      var q = this.value.trim();
+      clearTimeout(searchTimer);
+      if (q.length < 2) { document.getElementById('segSongResults').innerHTML = ''; return; }
+      searchTimer = setTimeout(function() { searchSongs(q); }, 300);
+    });
+  }
+
+  function loadSegments() {
+    RendezVoxAPI.get('/admin/segments').then(function(data) {
+      segments = data.segments || [];
+      render();
+    }).catch(function() {
+      showToast('Failed to load segments', 'error');
+    });
+  }
+
+  function render() {
+    var grid = document.getElementById('segGrid');
+    var html = '';
+
+    segments.forEach(function(seg) {
+      var daysStr = seg.days_of_week ? formatDays(seg.days_of_week) : 'Every day';
+      var badgeClass = 'seg-badge seg-badge-' + seg.segment_type;
+      var files = seg.files || [];
+      var isUploading = !!uploadingSegIds[seg.id];
+
+      html += '<div class="seg-card">';
+
+      if (!seg.is_active) {
+        html += '<div class="seg-inactive-overlay">DISABLED</div>';
+      }
+
+      html += '<div class="seg-toggle">' +
+        '<label class="toggle"><input type="checkbox" ' + (seg.is_active ? 'checked' : '') +
+        ' onchange="window._segToggle(' + seg.id + ',this.checked)"><span class="slider"></span></label></div>';
+
+      html += '<div class="seg-card-header">' +
+        '<span class="' + badgeClass + '">' + escHtml(seg.segment_type) + '</span>' +
+        '<h4 title="' + escHtml(seg.name) + '">' + escHtml(seg.name) + '</h4>' +
+      '</div>';
+
+      var scheduleStr;
+      if (seg.interval_minutes) {
+        scheduleStr = 'Every ' + formatInterval(seg.interval_minutes) + ' from ' + escHtml(seg.play_time.substring(0,5));
+      } else {
+        scheduleStr = escHtml(seg.play_time.substring(0,5));
+      }
+
+      html += '<div class="seg-card-body"><div class="seg-schedule">' +
+        '<span class="seg-schedule-item">' + SVG_CLOCK + ' ' + scheduleStr + '</span>' +
+        '<span class="seg-schedule-item">' + SVG_CAL + ' ' + daysStr + '</span>' +
+        (priorityLabel(seg.priority) ? '<span class="seg-schedule-item">' + priorityLabel(seg.priority) + '</span>' : '') +
+      '</div>';
+
+      if (seg.last_played_at) {
+        html += '<div style="font-size:.75rem;color:var(--text-dim);margin-bottom:6px">Last played: ' +
+          new Date(seg.last_played_at).toLocaleString() + '</div>';
+      }
+      html += '</div>';
+
+      var isLibType = LIBRARY_TYPES.indexOf(seg.segment_type) !== -1;
+
+      if (isLibType) {
+        // Library-based: show song list or category info
+        html += '<div class="seg-lib-info">';
+        var libSongs = seg.library_songs || [];
+        var libCfg = seg.library_config || {};
+
+        if (seg.segment_type === 'song_pick' && libSongs.length > 0) {
+          html += '<div class="seg-lib-label">Song Pick (' + libSongs.length + ')</div><ul class="seg-lib-songs">';
+          libSongs.forEach(function(s, i) {
+            html += '<li><span class="lib-num">' + (i + 1) + '.</span>' +
+              '<span class="lib-title">' + escHtml(s.title) + '</span>' +
+              '<span class="lib-artist">' + escHtml(s.artist || '') + '</span>' +
+              '<span class="lib-dur">' + formatDuration(s.duration_ms) + '</span></li>';
+          });
+          html += '</ul>';
+        } else if (seg.segment_type === 'opm') {
+          html += '<div class="seg-lib-label">OPM</div>' +
+            '<div class="seg-lib-cat">Random song from OPM category</div>';
+        } else if (seg.segment_type === 'music_block') {
+          var catName = libCfg.category_name || ('Category #' + (libCfg.category_id || '?'));
+          html += '<div class="seg-lib-label">Music Block</div>' +
+            '<div class="seg-lib-cat">Random song from: ' + escHtml(catName) + '</div>';
+        } else {
+          html += '<div style="font-size:.8rem;color:var(--text-dim)">No songs configured</div>';
+        }
+        html += '</div>';
+      } else {
+        // File-based: rotation files + dropzone
+        if (files.length > 0) {
+          html += '<div class="seg-files">' +
+            '<div class="seg-files-header">Rotation <span class="seg-files-count">' + files.length + '</span>' +
+            '<span class="seg-files-actions">' +
+              '<button class="seg-select-all" data-seg-id="' + seg.id + '" title="Select all">Select all</button>' +
+              '<button class="seg-del-selected" data-seg-id="' + seg.id + '">Delete selected</button>' +
+            '</span></div>' +
+            '<div class="seg-file-list" data-seg-id="' + seg.id + '">';
+          files.forEach(function(f, i) {
+            var fname = f.file_path.split('/').pop();
+            var fdur = formatDuration(f.duration_ms);
+            var isNext = (i === (seg.next_file_index || 0));
+            html += '<div class="seg-file-item" draggable="true" data-fid="' + f.id + '" data-seg-id="' + seg.id + '">' +
+              '<input type="checkbox" class="file-cb" data-fid="' + f.id + '" data-seg-id="' + seg.id + '">' +
+              SVG_GRIP +
+              '<span class="file-num">' + (i + 1) + '.</span>' +
+              '<span class="file-name" title="' + escHtml(fname) + '">' + escHtml(fname) + '</span>' +
+              '<span class="file-dur">' + fdur + '</span>' +
+              (isNext ? '<span class="file-next">next</span>' : '') +
+            '</div>';
+          });
+          html += '</div></div>';
+        }
+
+        // Upload progress or dropzone
+        if (isUploading) {
+          var up = uploadingSegIds[seg.id];
+          var overallPct = up.total > 0 ? Math.round(((up.done + up.active * (up.avgPct / 100)) / up.total) * 100) : 0;
+          html += '<div class="seg-upload-progress" id="upload-prog-' + seg.id + '">' +
+            '<div class="seg-upload-status">' +
+              '<span class="seg-upload-filename">' + escHtml(up.activeNames) + '</span>' +
+              '<span>' + up.done + ' / ' + up.total + '</span>' +
+            '</div>' +
+            '<div class="seg-upload-bar"><div class="seg-upload-fill" style="width:' + overallPct + '%"></div></div>' +
+          '</div>';
+        } else {
+          var emptyClass = files.length === 0 ? ' seg-dropzone-empty' : '';
+          html += '<div class="seg-dropzone' + emptyClass + '" data-seg-id="' + seg.id + '">' +
+            '<input type="file" class="dz-input-files" accept="audio/*" multiple>' +
+            SVG_UPLOAD;
+          if (files.length === 0) {
+            html += '<p>Drop audio files or folders here</p>' +
+              '<p class="dz-browse-row"><a href="#" class="dz-browse-files">Browse files</a></p>';
+          } else {
+            html += '<p class="dz-browse-row">Drop to add, or <a href="#" class="dz-browse-files">browse</a></p>';
+          }
+          html += '</div>';
+        }
+      }
+
+      html += '<div class="seg-card-actions">' +
+        '<button class="btn btn-sm btn-outline" onclick="window._segEdit(' + seg.id + ')">Edit</button>' +
+        '<button class="btn btn-sm btn-danger-outline" onclick="window._segDelete(' + seg.id + ')">Delete</button>' +
+      '</div>';
+
+      html += '</div>';
+    });
+
+    html += '<div class="add-card" onclick="window._segAdd()">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+      '<span>Add Segment</span>' +
+    '</div>';
+
+    grid.innerHTML = html;
+    initDragReorder();
+    initDropZones();
+    initFileSelection();
+  }
+
+  // ── Helpers ──────────────────────────
+
+  function formatDays(days) {
+    var names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    if (days.length === 7) return 'Every day';
+    if (days.length === 5 && [1,2,3,4,5].every(function(d) { return days.indexOf(d) !== -1; })) return 'Weekdays';
+    if (days.length === 2 && days.indexOf(0) !== -1 && days.indexOf(6) !== -1) return 'Weekends';
+    return days.map(function(d) { return names[d] || '?'; }).join(', ');
+  }
+
+  function priorityLabel(p) {
+    if (p >= 50) return 'Urgent';
+    if (p >= 20) return 'High';
+    if (p >= 10) return '';
+    return 'Low';
+  }
+
+  function nearestPriority(p) {
+    if (p >= 50) return 50;
+    if (p >= 20) return 20;
+    if (p >= 5) return 10;
+    return 1;
+  }
+
+  function formatInterval(min) {
+    if (min >= 60 && min % 60 === 0) return (min / 60) + 'h';
+    if (min >= 60) return Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+    return min + ' min';
+  }
+
+  function formatDuration(ms) {
+    if (!ms) return '0:00';
+    var s = Math.round(ms / 1000);
+    var m = Math.floor(s / 60);
+    s = s % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // ── Modal ──────────────────────────
+
+  function setScheduleMode(mode) {
+    var isInterval = mode === 'interval';
+    document.getElementById('segModeFixed').classList.toggle('active', !isInterval);
+    document.getElementById('segModeInterval').classList.toggle('active', isInterval);
+    document.getElementById('segFixedRow').style.display = isInterval ? 'none' : '';
+    document.getElementById('segIntervalRow').style.display = isInterval ? '' : 'none';
+  }
+
+  function updateDaysToggleLabel() {
+    var btns = document.querySelectorAll('#segDays .day-btn');
+    var allActive = Array.from(btns).every(function(b) { return b.classList.contains('active'); });
+    document.getElementById('segDaysToggle').textContent = allActive ? 'Deselect all' : 'Select all';
+  }
+
+  function openModal(seg) {
+    document.getElementById('segModalTitle').textContent = seg ? 'Edit Segment' : 'Add Segment';
+    document.getElementById('segEditId').value = seg ? seg.id : '';
+    document.getElementById('segName').value = seg ? seg.name : '';
+    document.getElementById('segType').value = seg ? seg.segment_type : 'announcement';
+    var hasInterval = seg && seg.interval_minutes;
+    setScheduleMode(hasInterval ? 'interval' : 'fixed');
+    if (hasInterval) {
+      document.getElementById('segInterval').value = seg.interval_minutes;
+      document.getElementById('segStartTime').value = seg.play_time.substring(0,5);
+      document.getElementById('segTime').value = '';
+    } else {
+      document.getElementById('segTime').value = seg ? seg.play_time.substring(0,5) : '';
+      document.getElementById('segStartTime').value = '06:00';
+      document.getElementById('segInterval').value = '60';
+    }
+    document.getElementById('segPriority').value = seg ? nearestPriority(seg.priority) : 10;
+
+    document.querySelectorAll('#segDays .day-btn').forEach(function(btn) {
+      var d = parseInt(btn.getAttribute('data-day'));
+      btn.classList.toggle('active', seg && seg.days_of_week ? seg.days_of_week.indexOf(d) !== -1 : false);
+    });
+
+    // Library config
+    var segType = seg ? seg.segment_type : 'announcement';
+    var libCfg = (seg && seg.library_config) || {};
+
+    // Song pick: populate picked songs
+    pickedSongs = [];
+    if (segType === 'song_pick' && seg && seg.library_songs) {
+      pickedSongs = seg.library_songs.map(function(s) {
+        return { id: parseInt(s.id), title: s.title, artist: s.artist || '' };
+      });
+    }
+    document.getElementById('segSongSearch').value = '';
+    document.getElementById('segSongResults').innerHTML = '';
+    renderPickedSongs();
+
+    // Category: set value after categories load
+    if (CAT_TYPES.indexOf(segType) !== -1) {
+      loadCategories(function() {
+        document.getElementById('segCategoryId').value = libCfg.category_id || '';
+      });
+    }
+
+    toggleLibraryUI(segType);
+    updateDaysToggleLabel();
+    document.getElementById('segModal').style.display = 'flex';
+    document.getElementById('segName').focus();
+  }
+
+  function closeModal() {
+    document.getElementById('segModal').style.display = 'none';
+  }
+
+  function saveSegment() {
+    var editId = document.getElementById('segEditId').value;
+    var segType = document.getElementById('segType').value;
+    var isInterval = document.getElementById('segModeInterval').classList.contains('active');
+    var days = [];
+    document.querySelectorAll('#segDays .day-btn.active').forEach(function(btn) {
+      days.push(parseInt(btn.getAttribute('data-day')));
+    });
+
+    var playTime, intervalMinutes;
+    if (isInterval) {
+      playTime = document.getElementById('segStartTime').value;
+      intervalMinutes = parseInt(document.getElementById('segInterval').value);
+      if (!playTime) { showToast('Starting time is required', 'error'); return; }
+    } else {
+      playTime = document.getElementById('segTime').value;
+      intervalMinutes = null;
+      if (!playTime) { showToast('Play time is required', 'error'); return; }
+    }
+
+    var body = {
+      name: document.getElementById('segName').value.trim(),
+      segment_type: segType,
+      play_time: playTime,
+      priority: parseInt(document.getElementById('segPriority').value) || 10,
+      days_of_week: days.length > 0 ? days : null,
+      interval_minutes: intervalMinutes
+    };
+
+    // Library config
+    if (CAT_TYPES.indexOf(segType) !== -1) {
+      var catId = parseInt(document.getElementById('segCategoryId').value);
+      if (!catId) {
+        showToast('Please select a category', 'error');
+        return;
+      }
+      body.library_config = { category_id: catId };
+    } else if (segType === 'song_pick') {
+      if (pickedSongs.length === 0) {
+        showToast('Please add at least one song', 'error');
+        return;
+      }
+      body.library_config = { song_ids: pickedSongs.map(function(s) { return s.id; }) };
+    } else {
+      body.library_config = null;
+    }
+
+    var promise = editId
+      ? RendezVoxAPI.put('/admin/segments/' + editId, body)
+      : RendezVoxAPI.post('/admin/segments', body);
+
+    promise.then(function() {
+      showToast(editId ? 'Segment updated' : 'Segment created', 'success');
+      closeModal();
+      loadSegments();
+    }).catch(function(err) {
+      showToast((err && err.error) || 'Failed to save', 'error');
+    });
+  }
+
+  window._segAdd = function() { openModal(null); };
+  window._segEdit = function(id) {
+    var seg = segments.find(function(s) { return s.id === id; });
+    if (seg) openModal(seg);
+  };
+  window._segDelete = function(id) {
+    RendezVoxConfirm('Delete this segment and all its audio files?', { title: 'Delete Segment' }).then(function(ok) {
+      if (!ok) return;
+      RendezVoxAPI.del('/admin/segments/' + id).then(function() {
+        showToast('Segment deleted', 'success');
+        loadSegments();
+      }).catch(function(err) {
+        showToast((err && err.error) || 'Failed to delete', 'error');
+      });
+    });
+  };
+  window._segToggle = function(id, active) {
+    RendezVoxAPI.put('/admin/segments/' + id, { is_active: active }).then(function() {
+      showToast(active ? 'Segment enabled' : 'Segment disabled', 'success');
+      loadSegments();
+    }).catch(function(err) {
+      showToast((err && err.error) || 'Failed to update', 'error');
+      loadSegments();
+    });
+  };
+
+  // ── File selection & bulk delete ──────────────────────────
+
+  function initFileSelection() {
+    // Checkbox toggle
+    document.querySelectorAll('.file-cb').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        var item = cb.closest('.seg-file-item');
+        item.classList.toggle('selected', cb.checked);
+        updateDelSelectedBtn(cb.getAttribute('data-seg-id'));
+      });
+      // Prevent drag when clicking checkbox
+      cb.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    });
+
+    // Select all buttons
+    document.querySelectorAll('.seg-select-all').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var segId = btn.getAttribute('data-seg-id');
+        var cbs = document.querySelectorAll('.file-cb[data-seg-id="' + segId + '"]');
+        var allChecked = Array.from(cbs).every(function(c) { return c.checked; });
+        cbs.forEach(function(c) {
+          c.checked = !allChecked;
+          c.closest('.seg-file-item').classList.toggle('selected', c.checked);
+        });
+        btn.textContent = allChecked ? 'Select all' : 'Deselect';
+        updateDelSelectedBtn(segId);
+      });
+    });
+
+    // Delete selected buttons
+    document.querySelectorAll('.seg-del-selected').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var segId = btn.getAttribute('data-seg-id');
+        var selected = [];
+        document.querySelectorAll('.file-cb[data-seg-id="' + segId + '"]:checked').forEach(function(c) {
+          selected.push(parseInt(c.getAttribute('data-fid')));
+        });
+        if (selected.length === 0) return;
+
+        RendezVoxConfirm('Remove ' + selected.length + ' file(s) from rotation?', { title: 'Remove Files' }).then(function(ok) {
+          if (!ok) return;
+          deleteFilesParallel(segId, selected);
+        });
+      });
+    });
+  }
+
+  function updateDelSelectedBtn(segId) {
+    var count = document.querySelectorAll('.file-cb[data-seg-id="' + segId + '"]:checked').length;
+    var btn = document.querySelector('.seg-del-selected[data-seg-id="' + segId + '"]');
+    if (btn) {
+      btn.style.display = count > 0 ? 'inline-block' : 'none';
+      btn.textContent = 'Delete selected (' + count + ')';
+    }
+  }
+
+  function deleteFilesParallel(segId, fids) {
+    Promise.all(fids.map(function(fid) {
+      return RendezVoxAPI.del('/admin/segments/' + segId + '/files/' + fid).catch(function() {});
+    })).then(function() {
+      showToast(fids.length + ' file(s) removed', 'success');
+      loadSegments();
+    });
+  }
+
+  // ── Library UI helpers ──────────────────────────
+
+  function toggleLibraryUI(segType) {
+    var showCat = CAT_TYPES.indexOf(segType) !== -1;
+    var showSongs = segType === 'song_pick';
+    document.getElementById('segLibCategory').style.display = showCat ? '' : 'none';
+    document.getElementById('segLibSongs').style.display = showSongs ? '' : 'none';
+    if (showCat) loadCategories();
+  }
+
+  function loadCategories(cb) {
+    if (cachedCategories) {
+      populateCategorySelect(cachedCategories);
+      if (cb) cb();
+      return;
+    }
+    RendezVoxAPI.get('/admin/categories').then(function(data) {
+      cachedCategories = (data.categories || []).filter(function(c) { return c.is_active; });
+      populateCategorySelect(cachedCategories);
+      if (cb) cb();
+    }).catch(function() {
+      showToast('Failed to load categories', 'error');
+    });
+  }
+
+  function populateCategorySelect(cats) {
+    var sel = document.getElementById('segCategoryId');
+    sel.innerHTML = '<option value="">Select category...</option>';
+    cats.forEach(function(c) {
+      sel.innerHTML += '<option value="' + c.id + '">' + escHtml(c.name) + '</option>';
+    });
+  }
+
+  function searchSongs(q) {
+    RendezVoxAPI.get('/admin/songs?search=' + encodeURIComponent(q) + '&per_page=15&active=true').then(function(data) {
+      var songs = data.songs || [];
+      var pickedIds = pickedSongs.map(function(s) { return s.id; });
+      var html = '';
+      songs.forEach(function(s) {
+        if (pickedIds.indexOf(parseInt(s.id)) !== -1) return;
+        html += '<div class="seg-song-result" data-id="' + s.id + '" data-title="' + escHtml(s.title) + '" data-artist="' + escHtml(s.artist || '') + '">' +
+          '<span class="sr-title">' + escHtml(s.title) + '</span>' +
+          '<span class="sr-artist">' + escHtml(s.artist || '') + '</span>' +
+        '</div>';
+      });
+      if (songs.length === 0) html = '<div style="padding:10px;font-size:.82rem;color:var(--text-dim)">No results</div>';
+      var container = document.getElementById('segSongResults');
+      container.innerHTML = html;
+      container.querySelectorAll('.seg-song-result').forEach(function(el) {
+        el.addEventListener('click', function() {
+          pickedSongs.push({
+            id: parseInt(el.getAttribute('data-id')),
+            title: el.getAttribute('data-title'),
+            artist: el.getAttribute('data-artist')
+          });
+          el.remove();
+          renderPickedSongs();
+        });
+      });
+    }).catch(function() {});
+  }
+
+  function renderPickedSongs() {
+    var container = document.getElementById('segPickedSongs');
+    if (pickedSongs.length === 0) { container.innerHTML = ''; return; }
+    var html = '';
+    pickedSongs.forEach(function(s, i) {
+      html += '<div class="seg-picked-song">' +
+        '<span style="color:var(--text-dim);font-size:.72rem;min-width:14px;font-weight:600">' + (i + 1) + '.</span>' +
+        '<span class="ps-title">' + escHtml(s.title) + '</span>' +
+        '<span class="ps-artist">' + escHtml(s.artist) + '</span>' +
+        '<button type="button" class="ps-remove" data-idx="' + i + '">&times;</button>' +
+      '</div>';
+    });
+    container.innerHTML = html;
+    container.querySelectorAll('.ps-remove').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        pickedSongs.splice(parseInt(btn.getAttribute('data-idx')), 1);
+        renderPickedSongs();
+      });
+    });
+  }
+
+  // ── Upload with progress ──────────────────────────
+
+  var AUDIO_EXTS = ['mp3','flac','ogg','wav','aac','m4a','wma','opus','aiff'];
+
+  var MAX_PARALLEL = 3;
+
+  function uploadFilesToSegment(segId, files) {
+    if (!files || files.length === 0) return;
+    var list = Array.from(files).filter(function(f) {
+      var ext = f.name.split('.').pop().toLowerCase();
+      return AUDIO_EXTS.indexOf(ext) !== -1;
+    });
+    if (list.length === 0) {
+      showToast('No supported audio files found', 'error');
+      return;
+    }
+
+    var state = { done: 0, total: list.length, active: 0, activeNames: '', avgPct: 0, slotPcts: {} };
+    uploadingSegIds[segId] = state;
+    render();
+
+    var uploaded = 0, errors = 0, nextIdx = 0;
+
+    function startNext() {
+      if (nextIdx >= list.length) {
+        if (state.active === 0) {
+          delete uploadingSegIds[segId];
+          if (uploaded > 0) showToast(uploaded + ' file(s) added', 'success');
+          if (errors > 0) showToast(errors + ' file(s) failed', 'error');
+          loadSegments();
+        }
+        return;
+      }
+
+      var i = nextIdx++;
+      var slot = i;
+      state.active++;
+      state.slotPcts[slot] = 0;
+      refreshActiveNames(state, list, nextIdx);
+      updateProgressUI(segId);
+
+      var fd = new FormData();
+      fd.append('file', list[i]);
+      RendezVoxAPI.upload('/admin/segments/' + segId + '/files', fd, function(prog) {
+        state.slotPcts[slot] = prog.pct;
+        recalcAvgPct(state);
+        updateProgressUI(segId);
+      })
+        .then(function() { uploaded++; onSlotDone(slot); })
+        .catch(function(err) {
+          errors++;
+          showToast(list[i].name + ': ' + ((err && err.error) || 'Failed'), 'error');
+          onSlotDone(slot);
+        });
+    }
+
+    function onSlotDone(slot) {
+      state.done++;
+      state.active--;
+      delete state.slotPcts[slot];
+      recalcAvgPct(state);
+      updateProgressUI(segId);
+      startNext();
+    }
+
+    function refreshActiveNames(st, lst, upTo) {
+      var start = Math.max(0, upTo - MAX_PARALLEL);
+      var names = [];
+      for (var j = start; j < upTo && j < lst.length; j++) {
+        names.push(lst[j].name);
+      }
+      st.activeNames = names.length <= 2 ? names.join(', ') : names[0] + ' +' + (names.length - 1);
+    }
+
+    // Launch initial batch
+    for (var k = 0; k < Math.min(MAX_PARALLEL, list.length); k++) {
+      startNext();
+    }
+  }
+
+  function recalcAvgPct(state) {
+    var keys = Object.keys(state.slotPcts);
+    if (keys.length === 0) { state.avgPct = 0; return; }
+    var sum = 0;
+    keys.forEach(function(k) { sum += state.slotPcts[k]; });
+    state.avgPct = sum / keys.length;
+  }
+
+  function updateProgressUI(segId) {
+    var el = document.getElementById('upload-prog-' + segId);
+    if (!el) return;
+    var up = uploadingSegIds[segId];
+    if (!up) return;
+    var overallPct = up.total > 0 ? Math.round(((up.done + up.active * (up.avgPct / 100)) / up.total) * 100) : 0;
+    var nameEl = el.querySelector('.seg-upload-filename');
+    var countEl = el.querySelector('.seg-upload-status span:last-child');
+    var fillEl = el.querySelector('.seg-upload-fill');
+    if (nameEl) nameEl.textContent = up.activeNames;
+    if (countEl) countEl.textContent = up.done + ' / ' + up.total;
+    if (fillEl) fillEl.style.width = overallPct + '%';
+  }
+
+  // ── Folder drop support ──────────────────────────
+
+  function collectEntriesFiles(entries) {
+    var results = [];
+    function processEntry(entry) {
+      return new Promise(function(resolve) {
+        if (entry.isFile) {
+          entry.file(function(f) { results.push(f); resolve(); }, resolve);
+        } else if (entry.isDirectory) {
+          readAll(entry.createReader()).then(function(subs) {
+            return Promise.all(subs.map(processEntry));
+          }).then(resolve).catch(resolve);
+        } else { resolve(); }
+      });
+    }
+    function readAll(reader) {
+      return new Promise(function(resolve) {
+        var all = [];
+        (function batch() {
+          reader.readEntries(function(entries) {
+            if (!entries.length) { resolve(all); return; }
+            all = all.concat(Array.from(entries));
+            batch();
+          }, function() { resolve(all); });
+        })();
+      });
+    }
+    return Promise.all(entries.map(processEntry)).then(function() { return results; });
+  }
+
+  // ── Dropzone init ──────────────────────────
+
+  function initDropZones() {
+    document.querySelectorAll('.seg-dropzone').forEach(function(dz) {
+      var segId = dz.getAttribute('data-seg-id');
+      var inputFiles = dz.querySelector('.dz-input-files');
+      var browseFiles = dz.querySelector('.dz-browse-files');
+
+      if (browseFiles) {
+        browseFiles.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          inputFiles.click();
+        });
+      }
+
+      inputFiles.addEventListener('change', function() {
+        if (inputFiles.files && inputFiles.files.length > 0) {
+          uploadFilesToSegment(segId, inputFiles.files);
+          inputFiles.value = '';
+        }
+      });
+
+      dz.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dz.classList.add('drag-over');
+      });
+      dz.addEventListener('dragleave', function(e) {
+        if (!dz.contains(e.relatedTarget)) dz.classList.remove('drag-over');
+      });
+      dz.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dz.classList.remove('drag-over');
+
+        var items = e.dataTransfer.items;
+        var entries = [];
+        var hasDir = false;
+
+        if (items && items.length) {
+          for (var i = 0; i < items.length; i++) {
+            if (items[i].kind === 'file') {
+              var entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+              if (entry) {
+                entries.push(entry);
+                if (entry.isDirectory) hasDir = true;
+              }
+            }
+          }
+        }
+
+        if (hasDir) {
+          showToast('Reading folder contents...');
+          collectEntriesFiles(entries).then(function(files) {
+            uploadFilesToSegment(segId, files);
+          }).catch(function(err) {
+            showToast('Error reading folder: ' + (err.message || err), 'error');
+          });
+        } else {
+          uploadFilesToSegment(segId, e.dataTransfer.files);
+        }
+      });
+    });
+  }
+
+  // ── Drag reorder ──────────────────────────
+
+  function initDragReorder() {
+    document.querySelectorAll('.seg-file-list').forEach(function(list) {
+      var segId = list.getAttribute('data-seg-id');
+      var dragItem = null;
+
+      list.addEventListener('dragstart', function(e) {
+        dragItem = e.target.closest('.seg-file-item');
+        if (dragItem) dragItem.classList.add('dragging');
+      });
+      list.addEventListener('dragend', function() {
+        if (dragItem) dragItem.classList.remove('dragging');
+        dragItem = null;
+      });
+      list.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        var after = getDragAfterElement(list, e.clientY);
+        if (dragItem) {
+          if (after) list.insertBefore(dragItem, after);
+          else list.appendChild(dragItem);
+        }
+      });
+      list.addEventListener('drop', function(e) {
+        e.preventDefault();
+        var order = [];
+        list.querySelectorAll('.seg-file-item').forEach(function(el) {
+          order.push(parseInt(el.getAttribute('data-fid')));
+        });
+        RendezVoxAPI.put('/admin/segments/' + segId + '/files/reorder', { order: order })
+          .then(function() { loadSegments(); })
+          .catch(function() { loadSegments(); });
+      });
+    });
+  }
+
+  function getDragAfterElement(container, y) {
+    var items = Array.from(container.querySelectorAll('.seg-file-item:not(.dragging)'));
+    var closest = null;
+    var closestOffset = Number.NEGATIVE_INFINITY;
+    items.forEach(function(child) {
+      var box = child.getBoundingClientRect();
+      var offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closestOffset) {
+        closestOffset = offset;
+        closest = child;
+      }
+    });
+    return closest;
+  }
+
+  if (RendezVoxAuth.requireLogin()) {
+    document.addEventListener('DOMContentLoaded', init);
+  }
+})();
+</script>
+</body>
+</html>

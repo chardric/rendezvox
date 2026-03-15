@@ -120,6 +120,12 @@ require __DIR__ . '/handlers/SystemInfoHandler.php';
 require __DIR__ . '/handlers/RecentPlaysPublicHandler.php';
 require __DIR__ . '/handlers/SchedulePublicHandler.php';
 require __DIR__ . '/handlers/VersionHandler.php';
+require __DIR__ . '/handlers/MoodAnalyzeHandler.php';
+require __DIR__ . '/handlers/RetentionHandler.php';
+require __DIR__ . '/handlers/VotePollHandler.php';
+require __DIR__ . '/handlers/VoteCastHandler.php';
+require __DIR__ . '/handlers/RecapHandler.php';
+require __DIR__ . '/handlers/SegmentHandler.php';
 
 // -- Route definitions --
 Router::get('/health',       [HealthHandler::class,      'handle']);
@@ -129,6 +135,7 @@ Router::get('/weather',        [WeatherHandler::class,       'handle']);
 Router::get('/now-playing',      [NowPlayingHandler::class,  'handle']);
 Router::get('/sse/now-playing', [SSEHandler::class,         'handle']);
 Router::get('/next-track',   [NextTrackHandler::class,   'handle']);
+Router::get('/segment-due', [NextTrackHandler::class,   'segmentDue']);
 Router::post('/track-played',  [TrackPlayedHandler::class,  'handle']);
 Router::post('/track-started', [TrackStartedHandler::class, 'handle']);
 
@@ -182,6 +189,15 @@ Router::patch('/admin/songs/:id/toggle', [SongToggleHandler::class,  'handle']);
 // -- Artists --
 Router::get('/admin/artists',          [ArtistListHandler::class,   'handle']);
 Router::post('/admin/artists',         [ArtistCreateHandler::class, 'handle']);
+
+// -- Countries (distinct country codes for filter) --
+Router::get('/admin/countries', function () {
+    Auth::requireAuth();
+    $db = Database::get();
+    $stmt = $db->query("SELECT DISTINCT country_code FROM songs WHERE country_code IS NOT NULL ORDER BY country_code");
+    $codes = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+    Response::json($codes);
+});
 
 // -- Categories --
 Router::get('/admin/categories',       [CategoryListHandler::class,   'handle']);
@@ -327,6 +343,34 @@ Router::get('/admin/auto-rename-status',   [RenamePathsHandler::class, 'autoRena
 // -- Duplicate detection --
 Router::get('/admin/duplicates/scan',      [DuplicateScanHandler::class,    'handle']);
 Router::post('/admin/duplicates/resolve',  [DuplicateResolveHandler::class, 'handle']);
+
+// -- Mood analysis --
+Router::post('/admin/mood-analyze',   [MoodAnalyzeHandler::class, 'start']);
+Router::get('/admin/mood-analyze',    [MoodAnalyzeHandler::class, 'status']);
+Router::delete('/admin/mood-analyze', [MoodAnalyzeHandler::class, 'stop']);
+Router::get('/admin/auto-mood-status', [MoodAnalyzeHandler::class, 'autoMoodStatus']);
+
+// -- Retention --
+Router::get('/admin/retention',       [RetentionHandler::class, 'handle']);
+
+// -- Segments --
+Router::get('/admin/segments',                    [SegmentHandler::class, 'list']);
+Router::post('/admin/segments',                   [SegmentHandler::class, 'create']);
+Router::put('/admin/segments/:id',                [SegmentHandler::class, 'update']);
+Router::delete('/admin/segments/:id',             [SegmentHandler::class, 'delete']);
+Router::post('/admin/segments/:id/files',         [SegmentHandler::class, 'addFile']);
+Router::delete('/admin/segments/:id/files/:fid',  [SegmentHandler::class, 'deleteFile']);
+Router::put('/admin/segments/:id/files/reorder',  [SegmentHandler::class, 'reorderFiles']);
+
+// -- Recaps (admin) --
+Router::get('/admin/recaps',          [RecapHandler::class, 'list']);
+
+// -- Voting (public) --
+Router::get('/vote/poll',             [VotePollHandler::class, 'handle']);
+Router::post('/vote/cast',            [VoteCastHandler::class, 'handle']);
+
+// -- Recaps (public) --
+Router::get('/recaps',                [RecapHandler::class, 'latest']);
 
 // -- Analytics --
 Router::get('/admin/stats/listeners',        [StatsListenersHandler::class,       'handle']);

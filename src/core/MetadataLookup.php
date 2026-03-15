@@ -197,48 +197,75 @@ class MetadataLookup
      * Look up genre for an artist via MusicBrainz.
      * Returns a mapped genre display name or null.
      */
-    public function lookupGenreByArtist(string $artistName): ?string
+    /**
+     * Look up genre and country by artist name via MusicBrainz.
+     * Returns ['genre' => ?string, 'country_code' => ?string].
+     */
+    public function lookupArtistMeta(string $artistName): array
     {
+        $result = ['genre' => null, 'country_code' => null];
+
         $query = urlencode($artistName);
         $url   = "https://musicbrainz.org/ws/2/artist/?query=artist:" . $query . "&limit=1&fmt=json";
 
         $this->rateLimit('musicbrainz', 1.0);
         $resp = @file_get_contents($url, false, $this->httpContext);
         if (!$resp) {
-            return null;
+            return $result;
         }
 
         $data    = json_decode($resp, true);
         $artists = $data['artists'] ?? [];
         if (empty($artists)) {
-            return null;
+            return $result;
         }
 
         $mbid  = $artists[0]['id'] ?? null;
         $score = (int) ($artists[0]['score'] ?? 0);
         if (!$mbid || $score < 80) {
-            return null;
+            return $result;
+        }
+
+        // Extract country from search result (area.iso-3166-1-codes)
+        $areaCodes = $artists[0]['area']['iso-3166-1-codes'] ?? [];
+        if (!empty($areaCodes)) {
+            $result['country_code'] = strtoupper($areaCodes[0]);
         }
 
         $this->rateLimit('musicbrainz', 1.0);
         $url2  = "https://musicbrainz.org/ws/2/artist/{$mbid}?inc=genres+tags&fmt=json";
         $resp2 = @file_get_contents($url2, false, $this->httpContext);
         if (!$resp2) {
-            return null;
+            return $result;
         }
 
-        $data2      = json_decode($resp2, true);
+        $data2 = json_decode($resp2, true);
+
+        // Extract country from detail response if not already found
+        if (!$result['country_code']) {
+            $areaCodes2 = $data2['area']['iso-3166-1-codes'] ?? [];
+            if (!empty($areaCodes2)) {
+                $result['country_code'] = strtoupper($areaCodes2[0]);
+            }
+        }
+
         $allEntries = array_merge($data2['genres'] ?? [], $data2['tags'] ?? []);
         usort($allEntries, fn($a, $b) => ($b['count'] ?? 0) - ($a['count'] ?? 0));
 
         foreach ($allEntries as $entry) {
             $mapped = self::mapGenre($entry['name']);
             if ($mapped) {
-                return $mapped;
+                $result['genre'] = $mapped;
+                break;
             }
         }
 
-        return null;
+        return $result;
+    }
+
+    public function lookupGenreByArtist(string $artistName): ?string
+    {
+        return $this->lookupArtistMeta($artistName)['genre'];
     }
 
     // ── MusicBrainz: recording lookup for year, genre, release ID ──
@@ -814,6 +841,9 @@ class MetadataLookup
         if (!empty($needs['album'])) {
             $parts[] = '"album": the album or single this song was released on';
         }
+        if (!empty($needs['country_code'])) {
+            $parts[] = '"country_code": the ISO 3166-1 alpha-2 country code of the artist\'s country of origin (e.g. US, GB, PH, KR, JP, AU, CA, DE, FR, BR)';
+        }
 
         $fieldList = implode(",\n", $parts);
 
@@ -934,6 +964,14 @@ class MetadataLookup
             $clean = trim($parsed['album']);
             if (strlen($clean) >= 2) {
                 $result['album'] = $clean;
+            }
+        }
+
+        // Validate country_code
+        if (!empty($parsed['country_code']) && is_string($parsed['country_code'])) {
+            $cc = strtoupper(trim($parsed['country_code']));
+            if (preg_match('/^[A-Z]{2}$/', $cc)) {
+                $result['country_code'] = $cc;
             }
         }
 
@@ -1105,6 +1143,9 @@ class MetadataLookup
         if (!empty($needs['album'])) {
             $parts[] = '"album": the album or single this song was released on';
         }
+        if (!empty($needs['country_code'])) {
+            $parts[] = '"country_code": the ISO 3166-1 alpha-2 country code of the artist\'s country of origin (e.g. US, GB, PH, KR, JP, AU, CA, DE, FR, BR)';
+        }
 
         $fieldList = implode(",\n", $parts);
 
@@ -1198,6 +1239,14 @@ class MetadataLookup
             $clean = trim($parsed['album']);
             if (strlen($clean) >= 2) {
                 $result['album'] = $clean;
+            }
+        }
+
+        // Validate country_code
+        if (!empty($parsed['country_code']) && is_string($parsed['country_code'])) {
+            $cc = strtoupper(trim($parsed['country_code']));
+            if (preg_match('/^[A-Z]{2}$/', $cc)) {
+                $result['country_code'] = $cc;
             }
         }
 

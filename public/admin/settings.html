@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Settings</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
-<script src="/admin/js/theme.js?v=20260228"></script>
+<link rel="stylesheet" href="/admin/css/admin.css">
+<script src="/admin/js/theme.js"></script>
 </head>
 <body>
 <div class="app">
@@ -22,6 +22,7 @@
     <div class="tabs" id="settingsTabs">
       <button class="tab active" data-tab="general">General</button>
       <button class="tab" data-tab="appearance">Appearance</button>
+      <button class="tab" data-tab="smart">Smart Features</button>
       <button class="tab" data-tab="tools">Tools</button>
       <button class="tab" data-tab="email">Email</button>
       <button class="tab" data-tab="system">System</button>
@@ -104,12 +105,43 @@
         <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
           Choose a theme for the admin panel. This preference is saved locally in your browser.
         </p>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
           <select id="themeSelect" style="margin-bottom:0;max-width:300px"></select>
           <div id="themePreviewDot" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0"></div>
         </div>
 
-        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0">
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+
+        <h3 class="settings-section-title">Auto Theme (Sunrise / Sunset)</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:14px">
+          Automatically switch between a light and dark theme based on your location's sunrise and sunset times.
+        </p>
+
+        <div class="settings-field" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoThemeEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.85rem">Enable auto day/night switching</span>
+          </div>
+        </div>
+
+        <div id="autoThemeConfig" style="display:none">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+            <div style="flex:1;min-width:140px">
+              <label style="font-size:.8rem;color:var(--text-dim);margin-bottom:4px;display:block">Day theme</label>
+              <select id="autoThemeLight" style="margin-bottom:0;width:100%"></select>
+            </div>
+            <div style="flex:1;min-width:140px">
+              <label style="font-size:.8rem;color:var(--text-dim);margin-bottom:4px;display:block">Night theme</label>
+              <select id="autoThemeDark" style="margin-bottom:0;width:100%"></select>
+            </div>
+          </div>
+          <div id="autoThemeStatus" style="font-size:.8rem;color:var(--text-dim);padding:8px 12px;background:var(--bg-input);border-radius:6px"></div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
 
         <h3 class="settings-section-title">Accent Color</h3>
         <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
@@ -119,6 +151,179 @@
           <input type="color" id="accentColorPicker" style="width:40px;height:40px;padding:0;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none">
           <input type="text" id="accentColorHex" placeholder="#ff7800" maxlength="7" style="max-width:120px;margin-bottom:0">
           <button class="btn btn-outline btn-sm" id="btnResetAccent">Reset</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Smart Features tab ─────────────────────────── -->
+    <div class="tab-panel" id="tab-smart">
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+        <button class="btn btn-outline btn-sm" onclick="RendezVoxSettings.resetSmartFeatures()">Reset All Smart Features</button>
+      </div>
+
+      <!-- Mood-Based Auto-Programming -->
+      <div class="card" style="padding:24px">
+        <h3 class="settings-section-title">Mood-Based Auto-Programming</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Automatically select songs that match the energy and mood of the time of day.
+          Morning gets upbeat tracks, late night gets mellow ones. Requires mood analysis data.
+        </p>
+        <div class="settings-field" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartMoodEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Enable daypart-aware song selection</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weather-Reactive Programming -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Weather-Reactive Programming</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Adjust song mood based on current weather conditions.
+          Rainy weather favors softer tracks, sunny days get upbeat selections.
+          Uses your configured weather location (General tab).
+        </p>
+        <div class="settings-field" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartWeatherEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Bias song selection based on live weather</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Listener Retention Scoring -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Listener Retention Scoring</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Track how many listeners stay vs. leave during each song.
+          Songs that consistently lose listeners get auto-demoted in rotation.
+          View the retention heatmap in Analytics.
+        </p>
+        <div class="settings-field" style="margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartRetentionEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Auto-demote songs that lose listeners</span>
+          </div>
+        </div>
+        <div class="settings-field" style="margin-bottom:0">
+          <label>Demote threshold</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="text" id="smartRetentionThreshold" placeholder="-0.15" style="max-width:120px;margin-bottom:0">
+            <span style="color:var(--text-dim);font-size:.78rem">Songs scoring below this are demoted (e.g. -0.15 = 15% listener loss)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Smart Jingle Insertion -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Smart Jingle Insertion</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Insert station IDs at natural energy breaks instead of fixed intervals.
+          Waits for a low-energy moment between songs to play jingles, creating smoother transitions.
+        </p>
+        <div class="settings-field" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartJingleEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Energy-aware jingle placement</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Crossfade Intelligence -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Crossfade Intelligence</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Adjust crossfade duration per track based on how the outgoing song ends.
+          Fade endings get longer crossfades, hard stops get shorter ones. Requires mood analysis data.
+        </p>
+        <div class="settings-field" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartCrossfadeEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Per-track crossfade based on ending analysis</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collaborative Request Voting -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Collaborative Request Voting</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Let listeners vote on what plays next from a curated selection.
+          A poll of random candidates appears on the listener page; the winner gets queued.
+        </p>
+        <div class="settings-field" style="margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartVotingEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Enable listener voting polls</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div class="settings-field" style="margin-bottom:0;flex:1;min-width:140px">
+            <label>Poll duration (minutes)</label>
+            <input type="number" id="smartVotingDuration" value="15" min="1" max="120" style="margin-bottom:0">
+          </div>
+          <div class="settings-field" style="margin-bottom:0;flex:1;min-width:140px">
+            <label>Candidates per poll</label>
+            <input type="number" id="smartVotingCandidates" value="4" min="2" max="8" style="margin-bottom:0">
+          </div>
+        </div>
+      </div>
+
+      <!-- Auto-Generated Show Recaps -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Auto-Generated Show Recaps</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Generate daily show summaries using Gemini AI. Recaps highlight top songs, genres,
+          and listener favorites from the previous day. Requires a Gemini API key (Tools tab).
+        </p>
+        <div class="settings-field" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartRecapEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Generate daily recaps at midnight</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Segment Scheduling -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Segment Scheduling</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Schedule non-music audio segments (announcements, news, devotionals, podcasts) at specific times.
+          Segments are injected into the playlist at their scheduled play time.
+          Manage segments on the <a href="/admin/segments.html" style="color:var(--accent)">Segments page</a>.
+        </p>
+        <div class="settings-field" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="smartSegmentEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Enable scheduled segment injection</span>
+          </div>
         </div>
       </div>
 
@@ -447,6 +652,40 @@
         <button id="btnStopRename" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopRenamePaths()">Stop</button>
       </div>
 
+      <!-- Mood Analysis -->
+      <div class="card" style="padding:24px;margin-top:24px">
+        <h3 class="settings-section-title">Mood Analysis</h3>
+        <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px">
+          Analyze BPM, energy, valence, and ending type for all songs.
+          This data powers mood programming, crossfade intelligence, and smart jingle placement.
+        </p>
+        <div class="settings-field" style="margin-bottom:16px">
+          <label>Auto-analyze new songs</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="autoMoodEnabled">
+              <span class="slider"></span>
+            </label>
+            <span style="color:var(--text-dim);font-size:.8rem">Automatically analyze unprocessed songs every 15 minutes</span>
+          </div>
+          <div id="autoMoodStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-dim)"></div>
+        </div>
+        <div id="moodStatus" style="display:none;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px">
+            <span id="moodLabel">Analyzing…</span>
+            <span id="moodPct">0%</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden">
+            <div id="moodBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin-top:6px">
+            <span id="moodDetails"></span>
+          </div>
+        </div>
+        <button id="btnMoodAnalyze" class="btn btn-primary btn-sm" onclick="RendezVoxSettings.startMoodAnalysis()">Analyze Mood</button>
+        <button id="btnStopMood" class="btn btn-sm btn-danger hidden" style="margin-left:8px" onclick="RendezVoxSettings.stopMoodAnalysis()">Stop</button>
+      </div>
+
     </div>
 
     <!-- ── Email tab ────────────────────────────────── -->
@@ -595,12 +834,13 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260312"></script>
-<script src="/admin/js/utils.js?v=20260312"></script>
-<script src="/admin/js/auth.js?v=20260301"></script>
-<script src="/admin/js/nav.js?v=20260301"></script>
-<script src="/admin/js/settings.js?v=20260226"></script>
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/utils.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/confirm.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/settings.js"></script>
 <script>
   if (RendezVoxAuth.requireRole('super_admin')) {
     RendezVoxNav.init();

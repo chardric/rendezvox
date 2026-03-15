@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Schedules</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
-<script src="/admin/js/theme.js?v=20260228"></script>
+<link rel="stylesheet" href="/admin/css/admin.css">
+<script src="/admin/js/theme.js"></script>
 <style>
   /* ── Calendar grid ─────────────────────────────────── */
   .cal-wrap { overflow: auto; margin-bottom: 24px; position: relative; max-height: 70vh; border: 1px solid var(--border); border-radius: 8px; }
@@ -107,7 +107,7 @@
     border-radius: 3px;
     padding: 4px 7px;
     font-size: .72rem;
-    color: #fff;
+    color: inherit;
     overflow: hidden;
     cursor: grab;
     z-index: 3;
@@ -326,14 +326,14 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260312"></script>
-<script src="/admin/js/utils.js?v=20260312"></script>
-<script src="/admin/js/auth.js?v=20260301"></script>
-<script src="/admin/js/nav.js?v=20260301"></script>
-<script src="/admin/js/icons.js?v=20260226"></script>
-<script src="/admin/js/confirm.js?v=20260226"></script>
-<script src="/admin/js/schedules.js?v=20260305"></script>
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/utils.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/icons.js"></script>
+<script src="/admin/js/confirm.js"></script>
+<script src="/admin/js/schedules.js"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

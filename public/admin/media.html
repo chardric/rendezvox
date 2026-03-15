@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Media</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
-<script src="/admin/js/theme.js?v=20260228"></script>
+<link rel="stylesheet" href="/admin/css/admin.css">
+<script src="/admin/js/theme.js"></script>
 <style>
   /* ── Unified filter bar ──────────────────────────── */
   .filter-bar {
@@ -729,6 +729,9 @@
         <select id="filterArtist">
           <option value="">All Artists</option>
         </select>
+        <select id="filterCountry">
+          <option value="">All Countries</option>
+        </select>
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:0.82rem;opacity:0.5">Inactive</span>
           <label class="toggle toggle-sm" style="margin:0" title="Show inactive songs">
@@ -961,15 +964,15 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260312"></script>
-<script src="/admin/js/utils.js?v=20260312"></script>
-<script src="/admin/js/auth.js?v=20260301"></script>
-<script src="/admin/js/nav.js?v=20260301"></script>
-<script src="/admin/js/icons.js?v=20260226"></script>
-<script src="/admin/js/confirm.js?v=20260226"></script>
-<script src="/admin/js/filemanager.js?v=20260301"></script>
-<script src="/admin/js/media.js?v=20260304b"></script>
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/utils.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/icons.js"></script>
+<script src="/admin/js/confirm.js"></script>
+<script src="/admin/js/filemanager.js"></script>
+<script src="/admin/js/media.js"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

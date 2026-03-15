@@ -13,6 +13,12 @@ var RendezVoxSongs = (function() {
   var categories  = [];
   var debounceTimer = null;
 
+  function energyColor(e) {
+    if (e < 0.3) return '#4a9eff';
+    if (e < 0.6) return '#f0ad4e';
+    return '#e74c3c';
+  }
+
   function init() {
     loadArtists();
     loadCategories();
@@ -125,18 +131,26 @@ var RendezVoxSongs = (function() {
     var tbody = document.getElementById('songTable');
 
     if (!songs || songs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">No songs found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" class="empty">No songs found</td></tr>';
       return;
     }
 
     var html = '';
     songs.forEach(function(s, idx) {
+      var bpmCell = s.bpm ? s.bpm : '<span class="text-dim">—</span>';
+      var energyCell = s.energy !== null && s.energy !== undefined
+        ? '<div style="display:flex;align-items:center;gap:4px"><div style="width:40px;height:6px;background:var(--bg-input);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + Math.round(s.energy * 100) + '%;background:' + energyColor(s.energy) + ';border-radius:3px"></div></div><span style="font-size:.75rem">' + (s.energy * 100).toFixed(0) + '</span></div>'
+        : '<span class="text-dim">—</span>';
+      var endCell = s.ending_type ? s.ending_type : '<span class="text-dim">—</span>';
       html += '<tr>' +
         '<td>' + ((currentPage - 1) * 50 + idx + 1) + '</td>' +
         '<td>' + escHtml(s.title) + '</td>' +
         '<td>' + escHtml(s.artist_name) + '</td>' +
         '<td>' + escHtml(s.category_name) + '</td>' +
         '<td>' + formatDuration(s.duration_ms) + '</td>' +
+        '<td>' + bpmCell + '</td>' +
+        '<td>' + energyCell + '</td>' +
+        '<td>' + endCell + '</td>' +
         '<td>' + s.rotation_weight + '</td>' +
         '<td>' + s.play_count + '</td>' +
         '<td><label class="toggle toggle-sm"><input type="checkbox" onchange="RendezVoxSongs.toggleSong(' + s.id + ')"' + (s.is_active ? ' checked' : '') + '><span class="slider"></span></label></td>' +
@@ -303,8 +317,13 @@ var RendezVoxSongs = (function() {
   // ── Helpers ──────────────────────────────────────────
 
   function deactivateAllMissing() {
-    if (!confirm('Deactivate all songs with missing files?')) return;
+    RendezVoxConfirm('Deactivate all songs with missing files?', { title: 'Deactivate Missing' }).then(function(ok) {
+      if (!ok) return;
+      doDeactivateAllMissing();
+    });
+  }
 
+  function doDeactivateAllMissing() {
     var btn = document.getElementById('btnDeactivateMissing');
     btn.disabled = true;
     btn.textContent = 'Working...';

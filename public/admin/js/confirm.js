@@ -53,10 +53,53 @@ var RendezVoxConfirm = (function() {
     btnOk.textContent = opts.okLabel || 'OK';
     btnOk.className = 'btn ' + (opts.okClass || 'btn-danger');
     btnCancel.textContent = opts.cancelLabel || 'Cancel';
+    var inputEl = document.getElementById('confirmInput');
+    if (inputEl) inputEl.style.display = 'none';
     modal.classList.remove('hidden');
     btnOk.focus();
     return new Promise(function(resolve) { resolveFn = resolve; });
   }
+
+  /**
+   * Show a prompt dialog with text input. Returns Promise<string|null>.
+   * Options: { title, okLabel, okClass, cancelLabel, placeholder, value }
+   */
+  function showPrompt(message, options) {
+    ensureDOM();
+    var opts = options || {};
+
+    // Inject input if not present
+    var inputEl = document.getElementById('confirmInput');
+    if (!inputEl) {
+      inputEl = document.createElement('input');
+      inputEl.type = 'text';
+      inputEl.id = 'confirmInput';
+      inputEl.style.cssText = 'width:100%;margin-top:8px';
+      msgEl.parentNode.insertBefore(inputEl, msgEl.nextSibling);
+    }
+    inputEl.style.display = '';
+    inputEl.placeholder = opts.placeholder || '';
+    inputEl.value = opts.value || '';
+
+    document.getElementById('confirmTitle').textContent = opts.title || 'Input';
+    msgEl.textContent = message;
+    btnOk.textContent = opts.okLabel || 'OK';
+    btnOk.className = 'btn ' + (opts.okClass || 'btn-primary');
+    btnCancel.textContent = opts.cancelLabel || 'Cancel';
+    modal.classList.remove('hidden');
+    inputEl.focus();
+    inputEl.select();
+
+    return new Promise(function(resolve) {
+      resolveFn = function(ok) {
+        var val = inputEl.value.trim();
+        inputEl.style.display = 'none';
+        resolve(ok && val ? val : null);
+      };
+    });
+  }
+
+  show.prompt = showPrompt;
 
   return show;
 })();
