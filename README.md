@@ -809,8 +809,14 @@ Nginx rate limits on sensitive endpoints:
 - Auto-generated secure passwords and credential file
 - Cloudflare Zero Trust tunnel support (single port 80, stream proxied)
 
----
+## About
 
-## License
+**Developed by:** Engr. Richard R. Ayuyang, PhD — Professor II, CSU
 
-Copyright 2026 [DownStreamTech](https://downstreamtech.net). All rights reserved.
+**Web:** https://chadlinuxtech.net
+
+**Company:** DownStreamTech — https://downstreamtech.net
+
+**Copyright:** © 2023–2026 DownStreamTech. All rights reserved.
+
+Licensed under the [Apache License 2.0](LICENSE).
