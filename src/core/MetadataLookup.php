@@ -941,6 +941,134 @@ class MetadataLookup
     }
 
     /**
+     * Batch-verify metadata for multiple songs using Gemini AI.
+     * Sends up to 20 songs per API call to minimize quota usage.
+     *
+     * @param array $songs Array of ['id'=>int, 'artist'=>string, 'title'=>string, 'genre'=>string, 'year'=>int|null, 'album'=>string|null]
+     * @return array|null Map of song index => ['genre'=>..., 'year'=>..., 'album'=>...] with corrections, or null on failure
+     */
+    public function batchVerifyByAI(array $songs): ?array
+    {
+        if ($this->geminiApiKey === '' || empty($songs)) {
+            return null;
+        }
+
+        // Build song list for the prompt
+        $lines = [];
+        foreach ($songs as $i => $s) {
+            $n = $i + 1;
+            $year = !empty($s['year']) ? (int) $s['year'] : 'unknown';
+            $album = !empty($s['album']) ? $s['album'] : 'unknown';
+            $lines[] = "{$n}. \"{$s['title']}\" by {$s['artist']} — genre: {$s['genre']}, year: {$year}, album: {$album}";
+        }
+        $songList = implode("\n", $lines);
+
+        $prompt = "You are a music metadata expert. Below is a list of songs with their current metadata tags. "
+                . "Some may be incorrectly tagged. For each song, verify the genre, year, and album.\n\n"
+                . "Songs:\n{$songList}\n\n"
+                . "Return a JSON array where each element corresponds to a song (same order). "
+                . "For each song, include ONLY fields that need correction. If all fields are correct, return an empty object {}.\n\n"
+                . "Format: [{\"genre\":\"correct genre\",\"year\":2001,\"album\":\"correct album\"}, {}, ...]\n\n"
+                . "Rules:\n"
+                . "- Only include fields that are WRONG and need correction\n"
+                . "- Genre must be a single primary genre (e.g. Rock, Pop, Country, Jazz, R&B, Hip Hop, Electronic, Classical, Folk, Blues, Soul, Funk, Reggae, Latin, Metal, Punk, Gospel, Disco, Easy Listening, Pop Rock)\n"
+                . "- Year must be between 1900 and " . date('Y') . "\n"
+                . "- If a field is correct or you're unsure, omit it\n"
+                . "- Return valid JSON array only, no markdown or explanation";
+
+        $this->rateLimit('gemini', 0.15);
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='
+             . urlencode($this->geminiApiKey);
+
+        $payload = json_encode([
+            'contents' => [
+                ['parts' => [['text' => $prompt]]]
+            ],
+            'generationConfig' => [
+                'responseMimeType' => 'application/json',
+                'temperature'      => 0.1,
+                'maxOutputTokens'  => 2048,
+                'thinkingConfig'   => ['thinkingBudget' => 0],
+            ],
+        ]);
+
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\nUser-Agent: RendezVox/1.0\r\n",
+                'content'       => $payload,
+                'timeout'       => 30,
+                'ignore_errors' => true,
+            ],
+        ]);
+
+        $resp = @file_get_contents($url, false, $ctx);
+        if (!$resp) {
+            return null;
+        }
+
+        $data = json_decode($resp, true);
+        if (!$data) {
+            return null;
+        }
+
+        if (isset($data['error'])) {
+            $code = (int) ($data['error']['code'] ?? 0);
+            if ($code === 429) {
+                return ['_error' => 'rate_limited'];
+            }
+            return null;
+        }
+
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        if (!$text) {
+            return null;
+        }
+
+        $parsed = json_decode($text, true);
+        if (!is_array($parsed) || count($parsed) !== count($songs)) {
+            return null;
+        }
+
+        // Validate and clean each correction
+        $results = [];
+        foreach ($parsed as $i => $corrections) {
+            $clean = [];
+            if (!is_array($corrections)) {
+                $results[$i] = [];
+                continue;
+            }
+
+            if (!empty($corrections['genre']) && is_string($corrections['genre'])) {
+                $mapped = self::mapGenre($corrections['genre']);
+                $genre = $mapped ?: ucfirst(strtolower(trim($corrections['genre'])));
+                if (strlen($genre) >= 2 && strlen($genre) <= 30) {
+                    $clean['genre'] = $genre;
+                }
+            }
+
+            if (!empty($corrections['year'])) {
+                $year = (int) $corrections['year'];
+                if ($year >= 1900 && $year <= (int) date('Y')) {
+                    $clean['year'] = $year;
+                }
+            }
+
+            if (!empty($corrections['album']) && is_string($corrections['album'])) {
+                $album = trim($corrections['album']);
+                if (strlen($album) >= 2) {
+                    $clean['album'] = $album;
+                }
+            }
+
+            $results[$i] = $clean;
+        }
+
+        return $results;
+    }
+
+    /**
      * Look up missing metadata using a local Ollama instance.
      * Fallback when Gemini is unavailable or rate-limited.
      *
