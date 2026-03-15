@@ -67,7 +67,7 @@ def get_next_track() =
 
     let result = string.trim(process.read(
         "resp=$(curl -sf -H 'X-Internal-Secret: #{internal_secret}' '#{api_base}/next-track') && " ^
-        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring) + \"\\n\" + (.song.cue_in // \"\" | tostring) + \"\\n\" + (.song.cue_out // \"\" | tostring) + \"\\n\" + (.tts_path // \"\" | tostring) + \"\\n\" + (.crossfade_ms // 0 | tostring)) end'"
+        "echo \"$resp\" | jq -r 'if .song == null then \"\" else (.song.file_path + \"\\n\" + (.song.id | tostring) + \"\\n\" + (.song.gain_db // 0 | tostring) + \"\\n\" + (.source // \"rotation\") + \"\\n\" + (.request_id // 0 | tostring) + \"\\n\" + (.song.cue_in // \"\" | tostring) + \"\\n\" + (.song.cue_out // \"\" | tostring) + \"\\n\" + (.tts_path // \"\" | tostring) + \"\\n\" + (.crossfade_ms // \"\" | tostring)) end'"
     ))
 
     let parts = string.split(separator="\n", result)
@@ -79,7 +79,7 @@ def get_next_track() =
     let cue_in = string.trim(list.nth(default="", parts, 5))
     let cue_out = string.trim(list.nth(default="", parts, 6))
     let tts_path = string.trim(list.nth(default="", parts, 7))
-    let crossfade_override = string.trim(list.nth(default="0", parts, 8))
+    let crossfade_override = string.trim(list.nth(default="", parts, 8))
 
     if file_path == "" or file_path == "null" then
         log.info("No active schedule — playing silence, will retry in 10s")
@@ -92,7 +92,7 @@ def get_next_track() =
                 ",liq_cue_in=\"#{cue_in}\",liq_cue_out=\"#{cue_out}\""
             else "" end
         let cf_annotation =
-            if crossfade_override != "" and crossfade_override != "0" then
+            if crossfade_override != "" then
                 ",liq_cross_duration=\"#{string(float_of_string(crossfade_override) / 1000.0)}\""
             else "" end
         let song_request = request.create("annotate:song_id=\"#{song_id}\",liq_amplify=\"#{gain_db}dB\",rendezvox_source=\"#{source}\",rendezvox_request_id=\"#{request_id}\"#{cue_annotations}#{cf_annotation}:#{full_path}")

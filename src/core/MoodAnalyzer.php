@@ -153,56 +153,138 @@ class MoodAnalyzer
     }
 
     /**
-     * Detect BPM using ffmpeg's tempo detection via onset analysis.
-     * Falls back to spectral flux estimation.
+     * Detect BPM using embedded tags or onset-interval histogram.
      */
     private static function detectBpm(string $filePath): ?int
     {
-        // Use ffmpeg beat detection: extract onset frames and compute tempo
-        $cmd = 'ffmpeg -i ' . escapeshellarg($filePath)
-             . ' -vn -ac 1 -ar 22050 -f f32le pipe:1 2>/dev/null'
-             . ' | ffmpeg -f f32le -ar 22050 -ac 1 -i pipe:0'
-             . ' -af tempo -f null - 2>&1';
-        $out = (string) shell_exec($cmd);
-
-        // Try alternative: use libavfilter's ebur128 and estimate from peak spacing
-        // Simpler approach: use ffprobe to check for embedded BPM tag first
-        $tagCmd = 'ffprobe -v error -show_entries format_tags=TBPM,bpm,BPM -of csv=p=0 '
-                . escapeshellarg($filePath) . ' 2>/dev/null';
+        // 1. Check embedded BPM tags (ID3 TBPM, Vorbis BPM/TEMPO)
+        $esc = escapeshellarg($filePath);
+        $tagCmd = "ffprobe -v error -show_entries format_tags=TBPM,bpm,BPM"
+                . " -show_entries stream_tags=TBPM,bpm,BPM"
+                . " -of csv=p=0 {$esc} 2>/dev/null";
         $tagOut = trim((string) shell_exec($tagCmd));
-        if ($tagOut !== '' && is_numeric($tagOut)) {
-            $bpm = (int) round((float) $tagOut);
-            if ($bpm >= 40 && $bpm <= 240) {
-                return $bpm;
+        foreach (explode("\n", $tagOut) as $line) {
+            $line = trim($line, " \t\n\r,");
+            if ($line !== '' && is_numeric($line)) {
+                $bpm = (int) round((float) $line);
+                if ($bpm >= 40 && $bpm <= 240) {
+                    return $bpm;
+                }
             }
         }
 
-        // Estimate BPM from onset detection via ffmpeg's adelay + silence detection
-        // Count zero-crossings per second as proxy for rhythmic density
-        $zcCmd = 'ffmpeg -i ' . escapeshellarg($filePath)
-               . ' -t 30 -af astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.Zero_crossings_rate'
-               . ' -f null - 2>&1 | grep "Zero_crossings_rate"';
-        $zcOut = (string) shell_exec($zcCmd);
+        // 2. Onset-interval BPM via raw PCM analysis
+        //    Pipe 30s mono audio at 8kHz, compute RMS in 20ms frames (50Hz),
+        //    detect onsets, build IOI histogram → BPM.
+        $cmd = "ffmpeg -i {$esc} -t 30 -ac 1 -ar 8000"
+             . ' -f s16le -acodec pcm_s16le pipe:1 2>/dev/null';
+        $raw = (string) shell_exec($cmd);
 
-        $rates = [];
-        if (preg_match_all('/Zero_crossings_rate=([\d.]+)/', $zcOut, $matches)) {
-            foreach ($matches[1] as $r) {
-                $rates[] = (float) $r;
-            }
+        $numSamples = (int) (strlen($raw) / 2);
+        if ($numSamples < 40000) {
+            return null; // Need 5+ seconds
         }
 
-        if (empty($rates)) {
+        // Unpack all 16-bit signed samples
+        /** @var int[] $samples */
+        $samples = array_values(unpack('v*', $raw));
+        foreach ($samples as &$s) {
+            if ($s >= 32768) {
+                $s -= 65536;
+            }
+        }
+        unset($s);
+
+        // Compute RMS per 20ms frame (160 samples at 8kHz) → 50Hz resolution
+        $frameSize = 160;
+        $rms = [];
+        for ($i = 0; $i + $frameSize <= $numSamples; $i += $frameSize) {
+            $sum = 0.0;
+            for ($j = $i; $j < $i + $frameSize; $j++) {
+                $sum += (float) $samples[$j] * (float) $samples[$j];
+            }
+            $rms[] = sqrt($sum / $frameSize);
+        }
+
+        if (count($rms) < 250) {
+            return null; // Need 5+ seconds at 50Hz
+        }
+
+        // Onset detection: positive energy increase between frames
+        $onset = [];
+        for ($i = 1; $i < count($rms); $i++) {
+            $onset[] = max(0.0, $rms[$i] - $rms[$i - 1]);
+        }
+
+        // Smooth with 3-frame moving average (60ms)
+        $smooth = [];
+        for ($i = 1; $i < count($onset) - 1; $i++) {
+            $smooth[] = ($onset[$i - 1] + $onset[$i] + $onset[$i + 1]) / 3.0;
+        }
+
+        $maxVal = !empty($smooth) ? max($smooth) : 0.0;
+        if ($maxVal <= 0) {
             return null;
         }
 
-        // Heuristic: map zero-crossing rate to BPM range
-        // Typical ZCR: 0.02-0.2 for music
-        $avgZcr = array_sum($rates) / count($rates);
-        // Very rough mapping: ZCR correlates loosely with tempo
-        $estimatedBpm = (int) round(60 + ($avgZcr * 800));
-        $estimatedBpm = max(60, min(200, $estimatedBpm));
+        // Find peaks above 15% of max
+        $threshold = $maxVal * 0.15;
+        $peaks = [];
+        for ($i = 1; $i < count($smooth) - 1; $i++) {
+            if ($smooth[$i] > $threshold
+                && $smooth[$i] > $smooth[$i - 1]
+                && $smooth[$i] >= $smooth[$i + 1]) {
+                $peaks[] = $i;
+            }
+        }
 
-        return $estimatedBpm;
+        if (count($peaks) < 8) {
+            return null;
+        }
+
+        // IOI histogram: BPM 60–200 at 50Hz → IOI 15–50 frames
+        $fps = 50.0;
+        $hist = array_fill(0, 51, 0.0);
+        for ($i = 1; $i < count($peaks); $i++) {
+            $ioi = $peaks[$i] - $peaks[$i - 1];
+            $bin = (int) round($ioi);
+            if ($bin >= 15 && $bin <= 50) {
+                $hist[$bin] += 1.0;
+            }
+            // Half-time vote (octave awareness)
+            $dbl = (int) round($ioi * 2);
+            if ($dbl >= 15 && $dbl <= 50) {
+                $hist[$dbl] += 0.5;
+            }
+        }
+
+        // Find histogram peak
+        $bestBin = 0;
+        $bestCount = 0.0;
+        for ($i = 15; $i <= 50; $i++) {
+            if ($hist[$i] > $bestCount) {
+                $bestCount = $hist[$i];
+                $bestBin = $i;
+            }
+        }
+
+        if ($bestBin === 0 || $bestCount < 3) {
+            return null;
+        }
+
+        $bpm = (int) round($fps * 60.0 / $bestBin);
+
+        // Octave folding: most music sits in 70–140 BPM.
+        // Onset detection often locks to subdivisions (8th/16th notes),
+        // yielding 2x the actual tempo. Fold into the sweet spot.
+        while ($bpm > 140 && $bpm / 2 >= 55) {
+            $bpm = (int) round($bpm / 2.0);
+        }
+        while ($bpm < 55 && $bpm * 2 <= 210) {
+            $bpm *= 2;
+        }
+
+        return ($bpm >= 50 && $bpm <= 210) ? $bpm : null;
     }
 
     /**
