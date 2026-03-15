@@ -6,6 +6,7 @@
  *   php fix_genres.php           — scan untagged songs
  *   php fix_genres.php --auto    — scan only untagged songs (for cron)
  *   php fix_genres.php --all     — re-scan ALL songs (re-tag + re-fetch covers)
+ *   php fix_genres.php --verify  — batch-verify all tagged songs via Gemini AI
  *   php fix_genres.php --dry-run — preview only, no changes
  *
  * Logic:
@@ -32,9 +33,10 @@ require __DIR__ . '/../core/MetadataExtractor.php';
 require __DIR__ . '/../core/MetadataLookup.php';
 require __DIR__ . '/../core/ArtistNormalizer.php';
 
-$dryRun   = in_array('--dry-run', $argv ?? []);
-$autoMode = in_array('--auto', $argv ?? []);
-$allMode  = in_array('--all', $argv ?? []);
+$dryRun     = in_array('--dry-run', $argv ?? []);
+$autoMode   = in_array('--auto', $argv ?? []);
+$allMode    = in_array('--all', $argv ?? []);
+$verifyMode = in_array('--verify', $argv ?? []);
 
 $db = Database::get();
 
@@ -157,21 +159,9 @@ while ($row = $stmt->fetch()) {
 
 function findOrCreateArtist(PDO $db, string $name, array &$cache): int
 {
-    $name = ArtistNormalizer::extractPrimary($name, $db);
     $key = strtolower(trim($name));
     if (isset($cache[$key])) return $cache[$key];
-
-    $stmt = $db->prepare("SELECT id FROM artists WHERE normalized_name = :norm");
-    $stmt->execute(['norm' => $key]);
-    $row = $stmt->fetch();
-    if ($row) {
-        $cache[$key] = (int) $row['id'];
-        return (int) $row['id'];
-    }
-
-    $stmt = $db->prepare("INSERT INTO artists (name, normalized_name) VALUES (:name, :norm) RETURNING id");
-    $stmt->execute(['name' => trim($name), 'norm' => $key]);
-    $id = (int) $stmt->fetchColumn();
+    $id = ArtistNormalizer::findOrCreate($db, $name);
     $cache[$key] = $id;
     return $id;
 }
@@ -256,6 +246,45 @@ function titleFromFilename(string $filePath): string
     return $name;
 }
 
+// ── Verify-only mode ─────────────────────────────────────
+// --verify: skip tagging, batch-verify all tagged songs via Gemini
+if ($verifyMode) {
+    logMsg('Verify mode: loading all tagged songs for AI verification', $autoMode);
+    $stmt = $db->query("
+        SELECT s.id, s.title, s.year, s.file_path, s.artist_id, s.country_code,
+               a.name AS artist_name, c.name AS current_genre
+        FROM songs s
+        JOIN artists a ON a.id = s.artist_id
+        JOIN categories c ON c.id = s.category_id
+        WHERE s.tagged_at IS NOT NULL
+          AND s.meta_locked = FALSE
+          AND c.type = 'music'
+        ORDER BY a.name, s.id
+    ");
+    $allTagged = $stmt->fetchAll();
+
+    $verifyQueue = [];
+    foreach ($allTagged as $s) {
+        $verifyQueue[] = [
+            'id'        => (int) $s['id'],
+            'artist'    => $s['artist_name'],
+            'title'     => $s['title'],
+            'genre'     => $s['current_genre'],
+            'year'      => $s['year'] ?? null,
+            'album'     => null,
+            'file_path' => $musicDir . '/' . $s['file_path'],
+        ];
+    }
+
+    $progress['total'] = count($verifyQueue);
+    $progress['status'] = 'verifying';
+    writeProgress($progress);
+    logMsg('Loaded ' . count($verifyQueue) . ' songs for verification', $autoMode);
+
+    // Jump directly to batch verification (reuses the code after the main loop)
+    goto batch_verify;
+}
+
 // ── Main ─────────────────────────────────────────────────
 
 // --all mode: reset tagged_at so all songs get reprocessed (but NOT meta_locked ones)
@@ -302,6 +331,7 @@ if (count($allSongs) === 0) {
 
 $artistGenreCache = [];
 $stopFile         = '/tmp/rendezvox_genre_scan.lock.stop';
+$verifyQueue      = []; // Songs to batch-verify after tagging
 
 foreach ($allSongs as $song) {
     // Check for stop signal
@@ -476,10 +506,20 @@ foreach ($allSongs as $song) {
                    || stripos($artistName, 'ai cover') !== false);
         if (!$isAiCheck) {
             if (isset($artistGenreCache[$artistName])) {
-                $lookedUpGenre = $artistGenreCache[$artistName];
+                $artistMeta = $artistGenreCache[$artistName];
             } else {
-                $lookedUpGenre = $lookup->lookupGenreByArtist($artistName);
-                $artistGenreCache[$artistName] = $lookedUpGenre;
+                $artistMeta = $lookup->lookupArtistMeta($artistName);
+                $artistGenreCache[$artistName] = $artistMeta;
+            }
+            $lookedUpGenre = $artistMeta['genre'] ?? null;
+
+            // Set country_code from MusicBrainz if available
+            if (!empty($artistMeta['country_code']) && empty($song['country_code'])) {
+                if (!$dryRun) {
+                    $db->prepare("UPDATE songs SET country_code = :cc WHERE id = :id")
+                       ->execute(['cc' => $artistMeta['country_code'], 'id' => $songId]);
+                }
+                $tagsChanged = true;
             }
 
             if ($lookedUpGenre) {
@@ -536,14 +576,16 @@ foreach ($allSongs as $song) {
                  || (!$gotExternalData && !empty(trim($artistName)));
     $needAiTitle  = MetadataLookup::looksLikeFilenameArtifact($title)
                  || (!$gotExternalData && !empty(trim($title)));
-    $needAiAlbum  = empty($mbResult['album'] ?? null) && empty($audioDbResult['album'] ?? null);
-    if ($aiProvider !== 'none' && ($needAiGenre || $needAiYear || $needAiArtist || $needAiTitle || $needAiAlbum)) {
+    $needAiAlbum   = empty($mbResult['album'] ?? null) && empty($audioDbResult['album'] ?? null);
+    $needAiCountry = empty($song['country_code']) && empty($artistMeta['country_code'] ?? null);
+    if ($aiProvider !== 'none' && ($needAiGenre || $needAiYear || $needAiArtist || $needAiTitle || $needAiAlbum || $needAiCountry)) {
         $aiNeeds = [
-            'genre'  => $needAiGenre,
-            'year'   => $needAiYear,
-            'artist' => $needAiArtist,
-            'title'  => $needAiTitle,
-            'album'  => $needAiAlbum,
+            'genre'        => $needAiGenre,
+            'year'         => $needAiYear,
+            'artist'       => $needAiArtist,
+            'title'        => $needAiTitle,
+            'album'        => $needAiAlbum,
+            'country_code' => $needAiCountry,
         ];
 
         if ($useGemini) {
@@ -602,6 +644,12 @@ foreach ($allSongs as $song) {
                     $progress['updated']++;
                     $tagsChanged = true;
                 }
+            }
+
+            if (!empty($aiResult['country_code']) && $needAiCountry && !$dryRun) {
+                $db->prepare("UPDATE songs SET country_code = :cc WHERE id = :id")
+                   ->execute(['cc' => $aiResult['country_code'], 'id' => $songId]);
+                $tagsChanged = true;
             }
         }
     }
@@ -767,6 +815,19 @@ foreach ($allSongs as $song) {
         // tagged/folders/ files: tagged in place, NOT relocated (preserves folder structure for playlists)
     }
 
+    // Queue for batch AI verification (only non-AI-artist songs with a genre set)
+    if (!$dryRun && strtolower($genre) !== 'uncategorized') {
+        $verifyQueue[] = [
+            'id'        => $songId,
+            'artist'    => $artistName,
+            'title'     => $title,
+            'genre'     => $genre,
+            'year'      => $song['year'] ?? null,
+            'album'     => $mbResult['album'] ?? ($audioDbResult['album'] ?? ($aiResult['album'] ?? null)),
+            'file_path' => $currentPath,
+        ];
+    }
+
     // Mark song as processed (always, to prevent infinite retry)
     if (!$dryRun) {
         $db->prepare("UPDATE songs SET tagged_at = NOW() WHERE id = :id")
@@ -777,13 +838,95 @@ foreach ($allSongs as $song) {
     writeProgress($progress);
 }
 
+batch_verify:
+// ── Batch AI verification phase ─────────────────────────
+// Sends tagged songs to Gemini in batches of 20 to verify/correct
+// genre, year, and album. One API call per batch = minimal quota usage.
+$verified = 0;
+$corrected = 0;
+if (!$dryRun && !empty($verifyQueue) && $useGemini && $aiProvider !== 'none') {
+    $progress['status'] = 'verifying';
+    writeProgress($progress);
+    logMsg('AI verification: ' . count($verifyQueue) . ' songs to verify', $autoMode);
+
+    $batchSize = 20;
+    $batches = array_chunk($verifyQueue, $batchSize);
+
+    foreach ($batches as $bi => $batch) {
+        // Check stop signal
+        if (file_exists($stopFile)) {
+            break;
+        }
+
+        $corrections = $lookup->batchVerifyByAI($batch);
+        if ($corrections === null) {
+            continue; // API error, skip batch
+        }
+        if (isset($corrections['_error'])) {
+            logMsg('AI verification stopped: ' . ($corrections['_error'] ?? 'rate limited'), $autoMode);
+            break; // Rate limited, stop verification
+        }
+
+        foreach ($corrections as $i => $fix) {
+            if (empty($fix)) {
+                $verified++;
+                continue; // All correct
+            }
+
+            $songId = $batch[$i]['id'];
+            $updates = [];
+            $params = ['id' => $songId];
+
+            if (!empty($fix['genre'])) {
+                $catId = findOrCreateCategory($db, $fix['genre'], $categoryCache);
+                $db->prepare("UPDATE songs SET category_id = :cat WHERE id = :id")
+                   ->execute(['cat' => $catId, 'id' => $songId]);
+                $corrected++;
+            }
+
+            if (!empty($fix['year'])) {
+                $updates[] = 'year = :year';
+                $params['year'] = $fix['year'];
+            }
+
+            if (!empty($fix['album'])) {
+                // If album changed, try to re-fetch cover art
+                $songPath = $batch[$i]['file_path'];
+                if (!empty($batch[$i]['artist']) && file_exists($songPath)) {
+                    $coverData = $lookup->lookupCoverArt(
+                        $batch[$i]['artist'], $batch[$i]['title'], null
+                    );
+                    if ($coverData) {
+                        MetadataLookup::embedCoverArt($songPath, $coverData);
+                    }
+                }
+            }
+
+            if (!empty($updates)) {
+                $sql = "UPDATE songs SET " . implode(', ', $updates) . " WHERE id = :id";
+                $db->prepare($sql)->execute($params);
+            }
+
+            $verified++;
+        }
+
+        $progress['verified'] = $verified;
+        $progress['corrected'] = $corrected;
+        writeProgress($progress);
+    }
+
+    logMsg("AI verification complete: {$verified} verified, {$corrected} corrected", $autoMode);
+}
+
 $progress['status']      = 'done';
 $progress['finished_at'] = date('c');
+$progress['verified']    = $verified;
+$progress['corrected']   = $corrected;
 writeProgress($progress);
 @unlink('/tmp/rendezvox_genre_scan.lock');
 @unlink($stopFile);
 
-logMsg('Scan complete — ' . $progress['updated'] . ' updated, ' . $progress['skipped'] . ' skipped, ' . ($progress['covers'] ?? 0) . ' covers, ' . ($progress['relocated'] ?? 0) . ' relocated out of ' . $progress['total'], $autoMode);
+logMsg('Scan complete — ' . $progress['updated'] . ' updated, ' . $progress['skipped'] . ' skipped, ' . ($progress['covers'] ?? 0) . ' covers, ' . ($progress['relocated'] ?? 0) . ' relocated, ' . $corrected . ' AI-corrected out of ' . $progress['total'], $autoMode);
 
 // Write auto-tag summary for the Settings UI
 if ($autoMode) {

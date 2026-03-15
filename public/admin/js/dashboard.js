@@ -9,6 +9,12 @@ var RendezVoxDashboard = (function() {
   var formatBytes  = RendezVoxUtils.formatBytes;
   var formatNumber = RendezVoxUtils.formatNumber;
 
+  function countryFlag(code) {
+    if (!code || code.length !== 2) return '';
+    return String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(0) - 65)
+         + String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(1) - 65);
+  }
+
   var pollTimer    = null;
   var progressTimer = null;
   var streamActive = true;
@@ -392,7 +398,7 @@ var RendezVoxDashboard = (function() {
     }
 
     titleEl.textContent  = np.title;
-    artistEl.textContent = np.artist;
+    artistEl.textContent = (np.country_code ? countryFlag(np.country_code) + ' ' : '') + np.artist;
     if (playlistEl) {
       var parts = [];
       if (np.playlist) parts.push(np.playlist);
@@ -417,7 +423,7 @@ var RendezVoxDashboard = (function() {
     }
 
     titleEl.textContent  = nt.title;
-    artistEl.textContent = nt.artist;
+    artistEl.textContent = (nt.country_code ? countryFlag(nt.country_code) + ' ' : '') + nt.artist;
     if (playlistEl) {
       var parts = [];
       if (nt.playlist) parts.push(nt.playlist);

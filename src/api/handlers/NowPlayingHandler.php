@@ -21,6 +21,7 @@ class NowPlayingHandler
                 s.duration_ms,
                 s.file_path,
                 s.has_cover_art,
+                s.country_code,
                 a.name       AS artist_name,
                 c.name       AS category_name
             FROM rotation_state rs
@@ -52,7 +53,7 @@ class NowPlayingHandler
         $nextTrack = null;
         if ($row['next_song_id'] && (int) $row['next_song_id'] !== (int) $row['song_id']) {
             $ntStmt = $db->prepare('
-                SELECT s.title, a.name AS artist_name
+                SELECT s.title, s.country_code, a.name AS artist_name
                 FROM songs   s
                 JOIN artists a ON a.id = s.artist_id
                 WHERE s.id = :id
@@ -61,8 +62,9 @@ class NowPlayingHandler
             $ntRow = $ntStmt->fetch();
             if ($ntRow) {
                 $nextTrack = [
-                    'title'  => $ntRow['title'],
-                    'artist' => $ntRow['artist_name'],
+                    'title'        => $ntRow['title'],
+                    'artist'       => $ntRow['artist_name'],
+                    'country_code' => $ntRow['country_code'] ?? null,
                 ];
             }
         }
@@ -102,6 +104,7 @@ class NowPlayingHandler
                 'category'      => $row['category_name'],
                 'duration_ms'   => (int) $row['duration_ms'],
                 'has_cover_art' => (bool) $row['has_cover_art'],
+                'country_code'  => $row['country_code'] ?? null,
             ],
             'next_track'         => $nextTrack,
             'request'            => $requestInfo,

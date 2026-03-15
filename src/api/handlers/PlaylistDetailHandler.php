@@ -40,7 +40,7 @@ class PlaylistDetailHandler
                 SELECT
                     ps.id AS ps_id, ps.position, ps.played_in_cycle,
                     s.id AS song_id, s.title, s.year, s.duration_ms, s.is_active,
-                    a.name AS artist_name, c.name AS category_name
+                    s.country_code, a.name AS artist_name, c.name AS category_name
                 FROM playlist_songs ps
                 JOIN songs      s ON s.id = ps.song_id
                 JOIN artists    a ON a.id = s.artist_id
@@ -60,6 +60,7 @@ class PlaylistDetailHandler
                     'title'          => $row['title'],
                     'artist'         => $row['artist_name'],
                     'category'       => $row['category_name'],
+                    'country_code'   => $row['country_code'] ?? null,
                     'year'           => $row['year'] ? (int) $row['year'] : null,
                     'duration_ms'    => (int) $row['duration_ms'],
                     'is_active'      => (bool) $row['is_active'],
@@ -210,6 +211,7 @@ class PlaylistDetailHandler
                 s.year,
                 s.duration_ms,
                 s.is_active,
+                s.country_code,
                 a.name       AS artist_name,
                 c.name       AS category_name
             FROM songs s
@@ -248,6 +250,7 @@ class PlaylistDetailHandler
                 'title'          => $row['title'],
                 'artist'         => $row['artist_name'],
                 'category'       => $row['category_name'],
+                'country_code'   => $row['country_code'] ?? null,
                 'year'           => $row['year'] ? (int) $row['year'] : null,
                 'duration_ms'    => (int) $row['duration_ms'],
                 'is_active'      => (bool) $row['is_active'],

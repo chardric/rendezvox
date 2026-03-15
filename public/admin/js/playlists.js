@@ -7,6 +7,12 @@ var RendezVoxPlaylists = (function() {
   var showToast      = RendezVoxUtils.showToast;
   var formatDuration = RendezVoxUtils.formatDuration;
 
+  function countryFlag(code) {
+    if (!code || code.length !== 2) return '';
+    return String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(0) - 65)
+         + String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(1) - 65);
+  }
+
   var activePlaylistId   = null;
   var activePlaylistName = null;
   var activePlaylistType = null;
@@ -18,6 +24,7 @@ var RendezVoxPlaylists = (function() {
   var detailShowLimit    = 10;   // songs per page (0 = all)
   var detailCurrentPage  = 1;
   var detailSearchQuery  = '';   // current song search filter
+  var detailPlayedFilter = '';   // '', 'yes', 'no'
   var tableShowLimit     = 10;  // playlists per page (0 = all)
   var tableCurrentPage   = 1;
   var tableRegularList   = [];  // cached filtered playlists for pagination
@@ -110,6 +117,12 @@ var RendezVoxPlaylists = (function() {
 
     document.getElementById('detailSearch').addEventListener('input', function() {
       detailSearchQuery = this.value.trim().toLowerCase();
+      detailCurrentPage = 1;
+      if (activeDetailSongs.length > 0) renderDetailSongs(activeDetailSongs, activePlaylistType);
+    });
+
+    document.getElementById('detailPlayedFilter').addEventListener('change', function() {
+      detailPlayedFilter = this.value;
       detailCurrentPage = 1;
       if (activeDetailSongs.length > 0) renderDetailSongs(activeDetailSongs, activePlaylistType);
     });
@@ -577,6 +590,13 @@ var RendezVoxPlaylists = (function() {
       populateSlotPlaylistDropdowns();
       var regular = allPlaylists.filter(function(p) { return p.type !== 'emergency'; });
       renderTable(regular);
+      // Auto-open playlist if ?id= param is present (e.g. from Schedules context menu)
+      var urlId = new URLSearchParams(window.location.search).get('id');
+      if (urlId) {
+        viewDetail(parseInt(urlId, 10));
+        // Clean the URL without reloading
+        history.replaceState(null, '', window.location.pathname);
+      }
     };
 
     if (colorsFixed) { render(); return; }
@@ -1059,10 +1079,13 @@ var RendezVoxPlaylists = (function() {
       activePlaylistType = pl.type;
       activePlaylistName = pl.name;
 
-      // Clear search when switching playlists
+      // Clear search/filter when switching playlists
       detailSearchQuery = '';
+      detailPlayedFilter = '';
       var searchEl = document.getElementById('detailSearch');
       if (searchEl) searchEl.value = '';
+      var playedEl = document.getElementById('detailPlayedFilter');
+      if (playedEl) playedEl.value = '';
 
       // Track which songs are currently playing / up next
       currentSongId = data.current_song_id || null;
@@ -1114,6 +1137,20 @@ var RendezVoxPlaylists = (function() {
       });
       if (songs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty">No songs match "' + escHtml(detailSearchQuery) + '"</td></tr>';
+        document.getElementById('detailPager').classList.add('hidden');
+        return;
+      }
+    }
+
+    // Apply played filter
+    if (detailPlayedFilter) {
+      songs = songs.filter(function(s) {
+        if (detailPlayedFilter === 'yes') return s.played_in_cycle || s.song_id === currentSongId;
+        if (detailPlayedFilter === 'no') return !s.played_in_cycle && s.song_id !== currentSongId;
+        return true;
+      });
+      if (songs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No ' + (detailPlayedFilter === 'yes' ? 'played' : 'unplayed') + ' songs</td></tr>';
         document.getElementById('detailPager').classList.add('hidden');
         return;
       }
@@ -1180,7 +1217,7 @@ var RendezVoxPlaylists = (function() {
       html += '<tr' + rowAttr + '>' +
         '<td>' + rowNum + '</td>' +
         '<td>' + escHtml(s.title) + '</td>' +
-        '<td>' + escHtml(s.artist) + '</td>' +
+        '<td>' + (s.country_code ? countryFlag(s.country_code) + ' ' : '') + escHtml(s.artist) + '</td>' +
         '<td>' + escHtml(s.category) + '</td>' +
         '<td>' + formatDuration(s.duration_ms) + '</td>' +
         '<td>' + playedCol + '</td>' +
@@ -1354,7 +1391,7 @@ var RendezVoxPlaylists = (function() {
               (checked ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">') +
         '</td>' +
         '<td>' + escHtml(s.title) + '</td>' +
-        '<td>' + escHtml(s.artist_name) + '</td>' +
+        '<td>' + (s.country_code ? countryFlag(s.country_code) + ' ' : '') + escHtml(s.artist_name) + '</td>' +
         '<td>' + escHtml(s.category_name) + '</td>' +
         '<td>' + formatDuration(s.duration_ms) + '</td>' +
         '</tr>';

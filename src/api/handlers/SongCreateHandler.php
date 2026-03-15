@@ -106,6 +106,30 @@ class SongCreateHandler
             return ['filename' => $name, 'status' => 'error', 'error' => 'Invalid audio file'];
         }
 
+        // Validate audio integrity via ffprobe
+        $probeResult = $this->probeAudio($tmpName);
+        if ($probeResult === null) {
+            return ['filename' => $name, 'status' => 'error', 'error' => 'Corrupt or unreadable audio file'];
+        }
+
+        // Hash-based duplicate check — reject if file already exists in library
+        $fileHash = hash_file('sha256', $tmpName);
+        if ($fileHash) {
+            $db = Database::get();
+            $stmt = $db->prepare('SELECT s.id, s.title, a.name AS artist_name FROM songs s JOIN artists a ON a.id = s.artist_id WHERE s.file_hash = :hash LIMIT 1');
+            $stmt->execute(['hash' => $fileHash]);
+            $existing = $stmt->fetch();
+            if ($existing) {
+                return ['filename' => $name, 'status' => 'error', 'error' => 'Duplicate — already in library as "' . $existing['artist_name'] . ' - ' . $existing['title'] . '"'];
+            }
+            // Also check untagged queue for exact same file
+            $stmt = $db->prepare('SELECT absolute_path FROM organizer_hashes WHERE file_hash = :hash LIMIT 1');
+            $stmt->execute(['hash' => $fileHash]);
+            if ($stmt->fetch()) {
+                return ['filename' => $name, 'status' => 'error', 'error' => 'Duplicate — this file is already queued for processing'];
+            }
+        }
+
         // Check for folder upload (relative_path indicates folder structure to preserve)
         $relativePath = trim($_POST['relative_path'] ?? '');
         if ($relativePath !== '') {
@@ -119,14 +143,9 @@ class SongCreateHandler
         $filename  = $sanitized . '.' . $ext;
         $destPath  = self::UPLOAD_DIR . '/' . $filename;
 
-        // Resolve collisions
+        // If exact filename already in untagged, reject (not append counter)
         if (file_exists($destPath)) {
-            $counter = 2;
-            while (file_exists(self::UPLOAD_DIR . '/' . $sanitized . ' (' . $counter . ').' . $ext)) {
-                $counter++;
-            }
-            $filename = $sanitized . ' (' . $counter . ').' . $ext;
-            $destPath = self::UPLOAD_DIR . '/' . $filename;
+            return ['filename' => $name, 'status' => 'error', 'error' => 'File with this name is already queued for processing'];
         }
 
         if (!move_uploaded_file($tmpName, $destPath)) {
@@ -178,14 +197,9 @@ class SongCreateHandler
 
         $destPath = $destDir . '/' . $filename;
 
-        // Resolve collisions
+        // Reject if exact filename already queued
         if (file_exists($destPath)) {
-            $counter = 2;
-            while (file_exists($destDir . '/' . $sanitized . ' (' . $counter . ').' . $ext)) {
-                $counter++;
-            }
-            $filename = $sanitized . ' (' . $counter . ').' . $ext;
-            $destPath = $destDir . '/' . $filename;
+            return ['filename' => $originalName, 'status' => 'error', 'error' => 'File with this name is already queued for processing'];
         }
 
         if (!move_uploaded_file($tmpName, $destPath)) {
@@ -308,5 +322,19 @@ class SongCreateHandler
         if (!is_dir(self::UPLOAD_DIR)) {
             mkdir(self::UPLOAD_DIR, 0775, true);
         }
+    }
+
+    /**
+     * Validate audio file via ffprobe. Returns duration in ms, or null if invalid.
+     */
+    private function probeAudio(string $path): ?int
+    {
+        $cmd = 'ffprobe -v error -show_entries format=duration -of csv=p=0 ' . escapeshellarg($path) . ' 2>/dev/null';
+        $output = trim((string) shell_exec($cmd));
+        if ($output === '' || $output === 'N/A') {
+            return null;
+        }
+        $duration = (int) (((float) $output) * 1000);
+        return $duration > 0 ? $duration : null;
     }
 }

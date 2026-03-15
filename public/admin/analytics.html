@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Analytics</title>
 <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-<link rel="stylesheet" href="/admin/css/admin.css?v=glow1">
-<script src="/admin/js/theme.js?v=20260228"></script>
+<link rel="stylesheet" href="/admin/css/admin.css">
+<script src="/admin/js/theme.js"></script>
 </head>
 <body>
 <div class="app">
@@ -23,6 +23,7 @@
       <button class="tab active" data-tab="listeners">Listeners</button>
       <button class="tab" data-tab="played">Most Played</button>
       <button class="tab" data-tab="requested">Most Requested</button>
+      <button class="tab" data-tab="retention">Retention</button>
       <button class="tab" data-tab="stats">Library Stats</button>
     </div>
 
@@ -92,6 +93,32 @@
       </div>
     </div>
 
+    <!-- ── Retention Heatmap tab ──────────────────────── -->
+    <div class="tab-panel" id="tab-retention">
+      <div class="card" style="padding:20px">
+        <div class="flex items-center justify-between" style="margin-bottom:12px">
+          <div class="card-label" style="margin-bottom:0">Listener Retention Heatmap</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="retentionSort" style="width:auto;margin-bottom:0;min-width:100px">
+              <option value="worst">Worst First</option>
+              <option value="best">Best First</option>
+            </select>
+            <select id="retentionLimit" style="width:auto;margin-bottom:0;min-width:80px">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+        <p style="color:var(--text-dim);font-size:.8rem;margin-bottom:16px">
+          Shows listener gain/loss per song. Red = listeners left, green = listeners stayed or increased.
+          Songs need retention scoring enabled and mood analysis data.
+        </p>
+        <div id="retentionGrid" style="display:grid;gap:0;font-size:.8rem"></div>
+        <div id="retentionEmpty" class="empty hidden">No retention data available. Enable retention scoring in Settings &gt; Smart Features.</div>
+      </div>
+    </div>
+
     <!-- ── Library Stats tab ─────────────────────────── -->
     <div class="tab-panel" id="tab-stats">
       <div class="card" style="padding:20px">
@@ -106,12 +133,12 @@
 
 <div class="toast-container" id="toasts"></div>
 
-<script src="/assets/scroll-controls.js?v=20260226"></script>
-<script src="/admin/js/api.js?v=20260312"></script>
-<script src="/admin/js/utils.js?v=20260312"></script>
-<script src="/admin/js/auth.js?v=20260301"></script>
-<script src="/admin/js/nav.js?v=20260301"></script>
-<script src="/admin/js/analytics.js?v=20260226"></script>
+<script src="/assets/scroll-controls.js"></script>
+<script src="/admin/js/api.js"></script>
+<script src="/admin/js/utils.js"></script>
+<script src="/admin/js/auth.js"></script>
+<script src="/admin/js/nav.js"></script>
+<script src="/admin/js/analytics.js"></script>
 <script>
   if (RendezVoxAuth.requireLogin()) {
     RendezVoxNav.init();

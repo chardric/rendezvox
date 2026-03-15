@@ -197,48 +197,75 @@ class MetadataLookup
      * Look up genre for an artist via MusicBrainz.
      * Returns a mapped genre display name or null.
      */
-    public function lookupGenreByArtist(string $artistName): ?string
+    /**
+     * Look up genre and country by artist name via MusicBrainz.
+     * Returns ['genre' => ?string, 'country_code' => ?string].
+     */
+    public function lookupArtistMeta(string $artistName): array
     {
+        $result = ['genre' => null, 'country_code' => null];
+
         $query = urlencode($artistName);
         $url   = "https://musicbrainz.org/ws/2/artist/?query=artist:" . $query . "&limit=1&fmt=json";
 
         $this->rateLimit('musicbrainz', 1.0);
         $resp = @file_get_contents($url, false, $this->httpContext);
         if (!$resp) {
-            return null;
+            return $result;
         }
 
         $data    = json_decode($resp, true);
         $artists = $data['artists'] ?? [];
         if (empty($artists)) {
-            return null;
+            return $result;
         }
 
         $mbid  = $artists[0]['id'] ?? null;
         $score = (int) ($artists[0]['score'] ?? 0);
         if (!$mbid || $score < 80) {
-            return null;
+            return $result;
+        }
+
+        // Extract country from search result (area.iso-3166-1-codes)
+        $areaCodes = $artists[0]['area']['iso-3166-1-codes'] ?? [];
+        if (!empty($areaCodes)) {
+            $result['country_code'] = strtoupper($areaCodes[0]);
         }
 
         $this->rateLimit('musicbrainz', 1.0);
         $url2  = "https://musicbrainz.org/ws/2/artist/{$mbid}?inc=genres+tags&fmt=json";
         $resp2 = @file_get_contents($url2, false, $this->httpContext);
         if (!$resp2) {
-            return null;
+            return $result;
         }
 
-        $data2      = json_decode($resp2, true);
+        $data2 = json_decode($resp2, true);
+
+        // Extract country from detail response if not already found
+        if (!$result['country_code']) {
+            $areaCodes2 = $data2['area']['iso-3166-1-codes'] ?? [];
+            if (!empty($areaCodes2)) {
+                $result['country_code'] = strtoupper($areaCodes2[0]);
+            }
+        }
+
         $allEntries = array_merge($data2['genres'] ?? [], $data2['tags'] ?? []);
         usort($allEntries, fn($a, $b) => ($b['count'] ?? 0) - ($a['count'] ?? 0));
 
         foreach ($allEntries as $entry) {
             $mapped = self::mapGenre($entry['name']);
             if ($mapped) {
-                return $mapped;
+                $result['genre'] = $mapped;
+                break;
             }
         }
 
-        return null;
+        return $result;
+    }
+
+    public function lookupGenreByArtist(string $artistName): ?string
+    {
+        return $this->lookupArtistMeta($artistName)['genre'];
     }
 
     // ── MusicBrainz: recording lookup for year, genre, release ID ──
@@ -814,6 +841,9 @@ class MetadataLookup
         if (!empty($needs['album'])) {
             $parts[] = '"album": the album or single this song was released on';
         }
+        if (!empty($needs['country_code'])) {
+            $parts[] = '"country_code": the ISO 3166-1 alpha-2 country code of the artist\'s country of origin (e.g. US, GB, PH, KR, JP, AU, CA, DE, FR, BR)';
+        }
 
         $fieldList = implode(",\n", $parts);
 
@@ -937,7 +967,143 @@ class MetadataLookup
             }
         }
 
+        // Validate country_code
+        if (!empty($parsed['country_code']) && is_string($parsed['country_code'])) {
+            $cc = strtoupper(trim($parsed['country_code']));
+            if (preg_match('/^[A-Z]{2}$/', $cc)) {
+                $result['country_code'] = $cc;
+            }
+        }
+
         return !empty($result) ? $result : null;
+    }
+
+    /**
+     * Batch-verify metadata for multiple songs using Gemini AI.
+     * Sends up to 20 songs per API call to minimize quota usage.
+     *
+     * @param array $songs Array of ['id'=>int, 'artist'=>string, 'title'=>string, 'genre'=>string, 'year'=>int|null, 'album'=>string|null]
+     * @return array|null Map of song index => ['genre'=>..., 'year'=>..., 'album'=>...] with corrections, or null on failure
+     */
+    public function batchVerifyByAI(array $songs): ?array
+    {
+        if ($this->geminiApiKey === '' || empty($songs)) {
+            return null;
+        }
+
+        // Build song list for the prompt
+        $lines = [];
+        foreach ($songs as $i => $s) {
+            $n = $i + 1;
+            $year = !empty($s['year']) ? (int) $s['year'] : 'unknown';
+            $album = !empty($s['album']) ? $s['album'] : 'unknown';
+            $lines[] = "{$n}. \"{$s['title']}\" by {$s['artist']} — genre: {$s['genre']}, year: {$year}, album: {$album}";
+        }
+        $songList = implode("\n", $lines);
+
+        $prompt = "You are a music metadata expert. Below is a list of songs with their current metadata tags. "
+                . "Some may be incorrectly tagged. For each song, verify the genre, year, and album.\n\n"
+                . "Songs:\n{$songList}\n\n"
+                . "Return a JSON array where each element corresponds to a song (same order). "
+                . "For each song, include ONLY fields that need correction. If all fields are correct, return an empty object {}.\n\n"
+                . "Format: [{\"genre\":\"correct genre\",\"year\":2001,\"album\":\"correct album\"}, {}, ...]\n\n"
+                . "Rules:\n"
+                . "- Only include fields that are WRONG and need correction\n"
+                . "- Genre must be a single primary genre (e.g. Rock, Pop, Country, Jazz, R&B, Hip Hop, Electronic, Classical, Folk, Blues, Soul, Funk, Reggae, Latin, Metal, Punk, Gospel, Disco, Easy Listening, Pop Rock)\n"
+                . "- Year must be between 1900 and " . date('Y') . "\n"
+                . "- If a field is correct or you're unsure, omit it\n"
+                . "- Return valid JSON array only, no markdown or explanation";
+
+        $this->rateLimit('gemini', 0.15);
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='
+             . urlencode($this->geminiApiKey);
+
+        $payload = json_encode([
+            'contents' => [
+                ['parts' => [['text' => $prompt]]]
+            ],
+            'generationConfig' => [
+                'responseMimeType' => 'application/json',
+                'temperature'      => 0.1,
+                'maxOutputTokens'  => 2048,
+                'thinkingConfig'   => ['thinkingBudget' => 0],
+            ],
+        ]);
+
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\nUser-Agent: RendezVox/1.0\r\n",
+                'content'       => $payload,
+                'timeout'       => 30,
+                'ignore_errors' => true,
+            ],
+        ]);
+
+        $resp = @file_get_contents($url, false, $ctx);
+        if (!$resp) {
+            return null;
+        }
+
+        $data = json_decode($resp, true);
+        if (!$data) {
+            return null;
+        }
+
+        if (isset($data['error'])) {
+            $code = (int) ($data['error']['code'] ?? 0);
+            if ($code === 429) {
+                return ['_error' => 'rate_limited'];
+            }
+            return null;
+        }
+
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        if (!$text) {
+            return null;
+        }
+
+        $parsed = json_decode($text, true);
+        if (!is_array($parsed) || count($parsed) !== count($songs)) {
+            return null;
+        }
+
+        // Validate and clean each correction
+        $results = [];
+        foreach ($parsed as $i => $corrections) {
+            $clean = [];
+            if (!is_array($corrections)) {
+                $results[$i] = [];
+                continue;
+            }
+
+            if (!empty($corrections['genre']) && is_string($corrections['genre'])) {
+                $mapped = self::mapGenre($corrections['genre']);
+                $genre = $mapped ?: ucfirst(strtolower(trim($corrections['genre'])));
+                if (strlen($genre) >= 2 && strlen($genre) <= 30) {
+                    $clean['genre'] = $genre;
+                }
+            }
+
+            if (!empty($corrections['year'])) {
+                $year = (int) $corrections['year'];
+                if ($year >= 1900 && $year <= (int) date('Y')) {
+                    $clean['year'] = $year;
+                }
+            }
+
+            if (!empty($corrections['album']) && is_string($corrections['album'])) {
+                $album = trim($corrections['album']);
+                if (strlen($album) >= 2) {
+                    $clean['album'] = $album;
+                }
+            }
+
+            $results[$i] = $clean;
+        }
+
+        return $results;
     }
 
     /**
@@ -976,6 +1142,9 @@ class MetadataLookup
         }
         if (!empty($needs['album'])) {
             $parts[] = '"album": the album or single this song was released on';
+        }
+        if (!empty($needs['country_code'])) {
+            $parts[] = '"country_code": the ISO 3166-1 alpha-2 country code of the artist\'s country of origin (e.g. US, GB, PH, KR, JP, AU, CA, DE, FR, BR)';
         }
 
         $fieldList = implode(",\n", $parts);
@@ -1070,6 +1239,14 @@ class MetadataLookup
             $clean = trim($parsed['album']);
             if (strlen($clean) >= 2) {
                 $result['album'] = $clean;
+            }
+        }
+
+        // Validate country_code
+        if (!empty($parsed['country_code']) && is_string($parsed['country_code'])) {
+            $cc = strtoupper(trim($parsed['country_code']));
+            if (preg_match('/^[A-Z]{2}$/', $cc)) {
+                $result['country_code'] = $cc;
             }
         }
 

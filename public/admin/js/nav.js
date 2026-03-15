@@ -5,17 +5,30 @@ var RendezVoxNav = (function() {
 
   var showToast = RendezVoxUtils.showToast;
 
-  var pages = [
-    { href: '/admin/dashboard', label: 'Dashboard',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
-    { href: '/admin/media',     label: 'Media',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
-    { href: '/admin/playlists', label: 'Playlists',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>' },
-    { href: '/admin/schedules', label: 'Schedules',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
-    { href: '/admin/tts', label: 'Station IDs', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>' },
-    { href: '/admin/requests',  label: 'Requests',   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' },
-    { href: '/admin/users',     label: 'Users',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>', role: 'super_admin' },
-    { href: '/admin/settings',  label: 'Settings',   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>', role: 'super_admin' },
-    { href: '/admin/analytics', label: 'Analytics',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' },
+  var navGroups = [
+    { key: 'main', label: '', items: [
+      { href: '/admin/dashboard', label: 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
+    ]},
+    { key: 'content', label: 'Content', items: [
+      { href: '/admin/media',     label: 'Media Library', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
+      { href: '/admin/playlists', label: 'Playlists',     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>' },
+      { href: '/admin/tts',       label: 'Station IDs',   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>' },
+      { href: '/admin/segments',  label: 'Segments',      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10 8 16 11 10 14 10 8"/></svg>' },
+    ]},
+    { key: 'broadcast', label: 'On Air', items: [
+      { href: '/admin/schedules', label: 'Schedules', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
+      { href: '/admin/requests',  label: 'Requests',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' },
+    ]},
+    { key: 'system', label: 'System', items: [
+      { href: '/admin/analytics', label: 'Analytics', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' },
+      { href: '/admin/users',     label: 'Users',    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>', role: 'super_admin' },
+      { href: '/admin/settings',  label: 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>', role: 'super_admin' },
+    ]},
   ];
+
+  // Flatten for page title lookup
+  var pages = [];
+  navGroups.forEach(function(g) { g.items.forEach(function(p) { pages.push(p); }); });
 
   // Shared file input for avatar uploads (sidebar + modal)
   var avatarInput;
@@ -29,11 +42,39 @@ var RendezVoxNav = (function() {
     var sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
 
+    // Load collapsed groups from localStorage
+    var collapsedGroups = {};
+    try { collapsedGroups = JSON.parse(localStorage.getItem('rendezvox_nav_collapsed') || '{}'); } catch(e) {}
+
+    var chevronSvg = '<svg class="nav-group-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+
     var navHtml = '';
-    pages.forEach(function(p) {
-      if (p.role && p.role !== userRole) return;
-      var cls = (current === p.href) ? ' active' : '';
-      navHtml += '<a href="' + p.href + '" class="' + cls + '" data-label="' + p.label + '">' + p.icon + '<span class="nav-label">' + p.label + '</span></a>';
+    navGroups.forEach(function(g) {
+      // Filter items by role
+      var visibleItems = g.items.filter(function(p) { return !p.role || p.role === userRole; });
+      if (visibleItems.length === 0) return;
+
+      // Check if any item in this group is active
+      var groupHasActive = visibleItems.some(function(p) { return current === p.href; });
+
+      // Groups with a label get a collapsible header
+      if (g.label) {
+        // Auto-expand if active page is in this group; otherwise respect saved state
+        var isCollapsed = groupHasActive ? false : (collapsedGroups[g.key] === true);
+        navHtml += '<div class="nav-group' + (isCollapsed ? ' collapsed' : '') + '" data-group="' + g.key + '">';
+        navHtml += '<button type="button" class="nav-group-header" data-group="' + g.key + '">' +
+          '<span class="nav-group-label">' + g.label + '</span>' + chevronSvg + '</button>';
+        navHtml += '<div class="nav-group-items">';
+      }
+
+      visibleItems.forEach(function(p) {
+        var cls = (current === p.href) ? ' active' : '';
+        navHtml += '<a href="' + p.href + '" class="' + cls + '" data-label="' + p.label + '">' + p.icon + '<span class="nav-label">' + p.label + '</span></a>';
+      });
+
+      if (g.label) {
+        navHtml += '</div></div>';
+      }
     });
 
     // Build compact sidebar avatar (32px for inline use)
@@ -78,6 +119,20 @@ var RendezVoxNav = (function() {
     document.getElementById('btnCollapseSidebar').addEventListener('click', function() {
       var isCollapsed = sidebar.classList.toggle('collapsed');
       localStorage.setItem('rendezvox_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+    });
+
+    // Nav group collapse toggles
+    sidebar.querySelectorAll('.nav-group-header').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var group = btn.closest('.nav-group');
+        if (!group) return;
+        group.classList.toggle('collapsed');
+        // Persist state
+        var saved = {};
+        try { saved = JSON.parse(localStorage.getItem('rendezvox_nav_collapsed') || '{}'); } catch(e) {}
+        saved[btn.getAttribute('data-group')] = group.classList.contains('collapsed');
+        localStorage.setItem('rendezvox_nav_collapsed', JSON.stringify(saved));
+      });
     });
 
     // Avatar upload (shared input)
@@ -157,9 +212,6 @@ var RendezVoxNav = (function() {
 
     // Inject profile modal
     injectProfileModal();
-
-    // Quick theme switcher in sidebar footer
-    initThemeSwitcher();
 
     // Inject copyright footer into .main
     var mainEl = document.querySelector('.main');
@@ -567,46 +619,6 @@ var RendezVoxNav = (function() {
   }
 
   /* ── Quick theme switcher (sidebar footer) ──────────── */
-  function initThemeSwitcher() {
-    var footer = document.querySelector('.sidebar-footer');
-    if (!footer || !window.RendezVoxTheme) return;
-
-    var themes = RendezVoxTheme.list();
-    var current = RendezVoxTheme.current();
-
-    var row = document.createElement('div');
-    row.className = 'sidebar-theme-row';
-
-    var icon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 000 20 5 5 0 005-5 3 3 0 00-3-3h-1.5a1.5 1.5 0 01-1.5-1.5 1.5 1.5 0 011.5-1.5H14a2 2 0 002-2 10 10 0 00-4-7z"/></svg>';
-
-    var sel = document.createElement('select');
-    sel.className = 'sidebar-theme-select';
-    sel.title = 'Switch theme';
-
-    var lastGroup = '';
-    var html = '';
-    Object.keys(themes).forEach(function(key) {
-      var t = themes[key];
-      if (t.group && t.group !== lastGroup) {
-        if (lastGroup) html += '</optgroup>';
-        html += '<optgroup label="' + t.group + '">';
-        lastGroup = t.group;
-      }
-      var selected = (key === current) ? ' selected' : '';
-      html += '<option value="' + key + '"' + selected + '>' + t.label + '</option>';
-    });
-    if (lastGroup) html += '</optgroup>';
-    sel.innerHTML = html;
-
-    row.innerHTML = icon;
-    row.appendChild(sel);
-    footer.appendChild(row);
-
-    sel.addEventListener('change', function() {
-      RendezVoxTheme.apply(sel.value);
-      showToast('Theme: ' + (themes[sel.value] || {}).label);
-    });
-  }
 
   /* ── Sync accent color from server ────────────────── */
   function syncAccentFromServer() {

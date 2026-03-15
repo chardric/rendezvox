@@ -4,6 +4,7 @@
 var RendezVoxAnalytics = (function() {
 
   var escHtml = RendezVoxUtils.escHtml;
+  var escAttr = RendezVoxUtils.escAttr;
 
   // ── Color palette ──────────────────────────────────────
   var COLORS = [
@@ -60,6 +61,7 @@ var RendezVoxAnalytics = (function() {
       if (name === 'listeners') loadListenerChart(document.getElementById('listenerRange').value);
       if (name === 'played') loadPopularSongs();
       if (name === 'requested') loadPopularRequests();
+      if (name === 'retention') initRetention();
       if (name === 'stats') loadLibraryStats();
     });
   }
@@ -520,6 +522,78 @@ var RendezVoxAnalytics = (function() {
     var g = parseInt(hex.slice(3, 5), 16);
     var b = parseInt(hex.slice(5, 7), 16);
     return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  // ── Retention Heatmap ──────────────────────────────
+
+  function loadRetention() {
+    var sort  = document.getElementById('retentionSort').value;
+    var limit = document.getElementById('retentionLimit').value;
+
+    RendezVoxAPI.get('/admin/retention?sort=' + sort + '&limit=' + limit)
+      .then(function(data) { renderRetention(data.songs || []); })
+      .catch(function() {
+        document.getElementById('retentionEmpty').classList.remove('hidden');
+        document.getElementById('retentionGrid').innerHTML = '';
+      });
+  }
+
+  function renderRetention(songs) {
+    var grid  = document.getElementById('retentionGrid');
+    var empty = document.getElementById('retentionEmpty');
+
+    if (!songs.length) {
+      grid.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+
+    // Build heatmap rows
+    var html = '<div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden">';
+    // Header
+    html += '<div style="padding:8px 12px;font-weight:600;background:var(--bg-card);border-bottom:1px solid var(--border)">Song</div>';
+    html += '<div style="padding:8px 12px;font-weight:600;background:var(--bg-card);border-bottom:1px solid var(--border);text-align:center;min-width:60px">Score</div>';
+    html += '<div style="padding:8px 12px;font-weight:600;background:var(--bg-card);border-bottom:1px solid var(--border);text-align:center;min-width:50px">Plays</div>';
+    html += '<div style="padding:8px 12px;font-weight:600;background:var(--bg-card);border-bottom:1px solid var(--border);text-align:center;min-width:50px">BPM</div>';
+    html += '<div style="padding:8px 12px;font-weight:600;background:var(--bg-card);border-bottom:1px solid var(--border);text-align:center;min-width:70px">Energy</div>';
+
+    songs.forEach(function(s) {
+      var score = parseFloat(s.retention_score) || 0;
+      var scoreColor = retentionColor(score);
+      var scorePct = Math.round(score * 100);
+      var sign = scorePct > 0 ? '+' : '';
+
+      html += '<div style="padding:6px 12px;border-bottom:1px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(s.artist + ' — ' + s.title) + '">' +
+        '<span style="color:var(--text)">' + escHtml(s.title) + '</span>' +
+        '<span style="color:var(--text-dim);margin-left:6px">— ' + escHtml(s.artist) + '</span>' +
+        '</div>';
+      html += '<div style="padding:6px 12px;border-bottom:1px solid var(--border);text-align:center;font-weight:600;color:' + scoreColor + '">' + sign + scorePct + '%</div>';
+      html += '<div style="padding:6px 12px;border-bottom:1px solid var(--border);text-align:center;color:var(--text-dim)">' + (s.play_count || 0) + '</div>';
+      html += '<div style="padding:6px 12px;border-bottom:1px solid var(--border);text-align:center;color:var(--text-dim)">' + (s.bpm || '—') + '</div>';
+      html += '<div style="padding:6px 12px;border-bottom:1px solid var(--border);text-align:center">' +
+        '<div style="background:var(--bg-input);border-radius:3px;height:6px;overflow:hidden">' +
+        '<div style="background:' + scoreColor + ';height:100%;width:' + Math.round((parseFloat(s.energy) || 0) * 100) + '%"></div>' +
+        '</div></div>';
+    });
+
+    html += '</div>';
+    grid.innerHTML = html;
+  }
+
+  function retentionColor(score) {
+    if (score <= -0.15) return '#f87171';
+    if (score < 0) return '#f59e0b';
+    if (score === 0) return 'var(--text-dim)';
+    return '#4ade80';
+  }
+
+  function initRetention() {
+    var sortEl  = document.getElementById('retentionSort');
+    var limitEl = document.getElementById('retentionLimit');
+    if (sortEl)  sortEl.addEventListener('change', loadRetention);
+    if (limitEl) limitEl.addEventListener('change', loadRetention);
+    loadRetention();
   }
 
   return { init: init };

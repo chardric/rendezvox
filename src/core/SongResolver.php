@@ -78,7 +78,7 @@ class SongResolver
     private function searchExact(string $title, string $artist): array
     {
         $sql = '
-            SELECT s.id, s.title, a.name AS artist
+            SELECT s.id, s.title, s.country_code, a.name AS artist
             FROM songs s
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
@@ -102,7 +102,7 @@ class SongResolver
     private function searchPartial(string $title, string $artist): array
     {
         $sql = '
-            SELECT s.id, s.title, a.name AS artist
+            SELECT s.id, s.title, s.country_code, a.name AS artist
             FROM songs s
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
@@ -129,6 +129,7 @@ class SongResolver
             SELECT
                 s.id,
                 s.title,
+                s.country_code,
                 a.name AS artist,
                 GREATEST(
                     similarity(s.title, :t1),
@@ -168,7 +169,7 @@ class SongResolver
     private function searchArtistExact(string $artist): array
     {
         $sql = '
-            SELECT s.id, s.title, a.name AS artist
+            SELECT s.id, s.title, s.country_code, a.name AS artist
             FROM songs s
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
@@ -185,7 +186,7 @@ class SongResolver
     private function searchArtistPartial(string $artist): array
     {
         $sql = '
-            SELECT s.id, s.title, a.name AS artist
+            SELECT s.id, s.title, s.country_code, a.name AS artist
             FROM songs s
             JOIN artists a ON a.id = s.artist_id
             WHERE s.is_active = true
@@ -205,6 +206,7 @@ class SongResolver
             SELECT
                 s.id,
                 s.title,
+                s.country_code,
                 a.name AS artist,
                 GREATEST(
                     similarity(a.name, :a1),
@@ -235,9 +237,10 @@ class SongResolver
     {
         return array_map(function ($r) {
             return [
-                'id'     => (int) $r['id'],
-                'title'  => $r['title'],
-                'artist' => $r['artist'],
+                'id'           => (int) $r['id'],
+                'title'        => $r['title'],
+                'artist'       => $r['artist'],
+                'country_code' => $r['country_code'] ?? null,
             ];
         }, $rows);
     }

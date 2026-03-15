@@ -195,8 +195,9 @@ HTTP_PORT=$(find_available_port 8888)
 # ==========================================================
 log "Step 6/8: Creating directories and configuration..."
 
-mkdir -p "$RENDEZVOX_DIR"/{data/postgres,data/avatars,data/logs,music,stationids}
-chown -R "${SUDO_USER:-1000}":"${SUDO_USER:-1000}" "$RENDEZVOX_DIR"/data 2>/dev/null || true
+mkdir -p "$RENDEZVOX_DIR"/{data/postgres,data/avatars,data/logs,data/logos,music,stationids,tts,installers}
+chown -R "${SUDO_USER:-1000}":"${SUDO_USER:-1000}" "$RENDEZVOX_DIR"/{data,music,stationids,tts,installers} 2>/dev/null || true
+chmod -R 775 "$RENDEZVOX_DIR"/{music,stationids,tts} 2>/dev/null || true
 chown -R 1000:1000 "$RENDEZVOX_DIR"/data/postgres 2>/dev/null || true
 
 # Generate .env — skip if already exists (re-running installer)

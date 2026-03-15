@@ -40,7 +40,7 @@ class SongAiTagHandler
 
         // Load song with artist/genre
         $stmt = $db->prepare('
-            SELECT s.id, s.title, s.year, s.file_path,
+            SELECT s.id, s.title, s.year, s.file_path, s.country_code,
                    a.name AS artist_name, c.name AS genre_name
             FROM songs s
             JOIN artists a ON a.id = s.artist_id
@@ -67,11 +67,12 @@ class SongAiTagHandler
         }
 
         $needs = [
-            'genre'  => true,
-            'year'   => true,
-            'artist' => true,
-            'title'  => true,
-            'album'  => true,
+            'genre'        => true,
+            'year'         => true,
+            'artist'       => true,
+            'title'        => true,
+            'album'        => true,
+            'country_code' => true,
         ];
 
         // Try configured provider(s)
@@ -102,10 +103,11 @@ class SongAiTagHandler
             'suggestions' => $result,
             'source'      => $source,
             'current'     => [
-                'title'  => $song['title'],
-                'artist' => $song['artist_name'],
-                'genre'  => $song['genre_name'],
-                'year'   => $song['year'] ? (int) $song['year'] : null,
+                'title'        => $song['title'],
+                'artist'       => $song['artist_name'],
+                'genre'        => $song['genre_name'],
+                'year'         => $song['year'] ? (int) $song['year'] : null,
+                'country_code' => $song['country_code'] ?? null,
             ],
         ]);
     }

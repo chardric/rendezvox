@@ -682,6 +682,24 @@ Nginx rate limits on sensitive endpoints:
 
 ## Changelog
 
+### v1.0.3 — 2026-03-15
+
+**Country of Origin**
+- Artist country detection via MusicBrainz area codes and Gemini/Ollama AI
+- Country displayed as flag emoji across all UI surfaces (admin, listener, dashboard)
+- Country filter dropdown in Media Library
+- `classify_songs.php --country` for batch country backfill
+- Auto-OPM: songs with `country_code = 'PH'` auto-assigned to OPM category
+- `fix_genres.php` auto-tag pipeline now includes country detection
+
+**Segments**
+- Fixed segment song picker always advancing index (prevents stuck rotation on missing songs)
+- Removed redundant file_exists check that could skip valid songs
+
+**UI**
+- Fixed app logo visibility on light theme (dark background container with rounded corners)
+- Fixed "RendezVox" text invisible on light backgrounds (login page and sidebar)
+
 ### v1.0.2 — 2026-03-13
 
 **AI & Metadata**
@@ -793,28 +811,6 @@ Nginx rate limits on sensitive endpoints:
 
 ---
 
-## Roadmap
+## License
 
-### Planned Features
-- **iOS App** — Native Swift/SwiftUI listener app with background audio and AirPlay support
-- **Live DJ Mode** — Real-time microphone input mixing with Liquidsoap for live broadcasts
-- **Multi-Station Support** — Manage multiple radio stations from a single admin panel
-- **Podcast Integration** — Schedule and stream podcast episodes alongside music rotation
-- **Advanced Analytics** — Listening trends, peak hours, geographic listener distribution
-- **API Webhooks** — Notify external services on song changes, requests, and station events
-- **Theme Customization** — Admin-configurable listener page themes (colors, layout, branding)
-- **Playlist Sharing** — Public shareable playlist links for listeners
-- **Song Voting** — Listeners upvote/downvote songs to influence rotation weights
-- **Scheduled Announcements** — Text-to-speech or pre-recorded announcements at scheduled times
-- **Remote DJ Panel** — Web-based DJ interface for remote hosts to manage live shows
-
-### Infrastructure
-- **Kubernetes Helm Chart** — Production-grade deployment with horizontal scaling
-- **S3/MinIO Storage** — Cloud-compatible music library storage backend
-- **Prometheus + Grafana** — Observability stack for monitoring stream health and performance
-- **WebSocket Support** — Lower-latency alternative to SSE for real-time updates
-
----
-
-© 2024–2026 [DownStreamTech](https://downstreamtech.net) — Licensed under the [Apache License 2.0](LICENSE)
-Developed by **Engr. Richard R. Ayuyang, PhD** — Professor II, CSU | [chadlinuxtech.net](https://chadlinuxtech.net)
+Copyright 2026 [DownStreamTech](https://downstreamtech.net). All rights reserved.

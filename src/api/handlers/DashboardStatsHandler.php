@@ -51,6 +51,7 @@ class DashboardStatsHandler
                 s.title,
                 s.duration_ms,
                 s.has_cover_art,
+                s.country_code,
                 a.name       AS artist_name,
                 c.name       AS category_name,
                 p.name       AS playlist_name,
@@ -87,6 +88,7 @@ class DashboardStatsHandler
                 'playlist'      => $npRow['playlist_name'],
                 'duration_ms'   => (int) $npRow['duration_ms'],
                 'has_cover_art' => (bool) $npRow['has_cover_art'],
+                'country_code'  => $npRow['country_code'] ?? null,
                 'source'        => $npSource,
                 'started_at'    => $npRow['started_at'],
                 'is_playing'    => (bool) $npRow['is_playing'],
@@ -113,7 +115,7 @@ class DashboardStatsHandler
 
         if ($nextSongId && (int) $nextSongId !== (int) $currentSongId) {
             $ntStmt = $db->prepare('
-                SELECT s.title, a.name AS artist_name, c.name AS category_name,
+                SELECT s.title, s.country_code, a.name AS artist_name, c.name AS category_name,
                        p.name AS playlist_name
                 FROM songs      s
                 JOIN artists    a ON a.id = s.artist_id
@@ -127,11 +129,12 @@ class DashboardStatsHandler
                 // Use rotation_state.next_source for the Up Next badge —
                 // NOT play_history, which reflects the song's last historical play
                 $nextTrack = [
-                    'title'    => $ntRow['title'],
-                    'artist'   => $ntRow['artist_name'],
-                    'category' => $ntRow['category_name'],
-                    'playlist' => $ntRow['playlist_name'],
-                    'source'   => $npRow['next_source'] ?? 'rotation',
+                    'title'        => $ntRow['title'],
+                    'artist'       => $ntRow['artist_name'],
+                    'category'     => $ntRow['category_name'],
+                    'playlist'     => $ntRow['playlist_name'],
+                    'country_code' => $ntRow['country_code'] ?? null,
+                    'source'       => $npRow['next_source'] ?? 'rotation',
                 ];
             }
         }

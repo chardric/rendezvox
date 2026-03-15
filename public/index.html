@@ -310,6 +310,34 @@ button:hover{color:#fff}
 @keyframes fadeSlideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .song-changing{animation:fadeSlideIn .4s ease}
 
+/* Voting section */
+.vote-section{margin-top:12px;display:none}
+.vote-section.active{display:block}
+.vote-title{font-size:.78rem;color:#888;text-align:center;margin-bottom:8px}
+.vote-title strong{color:#ccc}
+.vote-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.vote-card{
+  background:#141416;border:1px solid #232326;border-radius:8px;
+  padding:8px 10px;cursor:pointer;transition:border-color .2s,background .2s;
+  text-align:left;
+}
+.vote-card:hover{border-color:var(--accent);background:#1a1a1e}
+.vote-card.voted{border-color:var(--accent);background:rgba(255,120,0,.08)}
+.vote-card .vc-title{color:#e0e0e0;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vote-card .vc-artist{color:#666;font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vote-card .vc-votes{color:var(--accent);font-size:.65rem;margin-top:2px}
+.vote-timer{font-size:.65rem;color:#555;text-align:center;margin-top:6px}
+
+/* Recap section */
+.recap-section{margin-top:12px;display:none}
+.recap-section.active{display:block}
+.recap-card{
+  background:#141416;border:1px solid #232326;border-radius:8px;
+  padding:12px 14px;
+}
+.recap-card .rc-title{color:#ccc;font-size:.8rem;font-weight:600;margin-bottom:4px}
+.recap-card .rc-body{color:#888;font-size:.75rem;line-height:1.5;white-space:pre-wrap}
+
 /* Recently played */
 .history-section{margin-top:10px;margin-bottom:12px}
 .history-toggle{
@@ -499,6 +527,19 @@ body::after{
   </div>
   <div class="listeners" id="listeners"><span class="live-badge" id="liveBadge">LIVE</span> Listeners: <span id="listenerCount">—</span></div>
 
+  <div class="vote-section" id="voteSection">
+    <div class="vote-title" id="voteTitle">Vote for the next song</div>
+    <div class="vote-grid" id="voteGrid"></div>
+    <div class="vote-timer" id="voteTimer"></div>
+  </div>
+
+  <div class="recap-section" id="recapSection">
+    <div class="recap-card">
+      <div class="rc-title" id="recapTitle"></div>
+      <div class="rc-body" id="recapBody"></div>
+    </div>
+  </div>
+
   <div class="history-section" id="historySection">
     <div class="history-toggle" id="historyToggle">Recently Played <span class="history-arrow">&#9662;</span></div>
     <div class="history-list" id="historyList"></div>
@@ -598,6 +639,11 @@ body::after{
   var iconMuted = document.getElementById('iconMuted');
   var slider    = document.getElementById('volumeSlider');
   var overlay   = document.getElementById('tapOverlay');
+  function countryFlag(code) {
+    if (!code || code.length !== 2) return '';
+    return String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(0) - 65)
+         + String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(1) - 65);
+  }
   var titleEl      = document.getElementById('songTitle');
   var artistEl     = document.getElementById('songArtist');
   var upNextEl     = document.getElementById('upNext').querySelector('span');
@@ -1003,7 +1049,7 @@ body::after{
         if (data.song) {
           triggerSongChange(data.song.title);
           titleEl.textContent  = data.song.title;
-          artistEl.textContent = data.song.artist;
+          artistEl.textContent = (data.song.country_code ? countryFlag(data.song.country_code) + ' ' : '') + data.song.artist;
           checkMarquee(titleEl);
           checkMarquee(artistEl);
           document.title = data.song.title + ' — ' + data.song.artist + ' | ' + stationName;
@@ -1024,7 +1070,7 @@ body::after{
         }
       }
       if (data.next_track) {
-        upNextEl.textContent = data.next_track.title + ' — ' + data.next_track.artist;
+        upNextEl.textContent = data.next_track.title + ' — ' + (data.next_track.country_code ? countryFlag(data.next_track.country_code) + ' ' : '') + data.next_track.artist;
       } else {
         upNextEl.textContent = '—';
       }
@@ -1051,7 +1097,7 @@ body::after{
       if (data.song && !reconnecting) {
         triggerSongChange(data.song.title);
         titleEl.textContent  = data.song.title;
-        artistEl.textContent = data.song.artist;
+        artistEl.textContent = (data.song.country_code ? countryFlag(data.song.country_code) + ' ' : '') + data.song.artist;
         checkMarquee(titleEl);
         checkMarquee(artistEl);
         document.title = data.song.title + ' — ' + data.song.artist + ' | ' + stationName;
@@ -1062,7 +1108,7 @@ body::after{
         tickProgress();
       }
       if (data.next_track) {
-        upNextEl.textContent = data.next_track.title + ' — ' + data.next_track.artist;
+        upNextEl.textContent = data.next_track.title + ' — ' + (data.next_track.country_code ? countryFlag(data.next_track.country_code) + ' ' : '') + data.next_track.artist;
       } else {
         upNextEl.textContent = '—';
       }
@@ -1382,6 +1428,92 @@ body::after{
   }
   updateAmbient();
   setInterval(updateAmbient, 1800000);
+
+  // ── Voting ──
+  var voteSection = document.getElementById('voteSection');
+  var voteGrid    = document.getElementById('voteGrid');
+  var voteTimer   = document.getElementById('voteTimer');
+  var votePollId  = null;
+  var voteInterval = null;
+
+  function loadVotePoll() {
+    fetch('/api/vote/poll').then(function(r){ return r.json(); }).then(function(data) {
+      if (!data.enabled || !data.poll) {
+        voteSection.classList.remove('active');
+        return;
+      }
+      voteSection.classList.add('active');
+      votePollId = data.poll.id;
+      var candidates = data.poll.candidates || [];
+      var votedId = data.poll.voted_for || null;
+      var html = '';
+      candidates.forEach(function(c) {
+        var votedCls = (votedId && c.song_id === votedId) ? ' voted' : '';
+        html += '<div class="vote-card' + votedCls + '" data-sid="' + c.song_id + '">' +
+          '<div class="vc-title">' + escHtml(c.title) + '</div>' +
+          '<div class="vc-artist">' + escHtml(c.artist) + '</div>' +
+          '<div class="vc-votes">' + (c.votes || 0) + ' vote' + (c.votes !== 1 ? 's' : '') + '</div>' +
+          '</div>';
+      });
+      voteGrid.innerHTML = html;
+      updateVoteTimer(data.poll.expires_at);
+
+      voteGrid.querySelectorAll('.vote-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+          if (votedId) return;
+          var sid = parseInt(card.getAttribute('data-sid'));
+          castVote(sid);
+        });
+      });
+    }).catch(function(){ voteSection.classList.remove('active'); });
+  }
+
+  function castVote(songId) {
+    fetch('/api/vote/cast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ poll_id: votePollId, song_id: songId })
+    }).then(function(r){ return r.json(); }).then(function(data) {
+      if (data.error) return;
+      loadVotePoll();
+    }).catch(function(){});
+  }
+
+  function updateVoteTimer(expiresAt) {
+    if (!expiresAt) { voteTimer.textContent = ''; return; }
+    var exp = new Date(expiresAt).getTime();
+    function tick() {
+      var remaining = Math.max(0, exp - Date.now());
+      if (remaining <= 0) { voteTimer.textContent = 'Poll ended'; loadVotePoll(); return; }
+      var m = Math.floor(remaining / 60000);
+      var s = Math.floor((remaining % 60000) / 1000);
+      voteTimer.textContent = m + ':' + (s < 10 ? '0' : '') + s + ' remaining';
+      setTimeout(tick, 1000);
+    }
+    tick();
+  }
+
+  loadVotePoll();
+  voteInterval = setInterval(loadVotePoll, 30000);
+
+  // ── Recap ──
+  var recapSection = document.getElementById('recapSection');
+  var recapTitle   = document.getElementById('recapTitle');
+  var recapBody    = document.getElementById('recapBody');
+
+  function loadRecap() {
+    fetch('/api/recaps').then(function(r){ return r.json(); }).then(function(data) {
+      if (!data.enabled || !data.recap) {
+        recapSection.classList.remove('active');
+        return;
+      }
+      recapSection.classList.add('active');
+      recapTitle.textContent = data.recap.title || "Today's Recap";
+      recapBody.textContent = data.recap.body || '';
+    }).catch(function(){ recapSection.classList.remove('active'); });
+  }
+
+  loadRecap();
 
   // ── Service worker registration ──
   if ('serviceWorker' in navigator) {

@@ -62,10 +62,13 @@ var RendezVoxSettings = (function() {
       checkInitialNormStatus();
       checkInitialSilenceStatus();
       checkInitialRenameStatus();
+      checkInitialMoodStatus();
+      initSmartFeatures();
       loadNormTarget();
       loadAutoNorm();
       loadAutoSilence();
       loadAutoRename();
+      loadAutoMood();
       loadAppVersion();
       initEq();
       initLocationPicker();
@@ -898,8 +901,13 @@ var RendezVoxSettings = (function() {
 
   // ── Reset to Defaults ──────────────────────────────
   function resetToDefaults() {
-    if (!confirm('Reset all settings to their default values? This will save immediately.')) return;
+    RendezVoxConfirm('Reset all settings to their default values? This will save immediately.', { title: 'Reset Settings' }).then(function(ok) {
+      if (!ok) return;
+      doResetToDefaults();
+    });
+  }
 
+  function doResetToDefaults() {
     var promises = [];
     var resetKeys = {};
     Object.keys(groups).forEach(function(groupName) {
@@ -2170,10 +2178,248 @@ var RendezVoxSettings = (function() {
     });
   }
 
+  // ── Smart Features ─────────────────────────────────
+
+  var smartToggles = [
+    { key: 'mood_programming_enabled',    id: 'smartMoodEnabled',      label: 'Mood programming' },
+    { key: 'weather_reactive_enabled',    id: 'smartWeatherEnabled',   label: 'Weather-reactive' },
+    { key: 'retention_scoring_enabled',   id: 'smartRetentionEnabled', label: 'Retention scoring' },
+    { key: 'smart_jingle_enabled',        id: 'smartJingleEnabled',    label: 'Smart jingle' },
+    { key: 'crossfade_intelligence',      id: 'smartCrossfadeEnabled', label: 'Crossfade intelligence' },
+    { key: 'voting_enabled',              id: 'smartVotingEnabled',    label: 'Voting' },
+    { key: 'recap_enabled',               id: 'smartRecapEnabled',     label: 'Show recaps' },
+    { key: 'segment_scheduling_enabled',  id: 'smartSegmentEnabled',   label: 'Segment scheduling' },
+  ];
+
+  function initSmartFeatures() {
+    smartToggles.forEach(function(t) {
+      var el = document.getElementById(t.id);
+      if (!el) return;
+      var s = settings[t.key];
+      if (s) el.checked = (s.value === 'true');
+      el.addEventListener('change', function() { saveSmartToggle(t.key, t.id, t.label); });
+    });
+
+    // Retention threshold
+    var thEl = document.getElementById('smartRetentionThreshold');
+    if (thEl) {
+      var s = settings['retention_demote_threshold'];
+      if (s) thEl.value = s.value || '-0.15';
+      thEl.addEventListener('change', function() {
+        RendezVoxAPI.put('/admin/settings/retention_demote_threshold', { value: thEl.value.trim() })
+          .then(function() {
+            if (settings['retention_demote_threshold']) settings['retention_demote_threshold'].value = thEl.value.trim();
+            showToast('Retention threshold saved');
+          })
+          .catch(function(err) { showToast((err && err.error) || 'Save failed', 'error'); });
+      });
+    }
+
+    // Voting params
+    var durEl = document.getElementById('smartVotingDuration');
+    var canEl = document.getElementById('smartVotingCandidates');
+    if (durEl) {
+      var s = settings['voting_duration_minutes'];
+      if (s) durEl.value = s.value || '15';
+      durEl.addEventListener('change', function() {
+        RendezVoxAPI.put('/admin/settings/voting_duration_minutes', { value: durEl.value })
+          .then(function() {
+            if (settings['voting_duration_minutes']) settings['voting_duration_minutes'].value = durEl.value;
+            showToast('Voting duration saved');
+          })
+          .catch(function(err) { showToast((err && err.error) || 'Save failed', 'error'); });
+      });
+    }
+    if (canEl) {
+      var s = settings['voting_candidate_count'];
+      if (s) canEl.value = s.value || '4';
+      canEl.addEventListener('change', function() {
+        RendezVoxAPI.put('/admin/settings/voting_candidate_count', { value: canEl.value })
+          .then(function() {
+            if (settings['voting_candidate_count']) settings['voting_candidate_count'].value = canEl.value;
+            showToast('Candidate count saved');
+          })
+          .catch(function(err) { showToast((err && err.error) || 'Save failed', 'error'); });
+      });
+    }
+  }
+
+  function resetSmartFeatures() {
+    RendezVoxConfirm('Disable all smart features?', { title: 'Reset Smart Features' }).then(function(ok) {
+      if (!ok) return;
+      var promises = smartToggles.map(function(t) {
+        return RendezVoxAPI.put('/admin/settings/' + t.key, { value: 'false' }).then(function() {
+          if (settings[t.key]) settings[t.key].value = 'false';
+          var el = document.getElementById(t.id);
+          if (el) el.checked = false;
+        });
+      });
+      Promise.all(promises)
+        .then(function() { showToast('All smart features disabled'); })
+        .catch(function() { showToast('Some features failed to reset', 'error'); });
+    });
+  }
+
+  function saveSmartToggle(key, elId, label) {
+    var el = document.getElementById(elId);
+    var val = el.checked ? 'true' : 'false';
+    RendezVoxAPI.put('/admin/settings/' + key, { value: val })
+      .then(function() {
+        if (settings[key]) settings[key].value = val;
+        showToast(label + ' ' + (el.checked ? 'enabled' : 'disabled'));
+      })
+      .catch(function(err) {
+        showToast((err && err.error) || 'Save failed', 'error');
+        el.checked = !el.checked;
+      });
+  }
+
+  // ── Mood Analysis Tool ────────────────────────────
+
+  var moodPollTimer = null;
+
+  function setMoodButtons(running) {
+    var btnStart = document.getElementById('btnMoodAnalyze');
+    var btnStop  = document.getElementById('btnStopMood');
+    if (running) {
+      btnStart.disabled = true;
+      btnStart.textContent = 'Analyzing…';
+      btnStop.classList.remove('hidden');
+    } else {
+      btnStart.disabled = false;
+      btnStart.textContent = 'Analyze Mood';
+      btnStop.classList.add('hidden');
+    }
+  }
+
+  function startMoodAnalysis() {
+    setMoodButtons(true);
+    RendezVoxAPI.post('/admin/mood-analyze', {})
+      .then(function(res) {
+        var msg = res.message || 'Mood analysis started';
+        var isBlocked = msg.indexOf('already running') !== -1;
+        showToast(msg, isBlocked ? 'error' : 'success');
+        if (isBlocked) { setMoodButtons(false); return; }
+        if (res.auto_mood_disabled) {
+          moodWasAutoEnabled = true;
+          var el = document.getElementById('autoMoodEnabled');
+          if (el) el.checked = false;
+          if (settings['auto_mood_analyze_enabled']) settings['auto_mood_analyze_enabled'].value = 'false';
+        }
+        if (res.progress) showMoodProgress(res.progress);
+        pollMoodStatus();
+      })
+      .catch(function(err) {
+        setMoodButtons(false);
+        showToast((err && err.error) || 'Failed to start mood analysis', 'error');
+      });
+  }
+
+  function stopMoodAnalysis() {
+    RendezVoxAPI.del('/admin/mood-analyze')
+      .then(function(res) { showToast(res.message || 'Stopping mood analysis…'); })
+      .catch(function(err) { showToast((err && err.error) || 'Failed to stop', 'error'); });
+  }
+
+  function pollMoodStatus() {
+    if (moodPollTimer) clearInterval(moodPollTimer);
+    moodPollTimer = setInterval(function() {
+      RendezVoxAPI.get('/admin/mood-analyze')
+        .then(function(data) {
+          showMoodProgress(data);
+          if (data.status !== 'running') {
+            clearInterval(moodPollTimer);
+            moodPollTimer = null;
+            setMoodButtons(false);
+            if (data.status === 'done') {
+              showToast('Mood analysis complete — ' + (data.analyzed || 0) + ' songs analyzed');
+            } else if (data.status === 'stopped') {
+              showToast('Mood analysis stopped — ' + (data.analyzed || 0) + ' songs analyzed so far');
+            }
+            if (moodWasAutoEnabled) restoreAuto('auto_mood_analyze_enabled', 'autoMoodEnabled');
+            moodWasAutoEnabled = false;
+            setTimeout(function() { document.getElementById('moodStatus').style.display = 'none'; }, 3000);
+          }
+        });
+    }, 2000);
+  }
+
+  function showMoodProgress(p) {
+    var wrap = document.getElementById('moodStatus');
+    if (!p || p.status === 'idle') { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    var total = p.total || 1;
+    var processed = p.processed || 0;
+    var pct = Math.round((processed / total) * 100);
+    var label = 'Analyzing mood…';
+    if (p.status === 'done') label = 'Mood analysis complete';
+    else if (p.status === 'stopped') label = 'Mood analysis stopped';
+    document.getElementById('moodLabel').textContent = label;
+    document.getElementById('moodPct').textContent = pct + '%';
+    document.getElementById('moodBar').style.width = pct + '%';
+    document.getElementById('moodDetails').textContent =
+      processed + ' / ' + total + ' songs — ' +
+      (p.analyzed || 0) + ' analyzed, ' + (p.skipped || 0) + ' skipped, ' + (p.failed || 0) + ' failed';
+  }
+
+  var moodWasAutoEnabled = false;
+
+  function checkInitialMoodStatus() {
+    RendezVoxAPI.get('/admin/mood-analyze')
+      .then(function(data) {
+        if (data.status === 'running') {
+          showMoodProgress(data);
+          setMoodButtons(true);
+          pollMoodStatus();
+        }
+      })
+      .catch(function() { /* ignore */ });
+  }
+
+  function loadAutoMood() {
+    var s = settings['auto_mood_analyze_enabled'];
+    var el = document.getElementById('autoMoodEnabled');
+    if (s && el) el.checked = (s.value === 'true');
+    if (el) el.addEventListener('change', saveAutoMood);
+    loadAutoMoodStatus();
+  }
+
+  function loadAutoMoodStatus() {
+    RendezVoxAPI.get('/admin/auto-mood-status').then(function(data) {
+      var el = document.getElementById('autoMoodStatus');
+      if (!el) return;
+      if (!data.has_run) {
+        el.innerHTML = '<span style="opacity:.6">No auto-mood runs yet</span>';
+      } else {
+        var d = new Date(data.ran_at);
+        el.innerHTML = 'Last run: ' + d.toLocaleString() + ' — ' +
+          data.total + ' songs processed, ' + (data.analyzed || 0) + ' analyzed, ' + (data.skipped || 0) + ' skipped';
+      }
+    }).catch(function() {
+      var el = document.getElementById('autoMoodStatus');
+      if (el) el.innerHTML = '<span style="opacity:.6">Could not load auto-mood status</span>';
+    });
+  }
+
+  function saveAutoMood() {
+    var el = document.getElementById('autoMoodEnabled');
+    var val = el.checked ? 'true' : 'false';
+    RendezVoxAPI.put('/admin/settings/auto_mood_analyze_enabled', { value: val })
+      .then(function() {
+        if (settings['auto_mood_analyze_enabled']) settings['auto_mood_analyze_enabled'].value = val;
+        showToast('Auto-mood analysis ' + (el.checked ? 'enabled' : 'disabled'));
+      })
+      .catch(function(err) {
+        el.checked = !el.checked;
+        showToast((err && err.error) || 'Failed to save', 'error');
+      });
+  }
+
   // ── Appearance Tab ──────────────────────────────────
 
   function initAppearanceTab() {
     renderThemeDropdown();
+    initAutoTheme();
     initAccentPicker();
   }
 
@@ -2213,6 +2459,116 @@ var RendezVoxSettings = (function() {
   function updatePreviewDot(dot, themes, name) {
     if (!dot || !themes[name]) return;
     dot.style.background = themes[name].vars['--accent'];
+  }
+
+  function initAutoTheme() {
+    var toggle = document.getElementById('autoThemeEnabled');
+    var configDiv = document.getElementById('autoThemeConfig');
+    var lightSel = document.getElementById('autoThemeLight');
+    var darkSel = document.getElementById('autoThemeDark');
+    var statusEl = document.getElementById('autoThemeStatus');
+    if (!toggle || !configDiv || !lightSel || !darkSel) return;
+
+    var themes = RendezVoxTheme.list();
+
+    // Populate light/dark selectors
+    function populateSelect(sel, filterGroup, defaultVal) {
+      var html = '';
+      Object.keys(themes).forEach(function(key) {
+        var t = themes[key];
+        var selected = (key === defaultVal) ? ' selected' : '';
+        html += '<option value="' + key + '"' + selected + '>' + escHtml(t.label) + ' (' + t.group + ')</option>';
+      });
+      sel.innerHTML = html;
+    }
+
+    var info = RendezVoxTheme.autoInfo();
+    var isEnabled = info && info.enabled;
+
+    populateSelect(lightSel, 'Light', (info && info.light) || 'light');
+    populateSelect(darkSel, 'Dark', (info && info.dark) || 'dark');
+
+    toggle.checked = isEnabled;
+    configDiv.style.display = isEnabled ? '' : 'none';
+
+    // Disable manual theme picker when auto is on
+    var mainSel = document.getElementById('themeSelect');
+    if (mainSel && isEnabled) {
+      mainSel.disabled = true;
+      mainSel.title = 'Disabled while auto theme is active';
+    }
+
+    if (isEnabled) updateAutoStatus(statusEl, info);
+
+    toggle.addEventListener('change', function() {
+      var on = toggle.checked;
+      configDiv.style.display = on ? '' : 'none';
+      if (mainSel) {
+        mainSel.disabled = on;
+        mainSel.title = on ? 'Disabled while auto theme is active' : '';
+      }
+      if (on) {
+        RendezVoxTheme.setAutoMode(true, lightSel.value, darkSel.value);
+        setTimeout(function() {
+          updateAutoStatus(statusEl, RendezVoxTheme.autoInfo());
+          syncThemeDropdown();
+        }, 1500);
+        showToast('Auto theme enabled');
+      } else {
+        RendezVoxTheme.setAutoMode(false);
+        showToast('Auto theme disabled');
+      }
+    });
+
+    lightSel.addEventListener('change', function() {
+      if (!toggle.checked) return;
+      RendezVoxTheme.setAutoMode(true, lightSel.value, darkSel.value);
+      setTimeout(function() {
+        updateAutoStatus(statusEl, RendezVoxTheme.autoInfo());
+        syncThemeDropdown();
+      }, 1500);
+    });
+
+    darkSel.addEventListener('change', function() {
+      if (!toggle.checked) return;
+      RendezVoxTheme.setAutoMode(true, lightSel.value, darkSel.value);
+      setTimeout(function() {
+        updateAutoStatus(statusEl, RendezVoxTheme.autoInfo());
+        syncThemeDropdown();
+      }, 1500);
+    });
+  }
+
+  function updateAutoStatus(el, info) {
+    if (!el || !info) return;
+    if (!info.lat || !info.lon) {
+      el.textContent = 'Determining location...';
+      return;
+    }
+    var fmtTime = function(d) {
+      if (!d) return '--:--';
+      var h = d.getHours(), m = d.getMinutes();
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
+    };
+    var sunrise = info.sunrise ? fmtTime(info.sunrise) : '?';
+    var sunset = info.sunset ? fmtTime(info.sunset) : '?';
+    var mode = info.isDaytime ? 'Day' : 'Night';
+    var lat = info.lat.toFixed(2), lon = info.lon.toFixed(2);
+    el.innerHTML = '<span style="color:var(--text)">Currently: <strong>' + mode + '</strong></span>' +
+      ' &middot; Sunrise ' + sunrise + ' &middot; Sunset ' + sunset +
+      '<br><span style="font-size:.75rem;opacity:.7">Location: ' + lat + ', ' + lon + '</span>';
+  }
+
+  function syncThemeDropdown() {
+    var sel = document.getElementById('themeSelect');
+    var dot = document.getElementById('themePreviewDot');
+    if (!sel) return;
+    var cur = RendezVoxTheme.current();
+    sel.value = cur;
+    var themes = RendezVoxTheme.list();
+    updatePreviewDot(dot, themes, cur);
   }
 
   function initAccentPicker() {
@@ -2486,6 +2842,9 @@ var RendezVoxSettings = (function() {
     stopSilenceDetect: stopSilenceDetect,
     startRenamePaths: startRenamePaths,
     stopRenamePaths: stopRenamePaths,
+    resetSmartFeatures: resetSmartFeatures,
+    startMoodAnalysis: startMoodAnalysis,
+    stopMoodAnalysis: stopMoodAnalysis,
     saveBlockedWords: saveBlockedWords,
     saveAppVersion: saveAppVersion,
     applyEq: applyEq,

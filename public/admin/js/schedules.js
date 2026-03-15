@@ -227,7 +227,7 @@ var RendezVoxSchedules = (function() {
       var color = p.color || DEFAULT_COLOR;
       html += '<div class="palette-chip" draggable="true" ' +
         'data-playlist-id="' + p.id + '" ' +
-        'style="background:' + escHtml(color) + '">' +
+        'style="background:' + escHtml(color) + ';color:' + contrastText(color) + '">' +
         escHtml(p.name) + '</div>';
     });
     container.innerHTML = html;
@@ -256,7 +256,7 @@ var RendezVoxSchedules = (function() {
     var ghost = document.createElement('div');
     ghost.style.cssText = 'position:absolute;top:-1000px;left:-1000px;' +
       'padding:4px 10px;border-radius:5px;font-size:.75rem;font-weight:600;' +
-      'color:#fff;white-space:nowrap;background:' + paletteDragData.color;
+      'color:' + contrastText(paletteDragData.color) + ';white-space:nowrap;background:' + paletteDragData.color;
     ghost.textContent = p.name;
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 0, 0);
@@ -309,7 +309,7 @@ var RendezVoxSchedules = (function() {
       preview.style.height = ((endMin - startMin) / 60) * HOUR_H + 'px';
       preview.style.background = hexToRgba(paletteDragData.color, 0.3);
       preview.style.borderColor = paletteDragData.color;
-      preview.style.color = '#fff';
+      preview.style.color = contrastText(paletteDragData.color);
       preview.textContent = paletteDragData.name + '  ' +
         formatTimeHHMM(startMin) + ' – ' + formatTimeHHMM(endMin);
     }
@@ -385,7 +385,7 @@ var RendezVoxSchedules = (function() {
     touchGhost = document.createElement('div');
     touchGhost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;' +
       'padding:4px 10px;border-radius:5px;font-size:.75rem;font-weight:600;' +
-      'color:#fff;white-space:nowrap;background:' + paletteDragData.color +
+      'color:' + contrastText(paletteDragData.color) + ';white-space:nowrap;background:' + paletteDragData.color +
       ';box-shadow:0 2px 8px rgba(0,0,0,.3);transform:translate(-50%,-120%)';
     touchGhost.textContent = p.name;
     document.body.appendChild(touchGhost);
@@ -447,7 +447,7 @@ var RendezVoxSchedules = (function() {
       preview.style.height = ((endMin - startMin) / 60) * HOUR_H + 'px';
       preview.style.background = hexToRgba(paletteDragData.color, 0.3);
       preview.style.borderColor = paletteDragData.color;
-      preview.style.color = '#fff';
+      preview.style.color = contrastText(paletteDragData.color);
       preview.textContent = paletteDragData.name + '  ' +
         formatTimeHHMM(startMin) + ' – ' + formatTimeHHMM(endMin);
     }
@@ -610,9 +610,11 @@ var RendezVoxSchedules = (function() {
         var displayH = Math.max(15, heightPx - 4); // 4px gap between adjacent blocks
         var selClass = selectedIds[s.id] ? ' selected' : '';
         var isLocked = isSpecialSchedule(s);
+        var txtColor = contrastText(color);
         html += '<div class="cal-block' + (isNow ? ' now' : '') + selClass + (isLocked ? ' locked' : '') + '" ' +
           'data-schedule-id="' + s.id + '" data-day="' + d + '" ' +
           'style="top:' + topPx + 'px;height:' + displayH + 'px;' +
+          'color:' + txtColor + ';' +
           'background:' + hexToRgba(color, 0.85) + ';' +
           'border-left:3px solid ' + color + ';' +
           'opacity:' + opacity + '">';
@@ -674,6 +676,17 @@ var RendezVoxSchedules = (function() {
     var g = parseInt(hex.substring(2, 4), 16);
     var b = parseInt(hex.substring(4, 6), 16);
     return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  // Returns dark or light text color based on background luminance
+  function contrastText(hex) {
+    hex = hex.replace('#', '');
+    var r = parseInt(hex.substring(0, 2), 16);
+    var g = parseInt(hex.substring(2, 4), 16);
+    var b = parseInt(hex.substring(4, 6), 16);
+    // Relative luminance (sRGB)
+    var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.55 ? '#1a1a1a' : '#ffffff';
   }
 
   // ── Mouse event handlers for drag ──────────────────
@@ -1045,6 +1058,7 @@ var RendezVoxSchedules = (function() {
   var ctxDay = null; // day column index for paste target
   var ctxToggleBtn = null;
   var ctxCopyBtn = null;
+  var ctxManageBtn = null;
   var ctxApplyBtns = []; // array of {btn, days} for apply-to options
   var ctxApplyLabel = null;
   var ctxDeleteBtn = null;
@@ -1058,7 +1072,7 @@ var RendezVoxSchedules = (function() {
       var btn = document.createElement('button');
       btn.textContent = label;
       btn.style.cssText = 'display:block;width:100%;text-align:left;padding:8px 14px;background:none;border:none;color:' + color + ';cursor:pointer;font-size:.8rem';
-      btn.addEventListener('mouseenter', function() { btn.style.background = 'var(--bg-hover,rgba(255,255,255,.06))'; });
+      btn.addEventListener('mouseenter', function() { btn.style.background = 'var(--hover-overlay)'; });
       btn.addEventListener('mouseleave', function() { btn.style.background = 'none'; });
       return btn;
     }
@@ -1091,6 +1105,17 @@ var RendezVoxSchedules = (function() {
         priority: s.priority
       };
       showToast('Schedule copied');
+    });
+
+    // Manage Playlist — navigate to playlist detail
+    ctxManageBtn = makeBtn('Manage Playlist', 'var(--accent)');
+    ctxManageBtn.addEventListener('click', function() {
+      var id = ctxScheduleId;
+      hideContextMenu();
+      if (!id) return;
+      var s = schedules.find(function(x) { return x.id === id; });
+      if (!s) return;
+      window.location.href = '/admin/playlists?id=' + s.playlist_id;
     });
 
     // "Apply to..." label + day-pattern buttons
@@ -1152,6 +1177,7 @@ var RendezVoxSchedules = (function() {
 
     ctxMenu.appendChild(ctxToggleBtn);
     ctxMenu.appendChild(ctxCopyBtn);
+    ctxMenu.appendChild(ctxManageBtn);
     ctxMenu.appendChild(ctxApplyLabel);
     ctxApplyBtns.forEach(function(item) { ctxMenu.appendChild(item.btn); });
     ctxMenu.appendChild(ctxDeleteBtn);
@@ -1173,6 +1199,7 @@ var RendezVoxSchedules = (function() {
     }
     ctxToggleBtn.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none';
     ctxCopyBtn.style.display = isBlockMenu ? 'block' : 'none';
+    ctxManageBtn.style.display = isBlockMenu ? 'block' : 'none';
     ctxApplyLabel.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none';
     ctxApplyBtns.forEach(function(item) { item.btn.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none'; });
     ctxDeleteBtn.style.display = (isBlockMenu && !isLocked) ? 'block' : 'none';

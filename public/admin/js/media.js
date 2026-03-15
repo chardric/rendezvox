@@ -22,6 +22,13 @@ var RendezVoxMedia = (function () {
     ai: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74L12 2z"/><path d="M5 19l1.5-3L10 15"/><path d="M19 19l-1.5-3L14 15"/></svg>',
   };
 
+  // ── Helpers ──────────────────────────────────────────
+  function countryFlag(code) {
+    if (!code || code.length !== 2) return '';
+    return String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(0) - 65)
+         + String.fromCodePoint(0x1F1E6 + code.toUpperCase().charCodeAt(1) - 65);
+  }
+
   // ── State ─────────────────────────────────────────────
   var artists      = [];
   var categories   = [];
@@ -75,6 +82,7 @@ var RendezVoxMedia = (function () {
 
     loadArtists();
     loadCategories();
+    loadCountries();
 
     // Header upload button
     document.getElementById('btnUpload').addEventListener('click', function () {
@@ -111,6 +119,10 @@ var RendezVoxMedia = (function () {
       loadSongs();
     });
     document.getElementById('filterArtist').addEventListener('change', function () {
+      currentPage = 1;
+      loadSongs();
+    });
+    document.getElementById('filterCountry').addEventListener('change', function () {
       currentPage = 1;
       loadSongs();
     });
@@ -495,6 +507,19 @@ var RendezVoxMedia = (function () {
     });
   }
 
+  function loadCountries() {
+    RendezVoxAPI.get('/admin/countries').then(function (codes) {
+      var el = document.getElementById('filterCountry');
+      var cur = el.value;
+      var html = '<option value="">All Countries</option>';
+      codes.forEach(function (cc) {
+        html += '<option value="' + cc + '">' + countryFlag(cc) + ' ' + cc + '</option>';
+      });
+      el.innerHTML = html;
+      el.value = cur;
+    });
+  }
+
   function populateGenreSelects() {
     var filterHtml = '<option value="">All Genres/Categories</option>';
     var selectHtml = '<option value="">Select genre/category...</option>';
@@ -528,9 +553,12 @@ var RendezVoxMedia = (function () {
       var artistId = document.getElementById('filterArtist').value;
       var search   = (document.getElementById('songSearch').value || '').trim();
 
-      if (genreId)  params.push('category_id=' + encodeURIComponent(genreId));
-      if (artistId) params.push('artist_id=' + encodeURIComponent(artistId));
-      if (search)   params.push('search=' + encodeURIComponent(search));
+      var countryCode = document.getElementById('filterCountry').value;
+
+      if (genreId)     params.push('category_id=' + encodeURIComponent(genreId));
+      if (artistId)    params.push('artist_id=' + encodeURIComponent(artistId));
+      if (countryCode) params.push('country_code=' + encodeURIComponent(countryCode));
+      if (search)      params.push('search=' + encodeURIComponent(search));
 
       // Filter by active status based on "Show inactive" checkbox
       var showInactive = document.getElementById('showInactive');
@@ -633,7 +661,7 @@ var RendezVoxMedia = (function () {
           '</td>' +
           '<td style="text-align:center;color:var(--text-dim,rgba(255,255,255,0.35));font-size:0.78rem">' + numCell + '</td>' +
           '<td>' + title + (s.meta_locked ? ' <span class="badge-locked" title="Manually edited — protected from re-scan">' + IC.lock + '</span>' : '') + (!s.is_active && !isTrash && !isInactiveView() ? '<span class="badge-inactive">(off)</span>' : '') + '</td>' +
-          '<td>' + artist + '</td>' +
+          '<td>' + (s.country_code ? '<span title="' + escHtml(s.country_code) + '">' + countryFlag(s.country_code) + '</span> ' : '') + artist + '</td>' +
           '<td>' + genre  + '</td>' +
           '<td style="font-size:0.78rem;opacity:0.55;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(s.file_path || '') + '">' + escHtml(s.file_path || '') + '</td>' +
           '<td style="white-space:nowrap;font-size:0.82rem;opacity:0.5">' + formatDuration(s.duration_ms) + '</td>' +
@@ -1482,6 +1510,64 @@ var RendezVoxMedia = (function () {
     });
   }
 
+  /**
+   * Smart artist matching: exact → initials → number words → substring.
+   * Returns option index or -1.
+   */
+  function findArtistMatch(sel, name) {
+    var lower = name.toLowerCase();
+
+    // 1. Exact case-insensitive
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].text.toLowerCase() === lower) return i;
+    }
+
+    // Helper: extract initials from a name ("Michael Learns to Rock" → "mltr")
+    function initials(s) {
+      return s.replace(/[^a-zA-Z0-9 ]/g, '').split(/\s+/).map(function(w) { return w[0] || ''; }).join('').toLowerCase();
+    }
+
+    // Helper: normalize number words ↔ digits ("twenty" ↔ "20")
+    var numWords = { 'twenty': '20', 'thirty': '30', 'forty': '40', 'fifty': '50',
+      'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
+      'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10',
+      'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14', 'fifteen': '15',
+      'sixteen': '16', 'seventeen': '17', 'eighteen': '18', 'nineteen': '19' };
+    var digitWords = {};
+    Object.keys(numWords).forEach(function(w) { digitWords[numWords[w]] = w; });
+
+    function normalizeNums(s) {
+      var out = s.toLowerCase();
+      Object.keys(numWords).forEach(function(w) { out = out.replace(new RegExp('\\b' + w + '\\b', 'g'), numWords[w]); });
+      Object.keys(digitWords).forEach(function(d) { out = out.replace(new RegExp('\\b' + d + '\\b', 'g'), digitWords[d]); });
+      return out;
+    }
+
+    var nameInit = initials(name);
+    var nameNorm = normalizeNums(name);
+
+    for (var j = 0; j < sel.options.length; j++) {
+      var optText = sel.options[j].text;
+      var optLower = optText.toLowerCase();
+      var optInit = initials(optText);
+
+      // 2. Initials match: "MLTR" ↔ "Michael Learns to Rock"
+      if (nameInit.length >= 2 && nameInit === optLower) return j;
+      if (optInit.length >= 2 && optInit === lower) return j;
+      if (nameInit.length >= 2 && optInit.length >= 2 && nameInit === optInit) return j;
+
+      // 3. Number word normalization: "Matchbox 20" ↔ "Matchbox Twenty"
+      if (normalizeNums(optText) === nameNorm) return j;
+
+      // 4. One contains the other (for "The Beatles" vs "Beatles" etc.)
+      if (lower.length > 3 && optLower.length > 3) {
+        if (optLower.indexOf(lower) !== -1 || lower.indexOf(optLower) !== -1) return j;
+      }
+    }
+
+    return -1;
+  }
+
   function applyAiSuggestions(changes, sug) {
     if (changes.title) {
       document.getElementById('editTitle').value = changes.title;
@@ -1490,18 +1576,27 @@ var RendezVoxMedia = (function () {
       document.getElementById('editYear').value = changes.year;
     }
     if (changes.artist) {
-      // Find or pick closest matching artist in select
+      // Smart artist matching: exact → initials → auto-create
       var sel = document.getElementById('editArtist');
-      var found = false;
-      for (var i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].text.toLowerCase() === changes.artist.toLowerCase()) {
-          sel.value = sel.options[i].value;
-          found = true;
-          break;
+      var matchIdx = findArtistMatch(sel, changes.artist);
+      if (matchIdx >= 0) {
+        sel.value = sel.options[matchIdx].value;
+        if (sel.options[matchIdx].text.toLowerCase() !== changes.artist.toLowerCase()) {
+          showToast('Matched "' + changes.artist + '" to existing "' + sel.options[matchIdx].text + '"');
         }
-      }
-      if (!found) {
-        showToast('Artist "' + changes.artist + '" not in list — create it first or save to auto-create', 'info');
+      } else {
+        RendezVoxAPI.post('/admin/artists', { name: changes.artist })
+          .then(function(data) {
+            var opt = document.createElement('option');
+            opt.value = data.id;
+            opt.textContent = changes.artist;
+            sel.appendChild(opt);
+            sel.value = data.id;
+            showToast('Artist "' + changes.artist + '" created and selected');
+          })
+          .catch(function() {
+            showToast('Could not create artist "' + changes.artist + '"', 'error');
+          });
       }
     }
     if (changes.genre) {
@@ -2044,23 +2139,22 @@ var RendezVoxMedia = (function () {
   }
 
   function createPlaylistFromPicker() {
-    var name = prompt('New playlist name:');
-    if (!name || !name.trim()) return;
-
-    RendezVoxAPI.post('/admin/playlists', { name: name.trim(), type: 'manual' })
-      .then(function (data) {
-        showToast('Playlist created');
-        // Add songs to the new playlist
-        return RendezVoxAPI.post('/admin/playlists/' + data.id + '/songs/bulk', {
-          song_ids: pickerSongIds
-        }).then(function (addData) {
-          showToast(addData.added + ' song' + (addData.added !== 1 ? 's' : '') + ' added to "' + name.trim() + '"');
-          document.getElementById('playlistPickerModal').classList.add('hidden');
+    RendezVoxConfirm.prompt('Enter a name for the new playlist:', { title: 'New Playlist', placeholder: 'Playlist name', okLabel: 'Create', okClass: 'btn-primary' }).then(function(name) {
+      if (!name) return;
+      RendezVoxAPI.post('/admin/playlists', { name: name, type: 'manual' })
+        .then(function (data) {
+          showToast('Playlist created');
+          return RendezVoxAPI.post('/admin/playlists/' + data.id + '/songs/bulk', {
+            song_ids: pickerSongIds
+          }).then(function (addData) {
+            showToast(addData.added + ' song' + (addData.added !== 1 ? 's' : '') + ' added to "' + name + '"');
+            document.getElementById('playlistPickerModal').classList.add('hidden');
+          });
+        })
+        .catch(function (err) {
+          showToast((err && err.error) || 'Failed to create playlist', 'error');
         });
-      })
-      .catch(function (err) {
-        showToast((err && err.error) || 'Failed to create playlist', 'error');
-      });
+    });
   }
 
   // ── Public API ────────────────────────────────────────
