@@ -71,6 +71,16 @@ class NextTrackHandler
 
         $state = $db->query('SELECT * FROM rotation_state WHERE id = 1')->fetch();
 
+        // ── 1b. Detect playlist transition (schedule boundary) ──
+        // When the resolved playlist differs from the currently-playing
+        // playlist, set crossfade to 0 so the current song finishes
+        // completely before the new playlist starts.
+        $isTransition = false;
+        $currentPid   = $state['current_playlist_id'] ?? null;
+        if (!$isEmergency && $currentPid && (int) $currentPid !== $playlistId) {
+            $isTransition = true;
+        }
+
         if (!$playlistId) {
             Response::json([
                 'song'    => null,
@@ -356,7 +366,10 @@ class NextTrackHandler
             'schedule_id' => $scheduleId ? (int) $scheduleId : null,
         ];
 
-        if ($crossfadeMs !== null) {
+        if ($isTransition) {
+            // No crossfade during playlist transitions — let current song finish
+            $response['crossfade_ms'] = 0;
+        } elseif ($crossfadeMs !== null) {
             $response['crossfade_ms'] = $crossfadeMs;
         }
 
